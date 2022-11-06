@@ -1,10 +1,12 @@
 
 use std::fmt;
 extern crate needletail;
-use needletail::{parse_fastx_file, Sequence};
+use needletail::parse_fastx_file;
 use hashbrown::HashMap;
 
 pub mod split_kmer;
+use crate::ska_dict::split_kmer::SplitKmer;
+
 pub mod bit_encoding;
 use crate::ska_dict::bit_encoding::encode_base;
 use crate::ska_dict::bit_encoding::IUPAC;
@@ -30,24 +32,25 @@ pub struct SkaDict {
 impl SkaDict {
     fn add_to_dict(&mut self, kmer: u64, base: u8) {
         self.split_kmers.entry(kmer)
-            .and_modify(|b| {*b[0] = iupac[encode_base(b[0]) * 256 + base]})
+            .and_modify(|b| {*b[0] = IUPAC[encode_base(b[0]) * 256 + base]})
             .or_insert(Vec::from([base]));
     }
 
     pub fn new(&filename: str, &name: str, rc: bool) -> Self {
         let mut reader = parse_fastx_file(&filename).expect(format!("invalid path/file: {}", filename));
         let names = Vec::from([name]);
-        let mut sk_dict: HashMap<u64, Vec<u8>> = HashMap::new();
+        let mut dict: HashMap<u64, Vec<u8>> = HashMap::new();
+        let mut sk_dict = Self{names, dict};
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            let kmer_it = SplitKmer(seqrec.seq(), seqrec.num_bases(), rc);
+            let kmer_it = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), rc);
             let (mut kmer, mut base) = kmer_it.get_curr_kmer();
-            self.add_to_dict(kmer, base);
+            sk_dict.add_to_dict(kmer, base);
             while Some(kmer, base) = kmer_it.get_next_kmer() {
-                self.add_to_dict(kmer, base);
+                sk_dict.add_to_dict(kmer, base);
             }
         }
-        return Self{names, sk_dict};
+        return sk_dict;
     }
 
     pub fn merge(&mut self, &other: SkaDict) {

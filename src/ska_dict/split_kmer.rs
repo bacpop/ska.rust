@@ -1,9 +1,10 @@
 
+use std::borrow::Cow;
 use crate::ska_dict::bit_encoding::*;
 
 pub struct SplitKmer<'a> {
-    k: u8,
-    seq: &'a u8,
+    k: usize,
+    seq: Cow<'a, [u8]>,
     seq_len: usize,
     start: u64, // upper bits
     end: u64, // lower bits
@@ -12,12 +13,12 @@ pub struct SplitKmer<'a> {
     rc_start: u64,
     rc_end: u64,
     rc_middle_base: u8,
-    index: i32
+    index: usize
 }
 
-impl SplitKmer<'a> {
-    fn build(seq: &'a u8, seq_len: usize, k: u8, idx: &mut i32) -> Option<(u64, u64, u8)> {
-        if (idx + k >= seq_len) {
+impl<'a> SplitKmer<'a> {
+    fn build(seq: Cow<'a, [u8]>, seq_len: usize, k: usize, idx: &mut usize) -> Option<(u64, u64, u8)> {
+        if *idx + k >= seq_len {
             return None;
         }
         let mut start: u64 = 0;
@@ -25,12 +26,12 @@ impl SplitKmer<'a> {
         let mut middle_base: u8 = 0;
         let middle_idx = (k + 1) / 2;
         for i in 0..k {
-            if (seq[i + idx] != 78) {
-                let next_base = encode_base(seq[i + idx]);
-                if (i < middle_idx) {
+            if seq[i + *idx] & 0xF != 14 { // Checks for N or n
+                let next_base = encode_base(seq[i + *idx]) as u64;
+                if i < middle_idx {
                     end = end << 2;
                     end |= next_base;
-                } else if (i > middle_idx) {
+                } else if i > middle_idx {
                     start = start << 2;
                     start |= next_base << ((middle_idx + 1) * 2);
                 } else {
@@ -38,8 +39,8 @@ impl SplitKmer<'a> {
                 }
             } else {
                 // Start again, skipping over N
-                idx += i + 1;
-                if (idx + k >= seq_len) {
+                *idx += i + 1;
+                if *idx + k >= seq_len {
                     return None;
                 }
                 start = 0;
@@ -48,7 +49,7 @@ impl SplitKmer<'a> {
                 i = 0;
             }
         }
-        idx += k + 1;
+        *idx += k + 1;
         return Some(start, end, middle_base);
     }
 
@@ -69,7 +70,7 @@ impl SplitKmer<'a> {
             let new_kmer = Self::build(self.seq, 31, &self.idx);
             if new_kmer.is_some() {
                 (self.start, self.end, self.middle_base) = new_kmer.unwrap_unchecked();
-                if (self.rc) {
+                if self.rc {
                     self.update_rc();
                 }
                 success = true;
@@ -79,7 +80,7 @@ impl SplitKmer<'a> {
             self.middle_base = self.end >> 30;
             let new_base = encode_base(base);
             self.end = (self.end << 2 | new_base) & lower_mask;
-            if (self.rc) {
+            if self.rc {
                 self.rc_start = (self.rc_start >> 2 | self.rc_middle_base << 62) & lower_mask;
                 self.rc_middle_base = rc_base(self.middle_base);
                 self.rc_end = (self.rc_end << 2 | rc_base(new_base)) & upper_mask;
@@ -92,19 +93,19 @@ impl SplitKmer<'a> {
     pub fn new(seq: &u8, seq_len: usize, rc: bool) -> Self {
         let (mut idx, rc_start, rc_end, rc_middle_base) = 0;
         let k = 31;
-        let (start, end, middle_base) = build(seq, k, &idx).expect("Sequence too short or too many Ns");
+        let (start, end, middle_base) = Self::build(seq, k, &idx).expect("Sequence too short or too many Ns");
         let mut split_kmer = Self {k, seq, start, end, middle_base, rc, rc_start, rc_end, rc_middle_base, idx};
-        if (rc) {
-            kmer.update_rc();
+        if rc {
+            split_kmer.update_rc();
         }
-        return kmer;
+        return split_kmer;
     }
 
     pub fn get_curr_kmer(&self) -> (u64, u8) {
         let split_kmer = self.start | self.end;
-        if (self.rc) {
+        if self.rc {
             let rc_split_kmer = self.rc_start | self.rc_end;
-            if (split_kmer > rc_split_kmer) {
+            if split_kmer > rc_split_kmer {
                 return (self.rc_split_kmer, self.rc_middle_base);
             }
         }
@@ -112,7 +113,8 @@ impl SplitKmer<'a> {
     }
 
     pub fn get_next_kmer(&mut self) -> Option<(u64, u8)> {
-        match next = self.roll_fwd() {
+        let next = self.roll_fwd();
+        match next {
             true => Some(self.get_curr_kmer()),
             false => None
         }

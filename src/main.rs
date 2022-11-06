@@ -1,7 +1,8 @@
 
-use rayon::prelude::*;
+// use rayon::prelude::*;
 
 pub mod ska_dict;
+use crate::ska_dict::SkaDict;
 
 // A better way to do this would be to start with some classes
 // ska_dict: HashMap<u64, u8>, with read method, to multi_ska
