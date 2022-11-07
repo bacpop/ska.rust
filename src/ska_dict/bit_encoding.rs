@@ -24,8 +24,8 @@ const VALID_ASCII: [u8; 256] =
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 208-223
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 224-239
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; //240-255
-pub const lower_mask: u64 = 0x3FFFFFFF;
-pub const upper_mask: u64 = 0x3FFFFFFF00000000;
+pub const LOWER_MASK: u64 = 0x3FFFFFFF;
+pub const UPPER_MASK: u64 = 0x3FFFFFFF00000000;
 
 #[inline(always)]
 pub fn encode_base(base: u8) -> u8 {
@@ -43,13 +43,16 @@ pub fn rc_base(base: u8) -> u8 {
 }
 
 #[inline(always)]
-pub fn valid_base(base: u8) -> u8 {
-    VALID_ASCII[base as usize]
+pub fn valid_base(base: u8) -> bool {
+    // VALID_ASCII[base as usize]
+    base & 0xF != 14
 }
+
+
 
 // https://www.biostars.org/p/113640/
 #[inline(always)]
-pub fn revcomp64_v2(mut res: u64, sizeKmer: usize) -> u64 {
+pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
     res = (res>> 2 & 0x3333333333333333) | (res & 0x3333333333333333) <<  2;
     res = (res>> 4 & 0x0F0F0F0F0F0F0F0F) | (res & 0x0F0F0F0F0F0F0F0F) <<  4;
     res = (res>> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) <<  8;
@@ -57,7 +60,7 @@ pub fn revcomp64_v2(mut res: u64, sizeKmer: usize) -> u64 {
     res = (res>>32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
     res = res ^ 0xAAAAAAAAAAAAAAAA;
 
-    return res >> (2*(32 - sizeKmer));
+    return res >> (2*(32 - k_size));
 }
 
 // A 	Adenine

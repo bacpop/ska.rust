@@ -32,28 +32,42 @@ pub struct SkaDict {
 impl SkaDict {
     fn add_to_dict(&mut self, kmer: u64, base: u8) {
         self.split_kmers.entry(kmer)
-            .and_modify(|b| {*b[0] = IUPAC[encode_base(b[0]) * 256 + base]})
+            .and_modify(|b| {b[0] = IUPAC[encode_base(b[0]) as usize * 256 + base as usize]})
             .or_insert(Vec::from([base]));
     }
 
-    pub fn new(&filename: str, &name: str, rc: bool) -> Self {
-        let mut reader = parse_fastx_file(&filename).expect(format!("invalid path/file: {}", filename));
-        let names = Vec::from([name]);
-        let mut dict: HashMap<u64, Vec<u8>> = HashMap::new();
-        let mut sk_dict = Self{names, dict};
+    pub fn ksize(&self) -> usize {
+        self.split_kmers.len()
+    }
+
+    pub fn nsamples(&self) -> usize {
+        self.names.len()
+    }
+
+    pub fn new(filename: &str, name: &str, rc: bool) -> Self {
+        let mut reader = parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
+        let names = Vec::from([name.to_string()]);
+        let split_kmers: HashMap<u64, Vec<u8>> = HashMap::new();
+        let mut sk_dict = Self{names, split_kmers};
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            let kmer_it = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), rc);
-            let (mut kmer, mut base) = kmer_it.get_curr_kmer();
-            sk_dict.add_to_dict(kmer, base);
-            while Some(kmer, base) = kmer_it.get_next_kmer() {
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), rc);
+            if kmer_opt.is_some() {
+                let mut kmer_it = kmer_opt.unwrap();
+                let (kmer, base) = kmer_it.get_curr_kmer();
                 sk_dict.add_to_dict(kmer, base);
+                while let Some((kmer, base)) = kmer_it.get_next_kmer() {
+                    sk_dict.add_to_dict(kmer, base);
+                }
             }
+        }
+        if sk_dict.ksize() == 0 {
+            panic!("{} has no valid sequence", filename);
         }
         return sk_dict;
     }
 
-    pub fn merge(&mut self, &other: SkaDict) {
+    pub fn merge(&mut self, other: &SkaDict) {
 
     }
 
@@ -61,11 +75,11 @@ impl SkaDict {
 
     }
 
-    pub fn delete_samples(&mut self, &idx: Vec<u32>) {
+    pub fn delete_samples(&mut self, idx: &Vec<u32>) {
 
     }
 
-    pub fn map(&self, &ref_fasta: str) {
+    pub fn map(&self, ref_fasta: &str) {
 
     }
 
