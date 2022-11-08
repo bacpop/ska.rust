@@ -1,29 +1,11 @@
 
-
 // Easy encoding from ASCII are the 3rd and 2nd bits
 // This encodes as A: 00; C: 01; T: 10; G: 11
 // EOR w/ 10          10     10     10     10
 // gives rc           10     11     00     01
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
-// TODO: if we're doing this, may as well return the actual code
-// maybe just check if == N?
-const VALID_ASCII: [u8; 256] =
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0-15
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-31
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 32-47
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 48-63
-        0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, // 64-79
-        0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 80-95
-        0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, // 96-111
-        0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 112-127
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 128-143
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 144-159
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 160-175
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 176-191
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 192-207
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 208-223
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 224-239
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; //240-255
+
+// To generalise beyond k = 31 these just need to be built by bitshift
 pub const LOWER_MASK: u64 = 0x3FFFFFFF;
 pub const UPPER_MASK: u64 = 0x3FFFFFFF00000000;
 
@@ -42,13 +24,11 @@ pub fn rc_base(base: u8) -> u8 {
     base ^ 2
 }
 
+// Checks for N or n
 #[inline(always)]
 pub fn valid_base(base: u8) -> bool {
-    // VALID_ASCII[base as usize]
     base & 0xF != 14
 }
-
-
 
 // https://www.biostars.org/p/113640/
 #[inline(always)]

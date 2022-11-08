@@ -108,13 +108,15 @@ impl SkaDict {
     }
 
     pub fn serialise(&self) {
-
+        // See https://docs.rs/serde/latest/serde/trait.Serialize.html
+        // or https://docs.rs/parquet/latest/parquet/
     }
 }
 
 // This will eventually print the alignment
 impl fmt::Display for SkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}\n", self.names)
+        write!(f, "{} kmers\n{} samples\nsample names: {:?}\n",
+                   self.ksize(), self.nsamples(), self.names)
     }
 }

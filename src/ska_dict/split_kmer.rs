@@ -6,14 +6,14 @@ pub struct SplitKmer<'a> {
     k: usize,
     seq: Cow<'a, [u8]>,
     seq_len: usize,
-    start: u64, // upper bits
-    end: u64, // lower bits
+    index: usize,
+    upper: u64,
+    lower: u64,
     middle_base: u8,
     rc: bool,
-    rc_start: u64,
-    rc_end: u64,
-    rc_middle_base: u8,
-    index: usize
+    rc_upper: u64,
+    rc_lower: u64,
+    rc_middle_base: u8
 }
 
 impl<'a> SplitKmer<'a> {
@@ -21,20 +21,22 @@ impl<'a> SplitKmer<'a> {
         if *idx + k >= seq_len {
             return None;
         }
-        let mut start: u64 = 0;
-        let mut end: u64 = 0;
+        let mut upper: u64 = 0;
+        let mut lower: u64 = 0;
         let mut middle_base: u8 = 0;
-        let middle_idx = (k + 1) / 2;
+        let middle_idx = (k + 1) / 2 - 1;
         let mut i = 0;
         while i < k {
             if valid_base(seq[i + *idx]) { // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
                 if i < middle_idx {
-                    end = end << 2;
-                    end |= next_base as u64;
+                    upper = upper << 2;
+                    upper |= (next_base as u64) << (middle_idx * 2);
+                    // println!("{:b} {:b}", upper, (next_base as u64) << (middle_idx * 2));
                 } else if i > middle_idx {
-                    start = start << 2;
-                    start |= (next_base as u64) << ((middle_idx + 1) * 2);
+                    lower = lower << 2;
+                    lower |= next_base as u64;
+                    // println!("{:b} {:b}", lower, (next_base as u64));
                 } else {
                     middle_base = next_base;
                 }
@@ -45,20 +47,20 @@ impl<'a> SplitKmer<'a> {
                 if *idx + k >= seq_len {
                     return None;
                 }
-                start = 0;
-                end = 0;
+                upper = 0;
+                lower = 0;
                 middle_base = 0;
                 i = 0;
             }
         }
-        *idx += k + 1;
-        return Some((start, end, middle_base));
+        *idx += k - 1;
+        return Some((upper, lower, middle_base));
     }
 
     fn update_rc(&mut self) {
-        self.rc_start = revcomp64_v2(self.end, 15);
+        self.rc_upper = revcomp64_v2(self.lower, 31) & UPPER_MASK ;
         self.rc_middle_base = rc_base(self.middle_base);
-        self.rc_end = revcomp64_v2(self.start, 15);
+        self.rc_lower = revcomp64_v2(self.upper, 31) & LOWER_MASK;
     }
 
     fn roll_fwd(&mut self) -> bool {
@@ -71,21 +73,21 @@ impl<'a> SplitKmer<'a> {
         if !valid_base(base) {
             let new_kmer = Self::build(&*self.seq, self.seq_len, self.k, &mut self.index);
             if new_kmer.is_some() {
-                (self.start, self.end, self.middle_base) = new_kmer.unwrap();
+                (self.upper, self.lower, self.middle_base) = new_kmer.unwrap();
                 if self.rc {
                     self.update_rc();
                 }
                 success = true;
             }
         } else {
-            self.start = (self.start << 2 | ((self.middle_base as u64) << 31)) & UPPER_MASK;
-            self.middle_base = (self.end >> 30) as u8;
+            self.upper = (self.upper << 2 | ((self.middle_base as u64) << 32)) & UPPER_MASK;
+            self.middle_base = (self.lower >> 30) as u8;
             let new_base = encode_base(base);
-            self.end = (self.end << 2 | (new_base as u64)) & LOWER_MASK;
+            self.lower = (self.lower << 2 | (new_base as u64)) & LOWER_MASK;
             if self.rc {
-                self.rc_start = (self.rc_start >> 2 | (self.rc_middle_base as u64) << 62) & LOWER_MASK;
+                self.rc_lower = ((self.rc_lower >> 2) | self.rc_middle_base as u64) & LOWER_MASK;
                 self.rc_middle_base = rc_base(self.middle_base);
-                self.rc_end = (self.rc_end << 2 | (rc_base(new_base) as u64)) & UPPER_MASK;
+                self.rc_upper = (self.rc_upper << 2 | (rc_base(new_base) as u64) << 60) & UPPER_MASK;
             }
             success = true;
         }
@@ -93,12 +95,12 @@ impl<'a> SplitKmer<'a> {
     }
 
     pub fn new(seq: Cow<'a, [u8]>, seq_len: usize, rc: bool) -> Option<Self> {
-        let (mut index, rc_start, rc_end, rc_middle_base) = (0, 0, 0, 0);
+        let (mut index, rc_upper, rc_lower, rc_middle_base) = (0, 0, 0, 0);
         let k = 31;
         let first_kmer = Self::build(&*seq, seq_len, k, &mut index);
         if first_kmer.is_some() {
-            let (start, end, middle_base) = first_kmer.unwrap();
-            let mut split_kmer = Self {k, seq_len, seq, start, end, middle_base, rc, rc_start, rc_end, rc_middle_base, index};
+            let (upper, lower, middle_base) = first_kmer.unwrap();
+            let mut split_kmer = Self {k, seq_len, seq, upper, lower, middle_base, rc, rc_upper, rc_lower, rc_middle_base, index};
             if rc {
                 split_kmer.update_rc();
             }
@@ -109,9 +111,9 @@ impl<'a> SplitKmer<'a> {
     }
 
     pub fn get_curr_kmer(&self) -> (u64, u8) {
-        let split_kmer = self.start | self.end;
+        let split_kmer = self.upper | self.lower;
         if self.rc {
-            let rc_split_kmer = self.rc_start | self.rc_end;
+            let rc_split_kmer = self.rc_upper | self.rc_lower;
             if split_kmer > rc_split_kmer {
                 return (rc_split_kmer, self.rc_middle_base);
             }
