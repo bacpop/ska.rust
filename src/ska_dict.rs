@@ -4,7 +4,9 @@ use core::mem::swap;
 
 extern crate needletail;
 use needletail::parse_fastx_file;
-use hashbrown::HashMap;
+//use hashbrown::HashMap;
+use nohash_hasher::NoHashHasher;
+use std::{collections::HashMap, hash::BuildHasherDefault};
 
 pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
@@ -28,7 +30,7 @@ use crate::ska_dict::bit_encoding::IUPAC;
 #[derive(Default, Clone)]
 pub struct SkaDict {
     names: Vec<String>,
-    split_kmers: HashMap<u64, Vec<u8>>
+    split_kmers: HashMap<u64, Vec<u8>, BuildHasherDefault<NoHashHasher<u64>>>
 }
 
 impl SkaDict {
@@ -49,7 +51,7 @@ impl SkaDict {
     pub fn new(filename: &str, name: &str, rc: bool) -> Self {
         let mut reader = parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
         let names = Vec::from([name.to_string()]);
-        let split_kmers: HashMap<u64, Vec<u8>> = HashMap::new();
+        let split_kmers: HashMap<u64, Vec<u8>, BuildHasherDefault<NoHashHasher<u64>>> = HashMap::with_hasher(BuildHasherDefault::default());
         let mut sk_dict = Self{names, split_kmers};
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
