@@ -1,5 +1,7 @@
 
 use std::fmt;
+use core::mem::swap;
+
 extern crate needletail;
 use needletail::parse_fastx_file;
 use hashbrown::HashMap;
@@ -67,8 +69,30 @@ impl SkaDict {
         return sk_dict;
     }
 
-    pub fn merge(&mut self, other: &SkaDict) {
-
+    pub fn merge<'a>(&'a mut self, other: &'a mut SkaDict) {
+        if other.nsamples() > 0 {
+            if self.names.is_empty() {
+                swap(&mut other.names, &mut self.names);
+                swap(&mut other.split_kmers, &mut self.split_kmers);
+            } else {
+                self.names.append(&mut other.names);
+                // NB - if this is changed to a B-Tree need to change this
+                // into an ordered merge
+                for (kmer, base_vec) in &mut other.split_kmers {
+                    self.split_kmers.entry(*kmer)
+                        .and_modify(|b| {b.append(base_vec)})
+                        .or_insert_with(|| {
+                            let mut new_base_vec: Vec<u8> = vec![b'N'; self.names.len()];
+                            new_base_vec.append(base_vec);
+                            new_base_vec });
+                }
+                for (kmer, base_vec) in &mut self.split_kmers {
+                    if !other.split_kmers.contains_key(kmer) {
+                        base_vec.extend(vec![b'N'; other.names.len()]);
+                    }
+                }
+            }
+        }
     }
 
     pub fn filter(&mut self, min_af: i32) {
@@ -91,6 +115,6 @@ impl SkaDict {
 // This will eventually print the alignment
 impl fmt::Display for SkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.names)
+        write!(f, "{:?}\n", self.names)
     }
 }

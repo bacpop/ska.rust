@@ -3,6 +3,7 @@
 
 pub mod ska_dict;
 use crate::ska_dict::SkaDict;
+use std::time::Instant;
 
 // A better way to do this would be to start with some classes
 // ska_dict: HashMap<u64, u8>, with read method, to multi_ska
@@ -25,6 +26,7 @@ use crate::ska_dict::SkaDict;
 // if no match: concat found with zeros * n_samples in no match
 
 fn main() {
+    let start = Instant::now();
     let filename = "19183_4#48.contigs_velvet.fa";
     let kmer_size: u8 = 31;
 
@@ -37,4 +39,7 @@ fn main() {
     //     .map(|f: &str| SkaDict.from(f))
     //     .reduce(|| SkaDict::Default(),
     //             |mut a: SkaDict, b: SkaDict| { a.merge(&b); a });
+    let end = Instant::now();
+    println!("time taken: {}ms",
+             end.duration_since(start).as_millis());
 }
