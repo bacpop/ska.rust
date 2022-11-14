@@ -76,8 +76,6 @@ impl SkaDict {
                 swap(&mut other.split_kmers, &mut self.split_kmers);
             } else {
                 self.names.append(&mut other.names);
-                // NB - if this is changed to a B-Tree need to change this
-                // into an ordered merge
                 for (kmer, base_vec) in &mut other.split_kmers {
                     self.split_kmers.entry(*kmer)
                         .and_modify(|b| {b.append(base_vec)})

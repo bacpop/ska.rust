@@ -26,7 +26,6 @@ use std::time::Instant;
 // if no match: concat found with zeros * n_samples in no match
 
 fn main() {
-    let start = Instant::now();
     let n_threads = 4;
     rayon::ThreadPoolBuilder::new().num_threads(n_threads).build_global().unwrap();
     let file_list = vec![
@@ -47,14 +46,38 @@ fn main() {
 
     //let ska_file = SkaDict::new(filename, "19183_4#48", true);
     //print!("{}", ska_file);
-    let ska_dict =
-        file_list
-        .par_iter()
-        .map(|(name, filename)| SkaDict::new(filename, name, rc))
-        .reduce(|| SkaDict::default(),
-                 |mut a: SkaDict, mut b: SkaDict| { a.merge(&mut b); a });
-    print!("{}", ska_dict);
+    // let ska_dict =
+    //     file_list
+    //     .iter()
+    //     .map(|(name, filename)| SkaDict::new(filename, name, rc));
+    //     .reduce(|| SkaDict::default(),
+    //              |mut a: SkaDict, mut b: SkaDict| { a.merge(&mut b); a }); // Check which is larger here?
+    let start = Instant::now();
+    let mut ska_dicts: Vec<SkaDict> = Vec::new();
+    for (name, filename) in &file_list {
+        ska_dicts.push(SkaDict::new(filename, name, rc))
+    }
+    let build = Instant::now();
+
+    let mut merged_dict = SkaDict::default();
+    for ska_dict in &mut ska_dicts {
+        merged_dict.merge(ska_dict);
+    }
+    let merge = Instant::now();
+
+    let ska_dict_p =
+         file_list
+         .par_iter()
+         .map(|(name, filename)| SkaDict::new(filename, name, rc))
+         .reduce(|| SkaDict::default(),
+                  |mut a: SkaDict, mut b: SkaDict| { a.merge(&mut b); a }); // Check which is larger here?
+    let parallel = Instant::now();
+
+    print!("{}", merged_dict);
+    print!("{}", ska_dict_p);
     let end = Instant::now();
-    println!("time taken: {}ms",
-             end.duration_since(start).as_millis());
+    println!("build:\t{}ms\nmerge:\t{}ms\npara\t{}ms",
+             build.duration_since(start).as_millis(),
+             merge.duration_since(build).as_millis(),
+             parallel.duration_since(merge).as_millis());
 }
