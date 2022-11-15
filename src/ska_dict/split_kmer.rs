@@ -58,7 +58,7 @@ impl<'a> SplitKmer<'a> {
     }
 
     fn update_rc(&mut self) {
-        self.rc_upper = revcomp64_v2(self.lower, 31) & UPPER_MASK ;
+        self.rc_upper = revcomp64_v2(self.lower, 31) & UPPER_MASK;
         self.rc_middle_base = rc_base(self.middle_base);
         self.rc_lower = revcomp64_v2(self.upper, 31) & LOWER_MASK;
     }

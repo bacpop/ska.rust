@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-compress = "0.2.1"
 needletail = "0.4.1"
 rayon = "1.5.3"
 hashbrown = "0.12"
+ndarray = "0.15.6"
