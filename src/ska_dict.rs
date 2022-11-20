@@ -3,11 +3,15 @@ use std::fmt;
 use std::mem;
 use core::mem::swap;
 
+use std::error::Error;
+use std::fs::File;
+use std::io::{BufWriter, BufReader};
+
 extern crate needletail;
 use needletail::parse_fastx_file;
 use hashbrown::HashMap;
-
 use ndarray::{Array2, ArrayView};
+use serde::{Serialize, Deserialize};
 
 pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
@@ -28,6 +32,7 @@ pub struct MergeSkaDict {
     split_kmers: HashMap<u64, Vec<u8>>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MergeSkaArray {
     names: Vec<String>,
     split_kmers: Vec<u64>,
@@ -155,18 +160,22 @@ impl MergeSkaArray {
         for (kmer, bases) in &dynamic.split_kmers {
             split_kmers.push(*kmer);
             variant_count.push(bases.iter().filter(|b| **b != b'-').count());
-            variants.push_row(ArrayView::from(bases));
+            variants.push_row(ArrayView::from(bases)).unwrap();
 
         }
         Self {names, split_kmers, variants, variant_count}
     }
 
-    pub fn save(&self, filename: &str) {
-        // See https://docs.rs/serde/latest/serde/trait.Serialize.html
+    pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
+        let mut serial_file = BufWriter::new(File::create(filename)?);
+        ciborium::ser::into_writer(self, &mut serial_file)?;
+        Ok(())
     }
 
-    pub fn load(filename: &str) -> Self {
-
+    pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
+        let ska_file = BufReader::new(File::open(filename)?);
+        let ska_obj: Self = ciborium::de::from_reader(ska_file)?;
+        Ok(ska_obj)
     }
 
     pub fn to_dict(&self) -> MergeSkaDict {
@@ -190,13 +199,22 @@ impl MergeSkaArray {
 
     }
 
+    pub fn filter(&mut self, min_freq: usize, const_sites: bool) {
+
+    }
 
 }
 
-// This will eventually print the alignment
+// This needs to be optimised
+// TODO: this needs to consider filter, above
 impl fmt::Display for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} kmers\n{} samples\nsample names: {:?}\n",
-                   self.ksize(), self.nsamples(), self.names)
+        self.names.iter()
+            .zip(self.variants.t().outer_iter())
+            .try_for_each(|it| {
+                let (name, seq_u8) = it;
+                let seq_char: Vec<char> = seq_u8.iter().map(|x| *x as char).collect();
+                write!(f, ">{}\n{:?}\n", name, seq_char)
+            })
     }
 }

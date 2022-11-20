@@ -2,7 +2,7 @@
 use rayon::prelude::*;
 
 pub mod ska_dict;
-use crate::ska_dict::{SkaDict, MergeSkaDict};
+use crate::ska_dict::{SkaDict, MergeSkaDict, MergeSkaArray};
 use std::time::Instant;
 
 fn main() {
@@ -55,4 +55,52 @@ fn main() {
              build.duration_since(start).as_millis(),
              merge.duration_since(build).as_millis(),
              parallel.duration_since(merge).as_millis());
+
+    let convert = Instant::now();
+    let ska_array = MergeSkaArray::new(&ska_dict_p);
+    let deconvert = Instant::now();
+    let _ska_dict_c = ska_array.to_dict();
+    let deconvert_end = Instant::now();
+
+    println!("encode:\t{}ms\ndecode:\t{}ms",
+    deconvert.duration_since(convert).as_millis(),
+    deconvert_end.duration_since(deconvert).as_millis());
+
+    let io_start = Instant::now();
+    //let mut file = File::create("test.aln").unwrap();
+    // TODO needs filtering first
+    // write!(file, "{}", ska_array).unwrap();
+
+    let save = Instant::now();
+    ska_array.save("test.skf").unwrap();
+
+    let load = Instant::now();
+    let _ska_array_load = MergeSkaArray::load("test.skf").unwrap();
+    let load_end = Instant::now();
+
+    println!("write:\t{}ms\nsave:\t{}ms\nload:\t{}ms",
+        save.duration_since(io_start).as_millis(),
+        load.duration_since(save).as_millis(),
+        load_end.duration_since(load).as_millis());
 }
+
+// Command line
+// Input commands
+// ska build <seq.fa> --compress
+// ska build -l rfile.txt --compress
+
+// Manipulation commands
+// ska merge file.skf...
+// ska delete file.skf <names>...
+// ska delete file.skf -l name_list.txt
+// ska weed file.skf --weed-seqs list.fa
+
+// Ouput commands
+// ska align <seq.fa>... --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
+// ska align -l rfile.txt --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
+// ska map ref.fa <seq.fa>... --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
+// ska map -l rfile.txt --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
+
+// Printing/debug commands
+// ska info file.skf <--bases> // prints the k-mer size number of samples, names, number of k-mers <number of patterns, prop A/C/G/T, GC-bias>
+// ska humanise file.skf // prints the split k-mers after decoding them

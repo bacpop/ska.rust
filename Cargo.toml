@@ -1,7 +1,13 @@
 [package]
-name = "ska_rust"
+name = "ska"
 version = "0.1.0"
+authors = ["John Lees <john@johnlees.me>"]
 edition = "2021"
+description = "Split k-mer alignment"
+repository = "https://github.com/bacpop/ska_rust/"
+license = "Apache-2.0"
+keywords = ["bioinformatics", "genomics", "sequencing", "kmer"]
+categories = ["science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,4 +15,6 @@ edition = "2021"
 needletail = "0.4.1"
 rayon = "1.5.3"
 hashbrown = "0.12"
-ndarray = "0.15.6"
+ndarray = { version = "0.15.6", features = ["serde"] }
+serde = { version = "1.0.147", features = ["derive"] }
+ciborium = "0.2.0"
