@@ -1,6 +1,9 @@
 
 use rayon::prelude::*;
 
+use std::fs::File;
+use std::io::{BufWriter, Write};
+
 pub mod ska_dict;
 use crate::ska_dict::{SkaDict, MergeSkaDict, MergeSkaArray};
 use std::time::Instant;
@@ -8,6 +11,10 @@ use std::time::Instant;
 fn main() {
     let n_threads = 4;
     rayon::ThreadPoolBuilder::new().num_threads(n_threads).build_global().unwrap();
+    let small_file = vec![
+        ("sample1", "test1.fa"),
+        ("sample2", "test2.fa")
+    ];
     let file_list = vec![
         ("BR1076_4336457", "assemblies/BR1076_4336457.contigs.fa"),
         ("NP7078_4383169", "assemblies/NP7078_4383169.contigs.fa"),
@@ -21,12 +28,12 @@ fn main() {
         ("NP7028_4382961", "assemblies/NP7028_4382961.contigs.fa"),
         ("093209_3736979", "assemblies/093209_3736979.contigs.fa")
     ];
-    let kmer_size: u8 = 31;
+    let kmer_size: usize = 31;
     let rc = true;
 
     let start = Instant::now();
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
-    for file_it in file_list.iter().enumerate() {
+    for file_it in small_file.iter().enumerate() {
         let (idx, (name, filename)) = file_it;
         ska_dicts.push(SkaDict::new(idx, filename, name, rc))
     }
@@ -39,13 +46,13 @@ fn main() {
     let merge = Instant::now();
 
     let ska_dict_p =
-         file_list
+        small_file
          .par_iter()
          .enumerate()
          .map(|(idx, (name, filename))| SkaDict::new(idx, filename, name, rc))
-         .fold(|| MergeSkaDict::new(file_list.len()),
+         .fold(|| MergeSkaDict::new(small_file.len()),
                 |mut a: MergeSkaDict, b: SkaDict| {a.append(&b); a})
-         .reduce(|| MergeSkaDict::new(file_list.len()),
+         .reduce(|| MergeSkaDict::new(small_file.len()),
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
@@ -67,9 +74,9 @@ fn main() {
     deconvert_end.duration_since(deconvert).as_millis());
 
     let io_start = Instant::now();
-    //let mut file = File::create("test.aln").unwrap();
+    let mut file = BufWriter::new(File::create("test.aln").unwrap());
     // TODO needs filtering first
-    // write!(file, "{}", ska_array).unwrap();
+    write!(&mut file, "{}", ska_array).unwrap();
 
     let save = Instant::now();
     ska_array.save("test.skf").unwrap();
@@ -95,12 +102,13 @@ fn main() {
 // ska delete file.skf -l name_list.txt
 // ska weed file.skf --weed-seqs list.fa
 
-// Ouput commands
-// ska align <seq.fa>... --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
-// ska align -l rfile.txt --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
-// ska map ref.fa <seq.fa>... --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
-// ska map -l rfile.txt --save-skf <-o output.aln> <--min 0.9> /// also takes skf files
+// Ouput commands (these take either one skf file, or an rfile, or a list on the command line)
+// ska align <seq.fa>... --save-skf <-o output.aln> <--min 0.9>
+// ska align -l rfile.txt --save-skf <-o output.aln> <--min 0.9>
+// ska map ref.fa <seq.fa>... --save-skf <-o output.aln> <--min 0.9>
+// ska map -l rfile.txt --save-skf <-o output.aln> <--min 0.9>
 
 // Printing/debug commands
+// ska nk file.skf // prints the number of k-mers (he he)
 // ska info file.skf <--bases> // prints the k-mer size number of samples, names, number of k-mers <number of patterns, prop A/C/G/T, GC-bias>
 // ska humanise file.skf // prints the split k-mers after decoding them
