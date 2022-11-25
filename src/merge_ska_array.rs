@@ -111,6 +111,8 @@ impl MergeSkaArray {
         self.update_counts();
     }
 
+    // TODO: will need to be careful about reverse complement here
+    // TODO: will need to consider duplicates here
     pub fn map(&self, ref_fasta: &str) {
 
     }

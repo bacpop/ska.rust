@@ -152,4 +152,8 @@ impl<'a> SplitKmer<'a> {
             false => None,
         }
     }
+
+    pub fn get_pos(&self) -> usize {
+        self.index
+    }
 }
