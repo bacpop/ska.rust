@@ -5,7 +5,14 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 
 pub mod ska_dict;
-use crate::ska_dict::{SkaDict, MergeSkaDict, MergeSkaArray};
+use crate::ska_dict::SkaDict;
+
+pub mod merge_ska_dict;
+use crate::merge_ska_dict::MergeSkaDict;
+
+pub mod merge_ska_array;
+use crate::merge_ska_array::MergeSkaArray;
+
 use std::time::Instant;
 
 fn main() {
@@ -33,7 +40,7 @@ fn main() {
 
     let start = Instant::now();
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
-    for file_it in small_file.iter().enumerate() {
+    for file_it in file_list.iter().enumerate() {
         let (idx, (name, filename)) = file_it;
         ska_dicts.push(SkaDict::new(idx, filename, name, rc))
     }
@@ -45,25 +52,23 @@ fn main() {
     }
     let merge = Instant::now();
 
-    let _ska_dict_p =
-        small_file
+    let ska_dict_p =
+        file_list
          .par_iter()
          .enumerate()
          .map(|(idx, (name, filename))| SkaDict::new(idx, filename, name, rc))
-         .fold(|| MergeSkaDict::new(small_file.len()),
+         .fold(|| MergeSkaDict::new(file_list.len()),
                 |mut a: MergeSkaDict, b: SkaDict| {a.append(&b); a})
-         .reduce(|| MergeSkaDict::new(small_file.len()),
+         .reduce(|| MergeSkaDict::new(file_list.len()),
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
     //print!("{}", merged_dict);
-    //print!("{}", ska_dict_p);
+    // print!("{}", ska_dict_p);
     println!("build:\t{}ms\nmerge:\t{}ms\npara:\t{}ms",
              build.duration_since(start).as_millis(),
              merge.duration_since(build).as_millis(),
              parallel.duration_since(merge).as_millis());
-
-    println!("{}", merged_dict);
 
     let convert = Instant::now();
     let mut ska_array = MergeSkaArray::new(&merged_dict);
