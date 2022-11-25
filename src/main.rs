@@ -40,26 +40,26 @@ fn main() {
 
     let start = Instant::now();
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
-    for file_it in file_list.iter().enumerate() {
+    for file_it in small_file.iter().enumerate() {
         let (idx, (name, filename)) = file_it;
-        ska_dicts.push(SkaDict::new(idx, filename, name, rc))
+        ska_dicts.push(SkaDict::new(kmer_size, idx, filename, name, rc))
     }
     let build = Instant::now();
 
-    let mut merged_dict = MergeSkaDict::new(ska_dicts.len());
+    let mut merged_dict = MergeSkaDict::new(kmer_size, ska_dicts.len());
     for ska_dict in &mut ska_dicts {
         merged_dict.append(ska_dict);
     }
     let merge = Instant::now();
 
     let ska_dict_p =
-        file_list
+    small_file
          .par_iter()
          .enumerate()
-         .map(|(idx, (name, filename))| SkaDict::new(idx, filename, name, rc))
-         .fold(|| MergeSkaDict::new(file_list.len()),
+         .map(|(idx, (name, filename))| SkaDict::new(kmer_size, idx, filename, name, rc))
+         .fold(|| MergeSkaDict::new(kmer_size, small_file.len()),
                 |mut a: MergeSkaDict, b: SkaDict| {a.append(&b); a})
-         .reduce(|| MergeSkaDict::new(file_list.len()),
+         .reduce(|| MergeSkaDict::new(kmer_size, small_file.len()),
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 

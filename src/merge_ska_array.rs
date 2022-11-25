@@ -21,6 +21,7 @@ use crate::merge_ska_dict::MergeSkaDict;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MergeSkaArray {
+    k: usize,
     names: Vec<String>,
     split_kmers: Vec<u64>,
     variants: Array2<u8>,
@@ -48,6 +49,7 @@ impl MergeSkaArray {
     }
 
     pub fn new(dynamic: &MergeSkaDict) -> Self {
+        let k = dynamic.kmer_len();
         let names = dynamic.names().clone();
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
         let mut split_kmers: Vec<u64> = Vec::new();
@@ -60,7 +62,7 @@ impl MergeSkaArray {
             variants.push_row(ArrayView::from(bases)).unwrap();
 
         }
-        Self {names, split_kmers, variants, variant_count}
+        Self {k, names, split_kmers, variants, variant_count}
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
@@ -85,7 +87,7 @@ impl MergeSkaArray {
             let (row_vec, kmer) = row_it;
             split_kmers.insert(*kmer, row_vec.to_vec());
         }
-        let mut dict = MergeSkaDict::new(n_samples);
+        let mut dict = MergeSkaDict::new(self.k, n_samples);
         dict.build_from_array(&mut names, &mut split_kmers);
         return dict;
     }

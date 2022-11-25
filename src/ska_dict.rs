@@ -11,6 +11,7 @@ pub mod bit_encoding;
 use crate::ska_dict::bit_encoding::{encode_base, IUPAC};
 
 pub struct SkaDict {
+    k: usize,
     sample_idx: usize,
     name: String,
     split_kmers: HashMap<u64, u8>
@@ -21,6 +22,10 @@ impl SkaDict {
         self.split_kmers.entry(kmer)
             .and_modify(|b| {*b = IUPAC[encode_base(*b) as usize * 256 + base as usize]})
             .or_insert(base);
+    }
+
+    pub fn kmer_len(&self) -> usize {
+        self.k
     }
 
     pub fn ksize(&self) -> usize {
@@ -39,14 +44,17 @@ impl SkaDict {
         &self.name
     }
 
-    pub fn new(sample_idx: usize, filename: &str, name: &str, rc: bool) -> Self {
+    pub fn new(k: usize, sample_idx: usize, filename: &str, name: &str, rc: bool) -> Self {
+        if k < 5 || k > 31 || k % 2 == 0 {
+            panic!("Invalid k-mer length");
+        }
         let mut reader = parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
         let name = name.to_string();
         let split_kmers: HashMap<u64, u8> = HashMap::default();
-        let mut sk_dict = Self{sample_idx, name, split_kmers};
+        let mut sk_dict = Self{k, sample_idx, name, split_kmers};
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), rc);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), k, rc);
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base) = kmer_it.get_curr_kmer();

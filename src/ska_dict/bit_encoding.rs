@@ -5,9 +5,16 @@
 // gives rc           10     11     00     01
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
 
-// To generalise beyond k = 31 these just need to be built by bitshift
-pub const LOWER_MASK: u64 = 0b111111111111111111111111111111;
-pub const UPPER_MASK: u64 = 0b111111111111111111111111111111000000000000000000000000000000;
+pub fn generate_masks(k: usize) -> (u64, u64) {
+    let half_size: usize = (k - 1) / 2;
+    let mut lower_mask = 0;
+    for _idx in 0..half_size {
+        lower_mask <<= 1;
+        lower_mask += 1;
+    }
+    let upper_mask = lower_mask << half_size;
+    return (lower_mask, upper_mask);
+}
 
 #[inline(always)]
 pub fn encode_base(base: u8) -> u8 {
@@ -30,8 +37,8 @@ pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
-pub fn decode_kmer(kmer: u64) -> (String, String) {
-    let mut upper_bits = (kmer & UPPER_MASK) >> 30;
+pub fn decode_kmer(kmer: u64, upper_mask: u64, lower_mask: u64) -> (String, String) {
+    let mut upper_bits = (kmer & upper_mask) >> 30;
     let mut upper_kmer = String::with_capacity(15);
     for _idx in 0..15 {
         let base = decode_base((upper_bits & 0x3) as u8);
@@ -40,7 +47,7 @@ pub fn decode_kmer(kmer: u64) -> (String, String) {
     }
     upper_kmer = upper_kmer.chars().rev().collect::<String>();
 
-    let mut lower_bits = kmer & LOWER_MASK;
+    let mut lower_bits = kmer & lower_mask;
     let mut lower_kmer = String::with_capacity(15);
     for _idx in 0..15 {
         let base = decode_base((lower_bits & 0x3) as u8);

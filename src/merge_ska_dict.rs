@@ -2,22 +2,28 @@
 // In dictonary representation to support merging/adding
 // Print will print out no kmers, no samples, split k-mers
 
+use core::mem::swap;
+use core::panic;
 use std::fmt;
 use std::mem;
-use core::mem::swap;
 
 use hashbrown::HashMap;
 
+use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 use crate::ska_dict::SkaDict;
-use crate::ska_dict::bit_encoding::decode_kmer;
 
 pub struct MergeSkaDict {
+    k: usize,
     n_samples: usize,
     names: Vec<String>,
-    split_kmers: HashMap<u64, Vec<u8>>
+    split_kmers: HashMap<u64, Vec<u8>>,
 }
 
 impl MergeSkaDict {
+    pub fn kmer_len(&self) -> usize {
+        self.k
+    }
+
     pub fn names(&self) -> &Vec<String> {
         &self.names
     }
@@ -34,18 +40,30 @@ impl MergeSkaDict {
         self.n_samples
     }
 
-    pub fn new(n_samples: usize) -> Self {
+    pub fn new(k: usize, n_samples: usize) -> Self {
         let names = vec!["".to_string(); n_samples];
         let split_kmers = HashMap::default();
-        return Self {n_samples, names, split_kmers};
+        return Self {
+            k,
+            n_samples,
+            names,
+            split_kmers,
+        };
     }
 
-    pub fn build_from_array<'a>(&'a mut self, names: &'a mut Vec<String>, split_kmers: &mut HashMap<u64, Vec<u8>>) {
+    pub fn build_from_array<'a>(
+        &'a mut self,
+        names: &'a mut Vec<String>,
+        split_kmers: &mut HashMap<u64, Vec<u8>>,
+    ) {
         swap(names, &mut &mut self.names);
         swap(split_kmers, &mut &mut self.split_kmers);
     }
 
     pub fn append(&mut self, other: &SkaDict) {
+        if other.kmer_len() != self.k {
+            panic!("K-mer lengths do not match: {} {}", other.kmer_len(), self.k);
+        }
         self.names[other.idx()] = other.name().clone();
         if self.ksize() == 0 {
             for (kmer, base) in other.kmers() {
@@ -55,19 +73,24 @@ impl MergeSkaDict {
             }
         } else {
             for (kmer, base) in other.kmers() {
-                self.split_kmers.entry(*kmer)
+                self.split_kmers
+                    .entry(*kmer)
                     .and_modify(|b| {
                         b[other.idx()] = *base;
                     })
                     .or_insert_with(|| {
                         let mut new_base_vec: Vec<u8> = vec![b'-'; self.n_samples];
                         new_base_vec[other.idx()] = *base;
-                        new_base_vec });
+                        new_base_vec
+                    });
             }
         }
     }
 
     pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
+        if other.k != self.k {
+            panic!("K-mer lengths do not match: {} {}", other.k, self.k);
+        }
         if other.ksize() > 0 {
             if self.ksize() == 0 {
                 swap(&mut other.names, &mut self.names);
@@ -81,7 +104,8 @@ impl MergeSkaDict {
                 }
 
                 for (kmer, other_vec) in &mut other.split_kmers {
-                    self.split_kmers.entry(*kmer)
+                    self.split_kmers
+                        .entry(*kmer)
                         .and_modify(|self_vec| {
                             for base_it in other_vec.iter().zip(self_vec.iter_mut()) {
                                 let (other_base, self_base) = base_it;
@@ -100,9 +124,10 @@ impl MergeSkaDict {
 // TODO: take a formatter which determines whether k-mers are written out
 impl fmt::Display for MergeSkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}\tkmers\n{}\tsamples\n",
-                   self.ksize(), self.nsamples())?;
+        write!(f, "{}k\t{}\tk-mers\n{}\tsamples\n", self.k, self.ksize(), self.nsamples())?;
         writeln!(f, "{:?}", self.names)?;
+
+        let (upper_mask, lower_mask) = generate_masks(self.k);
         self.split_kmers.iter().try_for_each(|it| {
             let (split_kmer, vars_u8) = it;
             let mut seq_string = String::with_capacity(self.nsamples());
@@ -111,7 +136,7 @@ impl fmt::Display for MergeSkaDict {
                 seq_string.push(',');
             }
             seq_string.pop();
-            let (upper, lower) = decode_kmer(*split_kmer);
+            let (upper, lower) = decode_kmer(*split_kmer, upper_mask, lower_mask);
             write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
         })
     }

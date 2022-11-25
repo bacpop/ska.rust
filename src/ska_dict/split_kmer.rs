@@ -1,9 +1,10 @@
-
-use std::borrow::Cow;
 use crate::ska_dict::bit_encoding::*;
+use std::borrow::Cow;
 
 pub struct SplitKmer<'a> {
     k: usize,
+    upper_mask: u64,
+    lower_mask: u64,
     seq: Cow<'a, [u8]>,
     seq_len: usize,
     index: usize,
@@ -13,7 +14,7 @@ pub struct SplitKmer<'a> {
     rc: bool,
     rc_upper: u64,
     rc_lower: u64,
-    rc_middle_base: u8
+    rc_middle_base: u8,
 }
 
 impl<'a> SplitKmer<'a> {
@@ -27,16 +28,15 @@ impl<'a> SplitKmer<'a> {
         let middle_idx = (k + 1) / 2 - 1;
         let mut i = 0;
         while i < k {
-            if valid_base(seq[i + *idx]) { // Checks for N or n
+            if valid_base(seq[i + *idx]) {
+                // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
                 if i < middle_idx {
                     upper = upper << 2;
                     upper |= (next_base as u64) << (middle_idx * 2);
-                    // println!("{:b} {:b}", upper, (next_base as u64) << (middle_idx * 2));
                 } else if i > middle_idx {
                     lower = lower << 2;
                     lower |= next_base as u64;
-                    // println!("{:b} {:b}", lower, (next_base as u64));
                 } else {
                     middle_base = next_base;
                 }
@@ -58,9 +58,9 @@ impl<'a> SplitKmer<'a> {
     }
 
     fn update_rc(&mut self) {
-        self.rc_upper = revcomp64_v2(self.lower, 30) & UPPER_MASK;
+        self.rc_upper = revcomp64_v2(self.lower, 30) & self.upper_mask;
         self.rc_middle_base = rc_base(self.middle_base);
-        self.rc_lower = revcomp64_v2(self.upper, 30) & LOWER_MASK;
+        self.rc_lower = revcomp64_v2(self.upper, 30) & self.lower_mask;
     }
 
     fn roll_fwd(&mut self) -> bool {
@@ -80,27 +80,44 @@ impl<'a> SplitKmer<'a> {
                 success = true;
             }
         } else {
-            self.upper = (self.upper << 2 | ((self.middle_base as u64) << 30)) & UPPER_MASK;
-            self.middle_base = (self.lower >> 28) as u8;
+            let half_k: usize = (self.k - 1) / 2;
+            self.upper = (self.upper << 2 | ((self.middle_base as u64) << (half_k * 2))) & self.upper_mask;
+            self.middle_base = (self.lower >> (2 * (half_k - 1))) as u8;
             let new_base = encode_base(base);
-            self.lower = (self.lower << 2 | (new_base as u64)) & LOWER_MASK;
+            self.lower = (self.lower << 2 | (new_base as u64)) & self.lower_mask;
             if self.rc {
-                self.rc_lower = (self.rc_lower >> 2 | ((self.rc_middle_base as u64) << 28)) & LOWER_MASK;
+                self.rc_lower =
+                    (self.rc_lower >> 2 | ((self.rc_middle_base as u64) << (2 * (half_k - 1)))) & self.lower_mask;
                 self.rc_middle_base = rc_base(self.middle_base);
-                self.rc_upper = (self.rc_upper >> 2 | (rc_base(new_base) as u64) << 58) & UPPER_MASK;
+                self.rc_upper =
+                    (self.rc_upper >> 2 | (rc_base(new_base) as u64) << (2*((half_k * 2) - 1))) & self.upper_mask;
             }
             success = true;
         }
         return success;
     }
 
-    pub fn new(seq: Cow<'a, [u8]>, seq_len: usize, rc: bool) -> Option<Self> {
+    pub fn new(seq: Cow<'a, [u8]>, seq_len: usize, k: usize, rc: bool) -> Option<Self> {
         let (mut index, rc_upper, rc_lower, rc_middle_base) = (0, 0, 0, 0);
-        let k = 31;
         let first_kmer = Self::build(&*seq, seq_len, k, &mut index);
         if first_kmer.is_some() {
             let (upper, lower, middle_base) = first_kmer.unwrap();
-            let mut split_kmer = Self {k, seq_len, seq, upper, lower, middle_base, rc, rc_upper, rc_lower, rc_middle_base, index};
+            let (upper_mask, lower_mask) = generate_masks(k);
+            let mut split_kmer = Self {
+                k,
+                upper_mask,
+                lower_mask,
+                seq_len,
+                seq,
+                upper,
+                lower,
+                middle_base,
+                rc,
+                rc_upper,
+                rc_lower,
+                rc_middle_base,
+                index,
+            };
             if rc {
                 split_kmer.update_rc();
             }
@@ -125,7 +142,7 @@ impl<'a> SplitKmer<'a> {
         let next = self.roll_fwd();
         match next {
             true => Some(self.get_curr_kmer()),
-            false => None
+            false => None,
         }
     }
 }
