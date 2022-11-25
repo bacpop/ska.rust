@@ -1,8 +1,7 @@
-
-use rayon::prelude::*;
-
 use std::fs::File;
 use std::io::{BufWriter, Write};
+
+use rayon::prelude::*;
 
 pub mod ska_dict;
 use crate::ska_dict::SkaDict;
@@ -13,9 +12,13 @@ use crate::merge_ska_dict::MergeSkaDict;
 pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
 
+pub mod cli:
+use crate::cli::{Args, cli_args};
+
 use std::time::Instant;
 
 fn main() {
+    let args = cli_args();
     let small_file = vec![
         ("sample1", "N_test_1.fa"),
         ("sample2", "N_test_2.fa")
@@ -99,24 +102,3 @@ fn main() {
         load_end.duration_since(load).as_millis());
 }
 
-// Command line
-// Input commands
-// ska build <seq.fa> --compress
-// ska build -l rfile.txt --compress
-
-// Manipulation commands
-// ska merge file.skf...
-// ska delete file.skf <names>...
-// ska delete file.skf -l name_list.txt
-// ska weed file.skf --weed-seqs list.fa
-
-// Ouput commands (these take either one skf file, or an rfile, or a list on the command line)
-// ska align <seq.fa>... --save-skf <-o output.aln> <--min 0.9>
-// ska align -l rfile.txt --save-skf <-o output.aln> <--min 0.9>
-// ska map ref.fa <seq.fa>... --save-skf <-o output.aln> <--min 0.9>
-// ska map -l rfile.txt --save-skf <-o output.aln> <--min 0.9>
-
-// Printing/debug commands
-// ska nk file.skf // prints the number of k-mers (he he)
-// ska info file.skf <--bases> // prints the k-mer size, number of samples, names, number of k-mers <number of patterns, prop A/C/G/T, GC-bias>
-// ska humanise file.skf // prints the split k-mers after decoding them
