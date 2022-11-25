@@ -6,8 +6,8 @@
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
 
 // To generalise beyond k = 31 these just need to be built by bitshift
-pub const LOWER_MASK: u64 = 0x3FFFFFFF;
-pub const UPPER_MASK: u64 = 0x3FFFFFFF00000000;
+pub const LOWER_MASK: u64 = 0b111111111111111111111111111111;
+pub const UPPER_MASK: u64 = 0b111111111111111111111111111111000000000000000000000000000000;
 
 #[inline(always)]
 pub fn encode_base(base: u8) -> u8 {
@@ -28,6 +28,27 @@ pub fn rc_base(base: u8) -> u8 {
 #[inline(always)]
 pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
+}
+
+pub fn decode_kmer(kmer: u64) -> (String, String) {
+    let mut upper_bits = (kmer & UPPER_MASK) >> 30;
+    let mut upper_kmer = String::with_capacity(15);
+    for _idx in 0..15 {
+        let base = decode_base((upper_bits & 0x3) as u8);
+        upper_kmer.push(base as char);
+        upper_bits = upper_bits >> 2;
+    }
+    upper_kmer = upper_kmer.chars().rev().collect::<String>();
+
+    let mut lower_bits = kmer & LOWER_MASK;
+    let mut lower_kmer = String::with_capacity(15);
+    for _idx in 0..15 {
+        let base = decode_base((lower_bits & 0x3) as u8);
+        lower_kmer.push(base as char);
+        lower_bits = lower_bits >> 2;
+    }
+    lower_kmer = lower_kmer.chars().rev().collect::<String>();
+    (upper_kmer, lower_kmer)
 }
 
 // https://www.biostars.org/p/113640/

@@ -17,8 +17,7 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::encode_base;
-use crate::ska_dict::bit_encoding::IUPAC;
+use crate::ska_dict::bit_encoding::{encode_base, decode_kmer, IUPAC};
 
 pub struct SkaDict {
     sample_idx: usize,
@@ -102,7 +101,9 @@ impl MergeSkaDict {
         } else {
             for (kmer, base) in &other.split_kmers {
                 self.split_kmers.entry(*kmer)
-                    .and_modify(|b| {b[other.sample_idx] = *base})
+                    .and_modify(|b| {
+                        b[other.sample_idx] = *base;
+                    })
                     .or_insert_with(|| {
                         let mut new_base_vec: Vec<u8> = vec![b'-'; self.n_samples];
                         new_base_vec[other.sample_idx] = *base;
@@ -141,11 +142,23 @@ impl MergeSkaDict {
     }
 }
 
-// Simple info – could make more like ska info/humanise
+// TODO: take a formatter which determines whether k-mers are written out
 impl fmt::Display for MergeSkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} kmers\n{} samples\nsample names: {:?}\n",
-                   self.ksize(), self.nsamples(), self.names)
+        write!(f, "{}\tkmers\n{}\tsamples\n",
+                   self.ksize(), self.nsamples())?;
+        writeln!(f, "{:?}", self.names)?;
+        self.split_kmers.iter().try_for_each(|it| {
+            let (split_kmer, vars_u8) = it;
+            let mut seq_string = String::with_capacity(self.nsamples());
+            for middle_base in vars_u8 {
+                seq_string.push(*middle_base as char);
+                seq_string.push(',');
+            }
+            seq_string.pop();
+            let (upper, lower) = decode_kmer(*split_kmer);
+            write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
+        })
     }
 }
 
@@ -163,6 +176,10 @@ impl MergeSkaArray {
         }
         self.variants = new_variants;
         self.variant_count = new_counts;
+    }
+
+    pub fn nsamples(&self) -> usize {
+        self.variants.ncols()
     }
 
     pub fn new(dynamic: &MergeSkaDict) -> Self {
@@ -235,7 +252,15 @@ impl MergeSkaArray {
         let mut filtered_counts = Vec::new();
         for count_it in self.variant_count.iter().zip(self.variants.axis_iter(Axis(0))) {
             let (count, row) = count_it;
-            if *count > min_count && (const_sites || *count != total) {
+            if *count >= min_count {
+                if !const_sites {
+                    let first_var = row[0];
+                    for var in row {
+                        if *var != first_var {
+                            break;
+                        }
+                    }
+                }
                 filtered_variants.push_row(row).unwrap();
                 filtered_counts.push(*count);
             }
@@ -243,7 +268,6 @@ impl MergeSkaArray {
         self.variants = filtered_variants;
         self.variant_count = filtered_counts;
     }
-
 }
 
 impl fmt::Display for MergeSkaArray {

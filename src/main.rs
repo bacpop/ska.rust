@@ -45,7 +45,7 @@ fn main() {
     }
     let merge = Instant::now();
 
-    let ska_dict_p =
+    let _ska_dict_p =
         small_file
          .par_iter()
          .enumerate()
@@ -56,15 +56,17 @@ fn main() {
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
-    print!("{}", merged_dict);
-    print!("{}", ska_dict_p);
+    //print!("{}", merged_dict);
+    //print!("{}", ska_dict_p);
     println!("build:\t{}ms\nmerge:\t{}ms\npara:\t{}ms",
              build.duration_since(start).as_millis(),
              merge.duration_since(build).as_millis(),
              parallel.duration_since(merge).as_millis());
 
+    println!("{}", merged_dict);
+
     let convert = Instant::now();
-    let ska_array = MergeSkaArray::new(&ska_dict_p);
+    let mut ska_array = MergeSkaArray::new(&merged_dict);
     let deconvert = Instant::now();
     let _ska_dict_c = ska_array.to_dict();
     let deconvert_end = Instant::now();
@@ -75,7 +77,7 @@ fn main() {
 
     let io_start = Instant::now();
     let mut file = BufWriter::new(File::create("test.aln").unwrap());
-    // TODO needs filtering first
+    ska_array.filter(ska_array.nsamples(), true);
     write!(&mut file, "{}", ska_array).unwrap();
 
     let save = Instant::now();
@@ -110,5 +112,5 @@ fn main() {
 
 // Printing/debug commands
 // ska nk file.skf // prints the number of k-mers (he he)
-// ska info file.skf <--bases> // prints the k-mer size number of samples, names, number of k-mers <number of patterns, prop A/C/G/T, GC-bias>
+// ska info file.skf <--bases> // prints the k-mer size, number of samples, names, number of k-mers <number of patterns, prop A/C/G/T, GC-bias>
 // ska humanise file.skf // prints the split k-mers after decoding them

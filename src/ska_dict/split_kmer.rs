@@ -58,9 +58,9 @@ impl<'a> SplitKmer<'a> {
     }
 
     fn update_rc(&mut self) {
-        self.rc_upper = revcomp64_v2(self.lower, 31) & UPPER_MASK;
+        self.rc_upper = revcomp64_v2(self.lower, 30) & UPPER_MASK;
         self.rc_middle_base = rc_base(self.middle_base);
-        self.rc_lower = revcomp64_v2(self.upper, 31) & LOWER_MASK;
+        self.rc_lower = revcomp64_v2(self.upper, 30) & LOWER_MASK;
     }
 
     fn roll_fwd(&mut self) -> bool {
@@ -80,14 +80,14 @@ impl<'a> SplitKmer<'a> {
                 success = true;
             }
         } else {
-            self.upper = (self.upper << 2 | ((self.middle_base as u64) << 32)) & UPPER_MASK;
-            self.middle_base = (self.lower >> 30) as u8;
+            self.upper = (self.upper << 2 | ((self.middle_base as u64) << 30)) & UPPER_MASK;
+            self.middle_base = (self.lower >> 28) as u8;
             let new_base = encode_base(base);
             self.lower = (self.lower << 2 | (new_base as u64)) & LOWER_MASK;
             if self.rc {
-                self.rc_lower = ((self.rc_lower >> 2) | self.rc_middle_base as u64) & LOWER_MASK;
+                self.rc_lower = (self.rc_lower >> 2 | ((self.rc_middle_base as u64) << 28)) & LOWER_MASK;
                 self.rc_middle_base = rc_base(self.middle_base);
-                self.rc_upper = (self.rc_upper << 2 | (rc_base(new_base) as u64) << 60) & UPPER_MASK;
+                self.rc_upper = (self.rc_upper >> 2 | (rc_base(new_base) as u64) << 58) & UPPER_MASK;
             }
             success = true;
         }
@@ -115,10 +115,10 @@ impl<'a> SplitKmer<'a> {
         if self.rc {
             let rc_split_kmer = self.rc_upper | self.rc_lower;
             if split_kmer > rc_split_kmer {
-                return (rc_split_kmer, self.rc_middle_base);
+                return (rc_split_kmer, decode_base(self.rc_middle_base));
             }
         }
-        return (split_kmer, self.middle_base);
+        return (split_kmer, decode_base(self.middle_base));
     }
 
     pub fn get_next_kmer(&mut self) -> Option<(u64, u8)> {
