@@ -35,8 +35,9 @@ fn main() {
         ("NP7028_4382961", "assemblies/NP7028_4382961.contigs.fa"),
         ("093209_3736979", "assemblies/093209_3736979.contigs.fa")
     ];
-    let kmer_size: usize = 31;
+    let kmer_size: usize = 17;
     let rc = true;
+    let const_sites = false;
 
     let start = Instant::now();
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
@@ -63,7 +64,7 @@ fn main() {
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
-    //print!("{}", merged_dict);
+    // print!("{}", merged_dict);
     // print!("{}", ska_dict_p);
     println!("build:\t{}ms\nmerge:\t{}ms\npara:\t{}ms",
              build.duration_since(start).as_millis(),
@@ -82,7 +83,7 @@ fn main() {
 
     let io_start = Instant::now();
     let mut file = BufWriter::new(File::create("test.aln").unwrap());
-    ska_array.filter(ska_array.nsamples(), true);
+    ska_array.filter(ska_array.nsamples(), const_sites);
     write!(&mut file, "{}", ska_array).unwrap();
 
     let save = Instant::now();

@@ -121,15 +121,21 @@ impl MergeSkaArray {
         let mut filtered_counts = Vec::new();
         for count_it in self.variant_count.iter().zip(self.variants.axis_iter(Axis(0))) {
             let (count, row) = count_it;
+            let mut keep_var = false;
             if *count >= min_count {
                 if !const_sites {
                     let first_var = row[0];
                     for var in row {
                         if *var != first_var {
+                            keep_var = true;
                             break;
                         }
                     }
+                } else {
+                    keep_var = true;
                 }
+            }
+            if keep_var {
                 filtered_variants.push_row(row).unwrap();
                 filtered_counts.push(*count);
             }

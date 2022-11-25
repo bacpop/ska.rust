@@ -58,9 +58,9 @@ impl<'a> SplitKmer<'a> {
     }
 
     fn update_rc(&mut self) {
-        self.rc_upper = revcomp64_v2(self.lower, 30) & self.upper_mask;
+        self.rc_upper = revcomp64_v2(self.lower, self.k - 1) & self.upper_mask;
         self.rc_middle_base = rc_base(self.middle_base);
-        self.rc_lower = revcomp64_v2(self.upper, 30) & self.lower_mask;
+        self.rc_lower = revcomp64_v2(self.upper, self.k - 1) & self.lower_mask;
     }
 
     fn roll_fwd(&mut self) -> bool {
@@ -102,7 +102,7 @@ impl<'a> SplitKmer<'a> {
         let first_kmer = Self::build(&*seq, seq_len, k, &mut index);
         if first_kmer.is_some() {
             let (upper, lower, middle_base) = first_kmer.unwrap();
-            let (upper_mask, lower_mask) = generate_masks(k);
+            let (lower_mask, upper_mask) = generate_masks(k);
             let mut split_kmer = Self {
                 k,
                 upper_mask,
@@ -129,8 +129,12 @@ impl<'a> SplitKmer<'a> {
 
     pub fn get_curr_kmer(&self) -> (u64, u8) {
         let split_kmer = self.upper | self.lower;
+        // let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
+        // println!("{} {}", upper, lower);
         if self.rc {
             let rc_split_kmer = self.rc_upper | self.rc_lower;
+            // let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
+            // println!("{} {}", upper_rc, lower_rc);
             if split_kmer > rc_split_kmer {
                 return (rc_split_kmer, decode_base(self.rc_middle_base));
             }

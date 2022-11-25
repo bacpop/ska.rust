@@ -124,10 +124,10 @@ impl MergeSkaDict {
 // TODO: take a formatter which determines whether k-mers are written out
 impl fmt::Display for MergeSkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}k\t{}\tk-mers\n{}\tsamples\n", self.k, self.ksize(), self.nsamples())?;
+        write!(f, "k={}\n{} k-mers\n{} samples\n", self.k, self.ksize(), self.nsamples())?;
         writeln!(f, "{:?}", self.names)?;
 
-        let (upper_mask, lower_mask) = generate_masks(self.k);
+        let (lower_mask, upper_mask) = generate_masks(self.k);
         self.split_kmers.iter().try_for_each(|it| {
             let (split_kmer, vars_u8) = it;
             let mut seq_string = String::with_capacity(self.nsamples());
@@ -136,7 +136,7 @@ impl fmt::Display for MergeSkaDict {
                 seq_string.push(',');
             }
             seq_string.pop();
-            let (upper, lower) = decode_kmer(*split_kmer, upper_mask, lower_mask);
+            let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
             write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
         })
     }
