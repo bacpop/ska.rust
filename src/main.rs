@@ -16,11 +16,9 @@ use crate::merge_ska_array::MergeSkaArray;
 use std::time::Instant;
 
 fn main() {
-    let n_threads = 4;
-    rayon::ThreadPoolBuilder::new().num_threads(n_threads).build_global().unwrap();
     let small_file = vec![
-        ("sample1", "test1.fa"),
-        ("sample2", "test2.fa")
+        ("sample1", "N_test_1.fa"),
+        ("sample2", "N_test_2.fa")
     ];
     let file_list = vec![
         ("BR1076_4336457", "assemblies/BR1076_4336457.contigs.fa"),
@@ -35,8 +33,8 @@ fn main() {
         ("NP7028_4382961", "assemblies/NP7028_4382961.contigs.fa"),
         ("093209_3736979", "assemblies/093209_3736979.contigs.fa")
     ];
-    let kmer_size: usize = 17;
-    let rc = true;
+    let kmer_size: usize = 31;
+    let rc = false;
     let const_sites = false;
 
     let start = Instant::now();
@@ -53,6 +51,8 @@ fn main() {
     }
     let merge = Instant::now();
 
+    let n_threads = 4;
+    rayon::ThreadPoolBuilder::new().num_threads(n_threads).build_global().unwrap();
     let ska_dict_p =
     small_file
          .par_iter()
@@ -64,7 +64,7 @@ fn main() {
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
-    // print!("{}", merged_dict);
+    print!("{}", merged_dict);
     // print!("{}", ska_dict_p);
     println!("build:\t{}ms\nmerge:\t{}ms\npara:\t{}ms",
              build.duration_since(start).as_millis(),

@@ -8,7 +8,7 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::{encode_base, IUPAC};
+use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
 
 pub struct SkaDict {
     k: usize,
@@ -20,8 +20,8 @@ pub struct SkaDict {
 impl SkaDict {
     fn add_to_dict(&mut self, kmer: u64, base: u8) {
         self.split_kmers.entry(kmer)
-            .and_modify(|b| {*b = IUPAC[encode_base(*b) as usize * 256 + base as usize]})
-            .or_insert(base);
+            .and_modify(|b| {*b = IUPAC[base as usize * 256 + *b as usize]})
+            .or_insert(decode_base(base));
     }
 
     pub fn kmer_len(&self) -> usize {

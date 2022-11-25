@@ -81,16 +81,19 @@ impl<'a> SplitKmer<'a> {
             }
         } else {
             let half_k: usize = (self.k - 1) / 2;
-            self.upper = (self.upper << 2 | ((self.middle_base as u64) << (half_k * 2))) & self.upper_mask;
+            self.upper =
+                (self.upper << 2 | ((self.middle_base as u64) << (half_k * 2))) & self.upper_mask;
             self.middle_base = (self.lower >> (2 * (half_k - 1))) as u8;
             let new_base = encode_base(base);
             self.lower = (self.lower << 2 | (new_base as u64)) & self.lower_mask;
             if self.rc {
-                self.rc_lower =
-                    (self.rc_lower >> 2 | ((self.rc_middle_base as u64) << (2 * (half_k - 1)))) & self.lower_mask;
+                self.rc_lower = (self.rc_lower >> 2
+                    | ((self.rc_middle_base as u64) << (2 * (half_k - 1))))
+                    & self.lower_mask;
                 self.rc_middle_base = rc_base(self.middle_base);
-                self.rc_upper =
-                    (self.rc_upper >> 2 | (rc_base(new_base) as u64) << (2*((half_k * 2) - 1))) & self.upper_mask;
+                self.rc_upper = (self.rc_upper >> 2
+                    | (rc_base(new_base) as u64) << (2 * ((half_k * 2) - 1)))
+                    & self.upper_mask;
             }
             success = true;
         }
@@ -136,10 +139,10 @@ impl<'a> SplitKmer<'a> {
             // let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
             // println!("{} {}", upper_rc, lower_rc);
             if split_kmer > rc_split_kmer {
-                return (rc_split_kmer, decode_base(self.rc_middle_base));
+                return (rc_split_kmer, self.rc_middle_base);
             }
         }
-        return (split_kmer, decode_base(self.middle_base));
+        return (split_kmer, self.middle_base);
     }
 
     pub fn get_next_kmer(&mut self) -> Option<(u64, u8)> {
