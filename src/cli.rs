@@ -1,17 +1,19 @@
 use docopt::Docopt;
 use serde::Deserialize;
 
+// TODO: change this to clap
+// https://docs.rs/clap/latest/clap/
+
 const USAGE: &'static str = "
 Usage:
-    ska build <seq_files>... -o <prefix> [-k <k-size>] [--single-strand] [--compress] [--cpus <cpus>]
-    ska build -l <file_list> -o <prefix> [-k <k-size>] [--single-strand] [--compress] [--cpus <cpus>]
+    ska build (<seq_files>... | -l <file_list>) -o <prefix> [-k <k-size>] [--single-strand] [--compress] [--cpus <cpus>]
 
     ska merge <files.skf>... -o <prefix>
     ska delete <file.skf> -l <name_list>
     ska weed <file.skf> --seqs <list.fa>
 
-    ska align <seq_files>... <-o output.aln> [--min <freq>] [--const-sites] [--cpus <cpus>]
-    ska map <ref.fa> <seq_files>... <-o output.aln> [--min <freq>] [--const-sites] [--cpus <cpus>]
+    ska align <input_files>... <-o output.aln> [--min <freq>] [--const-sites] [--cpus <cpus>]
+    ska map <ref.fa> <input_files>... <-o output.aln> [--min <freq>] [--const-sites] [--cpus <cpus>]
 
     ska nk file.skf <--full-info>
 
@@ -36,7 +38,7 @@ Options:
 ";
 
 #[derive(Deserialize)]
-struct Args {
+pub struct Args {
     flag_build: bool,
     flag_merge: bool,
     flag_delete: bool,
@@ -62,8 +64,8 @@ struct Args {
 }
 
 fn cli_args() -> Args {
-    let argv = std::env::args();
     let args: Args = Docopt::new(USAGE)
+        .parse()
         .and_then(|d| d.argv(argv().into_iter()).deserialize())
         .unwrap_or_else(|e| e.exit());
 

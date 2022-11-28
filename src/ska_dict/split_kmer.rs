@@ -130,7 +130,7 @@ impl<'a> SplitKmer<'a> {
         }
     }
 
-    pub fn get_curr_kmer(&self) -> (u64, u8) {
+    pub fn get_curr_kmer(&self) -> (u64, u8, bool) {
         let split_kmer = self.upper | self.lower;
         // let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
         // println!("{} {}", upper, lower);
@@ -139,13 +139,13 @@ impl<'a> SplitKmer<'a> {
             // let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
             // println!("{} {}", upper_rc, lower_rc);
             if split_kmer > rc_split_kmer {
-                return (rc_split_kmer, self.rc_middle_base);
+                return (rc_split_kmer, self.rc_middle_base, true);
             }
         }
-        return (split_kmer, self.middle_base);
+        return (split_kmer, self.middle_base, false);
     }
 
-    pub fn get_next_kmer(&mut self) -> Option<(u64, u8)> {
+    pub fn get_next_kmer(&mut self) -> Option<(u64, u8, bool)> {
         let next = self.roll_fwd();
         match next {
             true => Some(self.get_curr_kmer()),

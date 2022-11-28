@@ -18,6 +18,8 @@ use ndarray::{Array2, ArrayView, Axis};
 use serde::{Serialize, Deserialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
+use crate::ska_ref::{RefKmer, RefSka};
+use crate::ska_dict::bit_encoding::RC_IUPAC;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MergeSkaArray {
@@ -112,9 +114,23 @@ impl MergeSkaArray {
     }
 
     // TODO: will need to be careful about reverse complement here
-    // TODO: will need to consider duplicates here
-    pub fn map(&self, ref_fasta: &str) {
-
+    pub fn map(&self, ref_fasta: &str, f: &mut fmt::Formatter) {
+        let ref_map = RefSka::new(self.k, &ref_fasta, self.rc);
+        let mut map_variants = Array2::zeros((0, dynamic.nsamples()));
+        for ref_k in ref_map.ref_kmers() {
+            if self.split_kmers.contains(ref_k.kmer) {
+                let seq_char: String = self.split_kmers[ref_k.kmer]
+                    .iter()
+                    .map(|x| {
+                        match ref_k.rc {
+                            true => RC_IUPAC[*x]
+                            false => *x as char
+                        }
+                    })
+                    .collect();
+                write!(f, "{}\t{}")
+            }
+        }
     }
 
     pub fn filter(&mut self, min_count: usize, const_sites: bool) {
