@@ -18,12 +18,11 @@ use ndarray::{Array2, ArrayView, Axis};
 use serde::{Serialize, Deserialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_ref::{RefKmer, RefSka};
-use crate::ska_dict::bit_encoding::RC_IUPAC;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MergeSkaArray {
     k: usize,
+    rc: bool,
     names: Vec<String>,
     split_kmers: Vec<u64>,
     variants: Array2<u8>,
@@ -52,6 +51,7 @@ impl MergeSkaArray {
 
     pub fn new(dynamic: &MergeSkaDict) -> Self {
         let k = dynamic.kmer_len();
+        let rc = dynamic.rc();
         let names = dynamic.names().clone();
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
         let mut split_kmers: Vec<u64> = Vec::new();
@@ -64,7 +64,7 @@ impl MergeSkaArray {
             variants.push_row(ArrayView::from(bases)).unwrap();
 
         }
-        Self {k, names, split_kmers, variants, variant_count}
+        Self {k, rc, names, split_kmers, variants, variant_count}
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
@@ -89,7 +89,7 @@ impl MergeSkaArray {
             let (row_vec, kmer) = row_it;
             split_kmers.insert(*kmer, row_vec.to_vec());
         }
-        let mut dict = MergeSkaDict::new(self.k, n_samples);
+        let mut dict = MergeSkaDict::new(self.k, n_samples, self.rc);
         dict.build_from_array(&mut names, &mut split_kmers);
         return dict;
     }
@@ -111,26 +111,6 @@ impl MergeSkaArray {
         }
         self.variants = filtered_variants;
         self.update_counts();
-    }
-
-    // TODO: will need to be careful about reverse complement here
-    pub fn map(&self, ref_fasta: &str, f: &mut fmt::Formatter) {
-        let ref_map = RefSka::new(self.k, &ref_fasta, self.rc);
-        let mut map_variants = Array2::zeros((0, dynamic.nsamples()));
-        for ref_k in ref_map.ref_kmers() {
-            if self.split_kmers.contains(ref_k.kmer) {
-                let seq_char: String = self.split_kmers[ref_k.kmer]
-                    .iter()
-                    .map(|x| {
-                        match ref_k.rc {
-                            true => RC_IUPAC[*x]
-                            false => *x as char
-                        }
-                    })
-                    .collect();
-                write!(f, "{}\t{}")
-            }
-        }
     }
 
     pub fn filter(&mut self, min_count: usize, const_sites: bool) {

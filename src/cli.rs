@@ -1,9 +1,6 @@
-use docopt::Docopt;
-use serde::Deserialize;
+use clap::{Parser, Subcommand};
 
-// TODO: change this to clap
-// https://docs.rs/clap/latest/clap/
-
+// TODO: remove this
 const USAGE: &'static str = "
 Usage:
     ska build (<seq_files>... | -l <file_list>) -o <prefix> [-k <k-size>] [--single-strand] [--compress] [--cpus <cpus>]
@@ -37,41 +34,46 @@ Options:
     --cpus <cpus>     Use parallel processing, with this many cores.
 ";
 
-#[derive(Deserialize)]
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
 pub struct Args {
-    flag_build: bool,
-    flag_merge: bool,
-    flag_delete: bool,
-    flag_weed: bool,
-    flag_align: bool,
-    flag_map: bool,
-    flag_nk: bool,
-    flag_h: bool,
-    flag_help: bool,
-    flag_version: bool,
-
-    arg_prefix: String,
-    arg_k: usize,
-    arg_single_strand: bool,
-    arg_compress: bool,
-    arg_seq_files: Vec<String>,
-    arg_file_list: String,
-    arg_seqs: String,
-    arg_min: f64,
-    arg_const_sites: bool,
-    arg_full_info: bool,
-    arg_cpus: usize,
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn cli_args() -> Args {
-    let args: Args = Docopt::new(USAGE)
-        .parse()
-        .and_then(|d| d.argv(argv().into_iter()).deserialize())
-        .unwrap_or_else(|e| e.exit());
+#[derive(Subcommand)]
+enum Commands {
+    Build { name: Option<String> },
+    Merge { name: Option<String> },
+}
 
-    if args.flag_version {
-        // TODO work out how to do this properly
-    }
+// pub struct Args {
+//     flag_build: bool,
+//     flag_merge: bool,
+//     flag_delete: bool,
+//     flag_weed: bool,
+//     flag_align: bool,
+//     flag_map: bool,
+//     flag_nk: bool,
+//     flag_h: bool,
+//     flag_help: bool,
+//     flag_version: bool,
 
+//     arg_prefix: String,
+//     arg_k: usize,
+//     arg_single_strand: bool,
+//     arg_compress: bool,
+//     arg_seq_files: Vec<String>,
+//     arg_file_list: String,
+//     arg_seqs: String,
+//     arg_min: f64,
+//     arg_const_sites: bool,
+//     arg_full_info: bool,
+//     arg_cpus: usize,
+// }
+
+pub fn cli_args() -> Args {
+    let args = Args::parse();
     return args;
 }

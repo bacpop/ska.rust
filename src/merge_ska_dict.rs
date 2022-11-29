@@ -14,6 +14,7 @@ use crate::ska_dict::SkaDict;
 
 pub struct MergeSkaDict {
     k: usize,
+    rc: bool,
     n_samples: usize,
     names: Vec<String>,
     split_kmers: HashMap<u64, Vec<u8>>,
@@ -22,6 +23,10 @@ pub struct MergeSkaDict {
 impl MergeSkaDict {
     pub fn kmer_len(&self) -> usize {
         self.k
+    }
+
+    pub fn rc(&self) -> bool {
+        self.rc
     }
 
     pub fn names(&self) -> &Vec<String> {
@@ -40,11 +45,12 @@ impl MergeSkaDict {
         self.n_samples
     }
 
-    pub fn new(k: usize, n_samples: usize) -> Self {
+    pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
         let names = vec!["".to_string(); n_samples];
         let split_kmers = HashMap::default();
         return Self {
             k,
+            rc,
             n_samples,
             names,
             split_kmers,
@@ -63,6 +69,9 @@ impl MergeSkaDict {
     pub fn append(&mut self, other: &SkaDict) {
         if other.kmer_len() != self.k {
             panic!("K-mer lengths do not match: {} {}", other.kmer_len(), self.k);
+        }
+        if other.rc() != self.rc {
+            panic!("Strand use inconsistent");
         }
         self.names[other.idx()] = other.name().clone();
         if self.ksize() == 0 {
@@ -90,6 +99,9 @@ impl MergeSkaDict {
     pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
+        }
+        if other.rc() != self.rc {
+            panic!("Strand use inconsistent");
         }
         if other.ksize() > 0 {
             if self.ksize() == 0 {
@@ -124,7 +136,7 @@ impl MergeSkaDict {
 // TODO: take a formatter which determines whether k-mers are written out
 impl fmt::Display for MergeSkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "k={}\n{} k-mers\n{} samples\n", self.k, self.ksize(), self.nsamples())?;
+        write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.k, self.rc(), self.ksize(), self.nsamples())?;
         writeln!(f, "{:?}", self.names)?;
 
         let (lower_mask, upper_mask) = generate_masks(self.k);

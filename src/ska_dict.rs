@@ -12,13 +12,14 @@ use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
 
 pub struct SkaDict {
     k: usize,
+    rc: bool,
     sample_idx: usize,
     name: String,
     split_kmers: HashMap<u64, u8>,
 }
 
 impl SkaDict {
-    fn add_to_dict(&mut self, kmer: u64, base: u8, pos: usize) {
+    fn add_to_dict(&mut self, kmer: u64, base: u8) {
         self.split_kmers
             .entry(kmer)
             .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])
@@ -27,6 +28,10 @@ impl SkaDict {
 
     pub fn kmer_len(&self) -> usize {
         self.k
+    }
+
+    pub fn rc(&self) -> bool {
+        self.rc
     }
 
     pub fn ksize(&self) -> usize {
@@ -56,6 +61,7 @@ impl SkaDict {
         let split_kmers: HashMap<u64, u8> = HashMap::default();
         let mut sk_dict = Self {
             k,
+            rc,
             sample_idx,
             name,
             split_kmers,
