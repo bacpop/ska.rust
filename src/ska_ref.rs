@@ -36,11 +36,6 @@ pub struct RefSka {
     mapped_names: Vec<String>
 }
 
-// TODO want a mapped ska
-pub struct MapSka {
-
-}
-
 impl RefSka {
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -55,9 +50,9 @@ impl RefSka {
             panic!("Invalid k-mer length");
         }
 
-        let split_kmer_pos = Vec::new();
-        let seq = Vec::new();
-        let chrom_names = Vec::new();
+        let mut split_kmer_pos = Vec::new();
+        let mut seq = Vec::new();
+        let mut chrom_names = Vec::new();
         let mut total_size = 0;
 
         let mut reader =
@@ -103,9 +98,12 @@ impl RefSka {
     }
 
     pub fn map(&mut self, ska_dict: &MergeSkaDict) {
-        self.mapped_names = *ska_dict.names();
+        if self.k != ska_dict.ksize() {
+            panic!("K-mer sizes do not match ref:{} skf:{}", self.k, ska_dict.ksize());
+        }
+        self.mapped_names = ska_dict.names().clone();
         self.mapped_variants = Array2::zeros((0, ska_dict.nsamples()));
-        for ref_k in self.split_kmer_pos {
+        for ref_k in &self.split_kmer_pos {
             if ska_dict.kmer_dict().contains_key(&ref_k.kmer) {
                 let seq_char: Vec::<u8> = ska_dict.kmer_dict()[&ref_k.kmer]
                     .iter()
@@ -138,26 +136,29 @@ impl fmt::Display for RefSka {
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
-        for sample_name in self.mapped_names {
+        for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
             let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
-            let seq: Vec<u8> = Vec::new();
+            let mut seq: Vec<u8> = Vec::new();
             seq.reserve(self.total_size);
 
-            // TODO fix for multi-chrom case
-            let (mut next_pos, map_pos) = (0, 0);
-            self.mapped_pos.iter()
-                .zip(sample_vars.iter())
-                .for_each(|it| {
-                    let ((map_chrom, map_pos), base) = it;
-                    if *map_pos > next_pos {
-                        // Copy in ref seq if no k-mers mapped over a region
-                        seq.extend_from_slice(&self.seq[0][next_pos..*map_pos]);
-                    }
-                    next_pos = *map_pos + 1;
-                    seq.push(*base);
-                });
+            let (mut next_pos, mut curr_chrom) = (0, 0);
+            for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
+                // Move forward to next chromosome/contig
+                if *map_chrom > curr_chrom {
+                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..]);
+                    curr_chrom += 1;
+                    next_pos = 0;
+                }
+                if *map_pos > next_pos {
+                    // Copy in ref seq if no k-mers mapped over a region
+                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
+                }
+                next_pos = *map_pos + 1;
+                seq.push(*base);
+            }
             let seq_char: String = seq.iter().map(|x| *x as char).collect();
-            write!(f, ">{}\n{}\n", sample_name, seq_char);
+            write!(f, ">{}\n{}\n", sample_name, seq_char)?;
         }
+        Ok(())
     }
 }

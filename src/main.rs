@@ -20,6 +20,9 @@ use std::time::Instant;
 
 fn main() {
     let args = cli_args();
+
+    
+    /*
     let small_file = vec![
         ("sample1", "N_test_1.fa"),
         ("sample2", "N_test_2.fa")
@@ -38,7 +41,7 @@ fn main() {
         ("093209_3736979", "assemblies/093209_3736979.contigs.fa")
     ];
     let kmer_size: usize = 31;
-    let rc = false;
+    let rc = true;
     let const_sites = false;
 
     let start = Instant::now();
@@ -49,7 +52,7 @@ fn main() {
     }
     let build = Instant::now();
 
-    let mut merged_dict = MergeSkaDict::new(kmer_size, ska_dicts.len());
+    let mut merged_dict = MergeSkaDict::new(kmer_size, ska_dicts.len(), rc);
     for ska_dict in &mut ska_dicts {
         merged_dict.append(ska_dict);
     }
@@ -62,9 +65,9 @@ fn main() {
          .par_iter()
          .enumerate()
          .map(|(idx, (name, filename))| SkaDict::new(kmer_size, idx, filename, name, rc))
-         .fold(|| MergeSkaDict::new(kmer_size, small_file.len()),
+         .fold(|| MergeSkaDict::new(kmer_size, small_file.len(), rc),
                 |mut a: MergeSkaDict, b: SkaDict| {a.append(&b); a})
-         .reduce(|| MergeSkaDict::new(kmer_size, small_file.len()),
+         .reduce(|| MergeSkaDict::new(kmer_size, small_file.len(), rc),
                   |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
     let parallel = Instant::now();
 
@@ -101,5 +104,6 @@ fn main() {
         save.duration_since(io_start).as_millis(),
         load.duration_since(save).as_millis(),
         load_end.duration_since(load).as_millis());
+    */
 }
 
