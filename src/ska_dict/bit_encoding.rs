@@ -4,13 +4,10 @@
 // gives rc           10     11     00     01
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
 
+#[inline(always)]
 pub fn generate_masks(k: usize) -> (u64, u64) {
     let half_size: usize = (k - 1) / 2;
-    let mut lower_mask = 0;
-    for _idx in 0..(half_size * 2) {
-        lower_mask <<= 1;
-        lower_mask += 1;
-    }
+    let lower_mask = (1 << (half_size * 2)) - 1;
     let upper_mask = lower_mask << (half_size * 2);
     return (lower_mask, upper_mask);
 }
@@ -171,6 +168,7 @@ pub const IUPAC: [u8; 1024] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]; //240-255
 
+// IUPAC RevComp
 // A -> T
 // C -> G
 // G -> C
@@ -186,8 +184,8 @@ pub const IUPAC: [u8; 1024] = [
 // D -> H
 // H -> D
 // V -> B
-// N 	any base
-// . or - 	gap
+// N -> N
+// - -> -
 
 pub const RC_IUPAC: [u8; 256] = [
     b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 0-15
