@@ -50,7 +50,6 @@ impl SkaDict {
         &self.name
     }
 
-    // TODO: set some defaults?
     pub fn new(k: usize, sample_idx: usize, filename: &str, name: &str, rc: bool) -> Self {
         if k < 5 || k > 31 || k % 2 == 0 {
             panic!("Invalid k-mer length");
