@@ -1,6 +1,8 @@
+use std::time::Instant;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
+use regex::Regex;
 use rayon::prelude::*;
 
 pub mod ska_dict;
@@ -14,14 +16,86 @@ pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
 
 pub mod cli;
-use crate::cli::cli_args;
-
-use std::time::Instant;
+use crate::cli::{cli_args, Commands};
 
 fn main() {
     let args = cli_args();
 
-    
+    let start = Instant::now();
+    match &args.command {
+        Commands::Build { seq_files, file_list, output, k, single_strand, threads } => {
+            // Read input
+            let rc = !single_strand;
+            let mut input_files: Vec<(String, String)> = Vec::new();
+            match file_list {
+                Some(files) => {
+                    let f = File::open(files).expect("Unable to open file_list");
+                    let f = BufReader::new(f);
+                    for line in f.lines() {
+                        let line = line.expect("Unable to read line in file_list");
+                        let fields: Vec<&str> = line.split_whitespace().collect();
+                        input_files.push((fields[0].to_string(), fields[1].to_string()));
+                    }
+                }
+                None => {
+                    let re = Regex::new(r"^(.+)\.(?i:fa|fasta)$").unwrap();
+                    for file in seq_files.as_ref().unwrap() {
+                        let caps = re.captures(file);
+                        let name = match caps {
+                            Some(capture) => capture[1].to_string(),
+                            None => file.to_string()
+                        };
+                        input_files.push((name, file.to_string()));
+                    }
+                }
+            }
+
+            // Build indexes
+            let mut ska_dicts: Vec<SkaDict> = Vec::new();
+            ska_dicts.reserve(input_files.len());
+            if *threads > 1 {
+                rayon::ThreadPoolBuilder::new().num_threads(*threads).build_global().unwrap();
+                ska_dicts =
+                    input_files
+                     .par_iter()
+                     .enumerate()
+                     .map(|(idx, (name, filename))| SkaDict::new(*k, idx, filename, name, rc))
+                     .collect();
+            } else {
+                for file_it in input_files.iter().enumerate() {
+                    let (idx, (name, filename)) = file_it;
+                    ska_dicts.push(SkaDict::new(*k, idx, filename, name, rc))
+                }
+            }
+
+            // Merge indexes
+            let mut merged_dict = MergeSkaDict::new(*k, ska_dicts.len(), rc);
+            for ska_dict in &mut ska_dicts {
+                merged_dict.append(ska_dict);
+            }
+
+            // Save
+            let ska_array = MergeSkaArray::new(&merged_dict);
+            ska_array.save(format!("{output}.skf").as_str()).expect("Failed to save output file");
+        }
+        Commands::Nk { skf_file, full_info } => {
+            let ska_array_load = MergeSkaArray::load(skf_file).unwrap();
+            let ska_dict = ska_array_load.to_dict();
+            println!("{}", ska_dict);
+            if *full_info {
+                println!("{:?}", ska_dict);
+            }
+        }
+        _ => {}
+    }
+    let end = Instant::now();
+
+    println!("SKA done in {}ms",
+        end.duration_since(start).as_millis());
+    println!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
+    println!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
+    println!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
+    println!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
     /*
     let small_file = vec![
         ("sample1", "N_test_1.fa"),

@@ -133,12 +133,15 @@ impl MergeSkaDict {
     }
 }
 
-// TODO: take a formatter which determines whether k-mers are written out
 impl fmt::Display for MergeSkaDict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.k, self.rc(), self.ksize(), self.nsamples())?;
-        writeln!(f, "{:?}", self.names)?;
+        writeln!(f, "{:?}", self.names)
+    }
+}
 
+impl fmt::Debug for MergeSkaDict {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = generate_masks(self.k);
         self.split_kmers.iter().try_for_each(|it| {
             let (split_kmer, vars_u8) = it;

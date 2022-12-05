@@ -37,7 +37,7 @@ fn valid_cpus(s: &str) -> Result<usize, String> {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum FileType {
+pub enum FileType {
     /// Variant call format
     Vcf,
     /// Binary call format
@@ -51,11 +51,11 @@ enum FileType {
 #[command(propagate_version = true)]
 pub struct Args {
     #[command(subcommand)]
-    command: Commands,
+    pub command: Commands,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+pub enum Commands {
     #[command(group(
         ArgGroup::new("input")
             .required(true)
