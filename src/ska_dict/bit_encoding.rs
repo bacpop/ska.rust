@@ -1,13 +1,16 @@
-
 // Easy encoding from ASCII are the 3rd and 2nd bits
 // This encodes as A: 00; C: 01; T: 10; G: 11
 // EOR w/ 10          10     10     10     10
 // gives rc           10     11     00     01
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
 
-// To generalise beyond k = 31 these just need to be built by bitshift
-pub const LOWER_MASK: u64 = 0x3FFFFFFF;
-pub const UPPER_MASK: u64 = 0x3FFFFFFF00000000;
+#[inline(always)]
+pub fn generate_masks(k: usize) -> (u64, u64) {
+    let half_size: usize = (k - 1) / 2;
+    let lower_mask = (1 << (half_size * 2)) - 1;
+    let upper_mask = lower_mask << (half_size * 2);
+    return (lower_mask, upper_mask);
+}
 
 #[inline(always)]
 pub fn encode_base(base: u8) -> u8 {
@@ -30,17 +33,39 @@ pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
+pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (String, String) {
+    let half_k: usize = (k - 1) / 2;
+    let mut upper_bits = (kmer & upper_mask) >> (half_k * 2);
+    let mut upper_kmer = String::with_capacity(half_k);
+    for _idx in 0..half_k {
+        let base = decode_base((upper_bits & 0x3) as u8);
+        upper_kmer.push(base as char);
+        upper_bits = upper_bits >> 2;
+    }
+    upper_kmer = upper_kmer.chars().rev().collect::<String>();
+
+    let mut lower_bits = kmer & lower_mask;
+    let mut lower_kmer = String::with_capacity(half_k);
+    for _idx in 0..half_k {
+        let base = decode_base((lower_bits & 0x3) as u8);
+        lower_kmer.push(base as char);
+        lower_bits = lower_bits >> 2;
+    }
+    lower_kmer = lower_kmer.chars().rev().collect::<String>();
+    (upper_kmer, lower_kmer)
+}
+
 // https://www.biostars.org/p/113640/
 #[inline(always)]
 pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
-    res = (res>> 2 & 0x3333333333333333) | (res & 0x3333333333333333) <<  2;
-    res = (res>> 4 & 0x0F0F0F0F0F0F0F0F) | (res & 0x0F0F0F0F0F0F0F0F) <<  4;
-    res = (res>> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) <<  8;
-    res = (res>>16 & 0x0000FFFF0000FFFF) | (res & 0x0000FFFF0000FFFF) << 16;
-    res = (res>>32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
+    res = (res >> 2 & 0x3333333333333333) | (res & 0x3333333333333333) << 2;
+    res = (res >> 4 & 0x0F0F0F0F0F0F0F0F) | (res & 0x0F0F0F0F0F0F0F0F) << 4;
+    res = (res >> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) << 8;
+    res = (res >> 16 & 0x0000FFFF0000FFFF) | (res & 0x0000FFFF0000FFFF) << 16;
+    res = (res >> 32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
     res = res ^ 0xAAAAAAAAAAAAAAAA;
 
-    return res >> (2*(32 - k_size));
+    return res >> (2 * (32 - k_size));
 }
 
 // A 	Adenine
@@ -76,8 +101,8 @@ pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
 // A + V -> V   C + V -> V   T + V -> N   G + V -> V
 // A + N -> N   C + N -> N   T + N -> N   G + N -> N
 
-pub const IUPAC: [u8; 1024] =
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0-15
+pub const IUPAC: [u8; 1024] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0-15
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-31
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 32-47
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 48-63
@@ -140,4 +165,43 @@ pub const IUPAC: [u8; 1024] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 192-207
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 208-223
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 224-239
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; //240-255
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+]; //240-255
+
+// IUPAC RevComp
+// A -> T
+// C -> G
+// G -> C
+// T -> A
+// U -> A
+// R -> Y
+// Y -> R
+// S -> S
+// W -> W
+// K -> M
+// M -> K
+// B -> V
+// D -> H
+// H -> D
+// V -> B
+// N -> N
+// - -> -
+
+pub const RC_IUPAC: [u8; 256] = [
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 0-15
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 16-31
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 32-47
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 48-63
+    b'-', b'T', b'V', b'G', b'H', b'-', b'-', b'C', b'D', b'-', b'-', b'M', b'-', b'K', b'N', b'-', // 64-79
+    b'-', b'-', b'Y', b'S', b'A', b'-', b'B', b'W', b'-', b'R', b'-', b'-', b'-', b'-', b'-', b'-', // 80-95
+    b'-', b'T', b'V', b'G', b'H', b'-', b'-', b'C', b'D', b'-', b'-', b'M', b'-', b'K', b'N', b'-', // 96-111
+    b'-', b'-', b'Y', b'S', b'A', b'-', b'B', b'W', b'-', b'R', b'-', b'-', b'-', b'-', b'-', b'-', // 112-127
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 128-143
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 144-159
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 160-175
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 176-191
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 192-207
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 208-223
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 224-239
+    b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', // 240-255
+];

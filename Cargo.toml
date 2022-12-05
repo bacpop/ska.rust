@@ -1,12 +1,32 @@
 [package]
-name = "ska_rust"
+name = "ska"
 version = "0.1.0"
+authors = [
+    "John Lees <john@johnlees.me>",
+    "Simon Harris <simon.harris@gatesfoundation.org>",
+    "Johanna von Wachsmann <j.vwachsmann@web.de>",
+]
 edition = "2021"
+description = "Split k-mer alignment"
+repository = "https://github.com/bacpop/ska_rust/"
+homepage = "https://bacpop.com/software/"
+license = "Apache-2.0"
+include = [
+    "/Cargo.toml",
+    "/src/*.rs"
+]
+keywords = ["bioinformatics", "genomics", "sequencing", "kmer"]
+categories = ["command-line-utilities", "science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-compress = "0.2.1"
-needletail = "0.4.1"
+regex = "1.7.0"
+clap = { version = "4.0.27", features = ["derive"] }
 rayon = "1.5.3"
+num_cpus = "1.0"
 hashbrown = "0.12"
+ndarray = { version = "0.15.6", features = ["serde"] }
+serde = { version = "1.0.147", features = ["derive"] }
+ciborium = "0.2.0"
+needletail = "0.4.1"
