@@ -139,7 +139,7 @@ pub enum Commands {
     /// Combine multiple split k-mer files
     Merge {
         /// List of input split-kmer (.skf) files
-        seq_files: Vec<String>,
+        skf_files: Vec<String>,
 
         /// Output prefix
         #[arg(short)]

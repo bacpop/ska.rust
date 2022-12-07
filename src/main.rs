@@ -37,6 +37,7 @@ fn read_input_fastas(seq_files: &Vec<String>) -> Vec<(String, String)> {
 
 fn build_and_merge(input_files: &Vec<(String, String)>, k: usize, rc: bool, threads: usize) -> MergeSkaDict {
     // Build indexes
+    log::info!("Building skf dicts from sequence input");
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
     ska_dicts.reserve(input_files.len());
     if threads > 1 {
@@ -55,6 +56,7 @@ fn build_and_merge(input_files: &Vec<(String, String)>, k: usize, rc: bool, thre
     }
 
     // Merge indexes
+    log::info!("Merging skf dicts");
     let mut merged_dict = MergeSkaDict::new(k, ska_dicts.len(), rc);
     for ska_dict in &mut ska_dicts {
         merged_dict.append(ska_dict);
@@ -91,6 +93,7 @@ fn main() {
             let merged_dict = build_and_merge(&input_files, *k, rc, *threads);
 
             // Save
+            log::info!("Converting to array representation and saving");
             let ska_array = MergeSkaArray::new(&merged_dict);
             ska_array.save(format!("{output}.skf").as_str()).expect("Failed to save output file");
         },
@@ -108,10 +111,12 @@ fn main() {
             }
 
             // Apply filters
+            log::info!("Applying filters");
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
             ska_array.filter(filter_threshold, *const_sites);
 
             // Write out to file/stdout
+            log::info!("Writing alignment");
             let out_writer = match output {
                 Some(prefix) => {
                     let path = Path::new(prefix);
@@ -124,13 +129,27 @@ fn main() {
         },
         Commands::Map { reference, input, output, output_format, const_sites, threads } => {
         },
-        Commands::Merge { seq_files, output } => {
+        Commands::Merge { skf_files, output } => {
+            if skf_files.len() < 2 {
+                panic!("Need at least two files to merge");
+            }
+
+            let first_array = MergeSkaArray::load(&skf_files[0]).expect("Failed to load input file");
+            let mut merged_dict = first_array.to_dict();
+            for file_idx in 1..skf_files.len() {
+                let next_array = MergeSkaArray::load(&skf_files[file_idx]).expect("Failed to load input file");
+                merged_dict.merge(&mut next_array.to_dict());
+            }
+            let merged_array = MergeSkaArray::new(&merged_dict);
+            merged_array.save(format!("{output}.skf").as_str()).expect("Failed to save output file");
+
         },
         Commands::Delete { skf_file, file_list, names } => {
         },
         Commands::Weed { skf_file, weed_file } => {
         },
         Commands::Nk { skf_file, full_info } => {
+            log::info!("Printing basic info");
             let ska_array_load = MergeSkaArray::load(skf_file).unwrap();
             let ska_dict = ska_array_load.to_dict();
             println!("{}", ska_dict);
