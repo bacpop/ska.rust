@@ -21,6 +21,8 @@ categories = ["command-line-utilities", "science"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4.17"
+simple_logger = { version = "4.0.0", features = ["stderr"] }
 regex = "1.7.0"
 clap = { version = "4.0.27", features = ["derive"] }
 rayon = "1.5.3"

@@ -1,13 +1,18 @@
-use clap::{Parser, Subcommand, ArgGroup, ValueEnum};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 extern crate num_cpus;
+
+pub const DEFAULT_KMER: usize = 17;
+pub const DEFAULT_STRAND: bool = false;
 
 fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
         .parse()
         .map_err(|_| format!("`{}` isn't a valid k-mer", s))?;
     if k < 5 || k > 31 || k % 2 == 0 {
-        Err(format!("K-mer must an odd number between 5 and 31 (inclusive)"))
+        Err(format!(
+            "K-mer must an odd number between 5 and 31 (inclusive)"
+        ))
     } else {
         Ok(k)
     }
@@ -76,17 +81,61 @@ pub enum Commands {
         output: String,
 
         /// K-mer size
-        #[arg(short, value_parser = valid_kmer, default_value_t = 17)]
+        #[arg(short, value_parser = valid_kmer, default_value_t = DEFAULT_KMER)]
         k: usize,
 
         /// Ignore reverse complement (all contigs are oriented along same strand)
-        #[arg(long, default_value_t = false)]
+        #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
-     },
+    },
+    /// Write an unordered alignment
+    Align {
+        /// A .skf file, or list of .fasta files
+        input: Vec<String>,
+
+        /// Output prefix (omit to output to stdout)
+        #[arg(short)]
+        output: Option<String>,
+
+        /// Minimum fraction of samples a k-mer has to appear in
+        #[arg(short, value_parser = zero_to_one, default_value_t = 0.9)]
+        min_freq: f64,
+
+        /// Output constant middle base sites
+        #[arg(long, default_value_t = false)]
+        const_sites: bool,
+
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
+        threads: usize,
+    },
+    /// Write an ordered alignment using a reference sequence
+    Map {
+        /// Reference FASTA file to map to
+        reference: String,
+
+        /// A .skf file, or list of .fasta files
+        input: Vec<String>,
+
+        /// Output prefix
+        #[arg(short)]
+        output: String,
+
+        #[arg(long, value_enum, default_value_t = FileType::Aln)]
+        output_format: FileType,
+
+        /// Output constant middle base sites
+        #[arg(long, default_value_t = DEFAULT_STRAND)]
+        const_sites: bool,
+
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
+        threads: usize,
+    },
     /// Combine multiple split k-mer files
     Merge {
         /// List of input split-kmer (.skf) files
@@ -120,51 +169,7 @@ pub enum Commands {
         skf_file: String,
 
         /// A FASTA file containing sequences to remove
-        weed_file: String
-    },
-    /// Write an unordered alignment
-    Align {
-        /// A .skf file, or list of .fasta files
-        input: Option<Vec<String>>,
-
-        /// Output prefix
-        #[arg(short)]
-        output: String,
-
-        /// Minimum fraction of samples a k-mer has to appear in
-        #[arg(short, value_parser = zero_to_one, default_value_t = 0.9)]
-        min_freq: f64,
-
-        /// Output constant middle base sites
-        #[arg(long, default_value_t = false)]
-        const_sites: bool,
-
-        /// Number of CPU threads
-        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
-        threads: usize,
-    },
-    /// Write an ordered alignment using a reference sequence
-    Map {
-        /// Reference FASTA file to map to
-        reference: String,
-
-        /// A .skf file, or list of .fasta files
-        input: Option<Vec<String>>,
-
-        /// Output prefix
-        #[arg(short)]
-        output: String,
-
-        #[arg(long, value_enum, default_value_t = FileType::Aln)]
-        output_format: FileType,
-
-        /// Output constant middle base sites
-        #[arg(long, default_value_t = false)]
-        const_sites: bool,
-
-        /// Number of CPU threads
-        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
-        threads: usize,
+        weed_file: String,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {
@@ -175,7 +180,6 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         full_info: bool,
     },
-
 }
 
 pub fn cli_args() -> Args {
