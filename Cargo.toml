@@ -32,3 +32,4 @@ ndarray = { version = "0.15.6", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
 ciborium = "0.2.0"
 needletail = "0.4.1"
+noodles-vcf = "0.22.0"

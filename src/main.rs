@@ -212,13 +212,9 @@ fn main() {
                     log::debug!("Writing alignment");
                     ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");
                 }
-                FileType::Bcf => {
-                    log::debug!("Writing BCF");
-                    ska_ref.write_vcf(&mut out_stream, true);
-                }
                 FileType::Vcf => {
                     log::debug!("Writing VCF");
-                    ska_ref.write_vcf(&mut out_stream, false);
+                    ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
                 }
             }
         }

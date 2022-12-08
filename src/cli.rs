@@ -45,8 +45,6 @@ fn valid_cpus(s: &str) -> Result<usize, String> {
 pub enum FileType {
     /// Variant call format
     Vcf,
-    /// Binary call format
-    Bcf,
     /// FASTA alignment
     Aln,
 }

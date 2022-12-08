@@ -1,13 +1,23 @@
 // Class for split-kmers from one input file
 // Used for ska map
 
-use std::fmt;
 use std::str;
 
-use std::io::{BufWriter, Write};
+use std::io::Write;
+use noodles_vcf::{
+    self as vcf,
+    header::record::value::{map::Contig, Map},
+    header::format::Key,
+    record::{
+        reference_bases::Base,
+        alternate_bases::Allele, AlternateBases,
+        genotypes::{genotype::{field::Value, Field}, Keys, Genotype},
+        Genotypes, Position,
+    },
+};
 
 extern crate needletail;
-use needletail::parse_fastx_file;
+use needletail::{parse_fastx_file, parser::write_fasta};
 use ndarray::{ArrayView, Array2, s};
 
 use crate::merge_ska_dict::MergeSkaDict;
@@ -122,11 +132,91 @@ impl RefSka {
         }
     }
 
-    pub fn write_vcf<W: Write>(&self, f: &mut W, bcf: bool) {
+    pub fn write_vcf<W: Write>(&self, f: &mut W) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
             panic!("Tried to write VCF before variants mapped");
         }
-        write!(f, "placeholder").unwrap();
+
+        // Write the VCF header
+        let mut writer = vcf::Writer::new(f);
+        let mut header_builder = vcf::Header::builder();
+        for contig in &self.chrom_names {
+            header_builder = header_builder.add_contig(Map::<Contig>::new(contig.parse().expect("Could not add contig to header")));
+        }
+        for name in &self.mapped_names {
+            header_builder = header_builder.add_sample_name(name);
+        }
+        let header = header_builder.build();
+        writer.write_header(&header)?;
+
+        // Write each record (column)
+        let keys: Keys = "GT".parse().expect("Genotype format error");
+        for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
+            let ref_base = self.seq[*map_chrom][*map_pos];
+            let ref_allele = match ref_base {
+                b'A' => Base::A,
+                b'C' => Base::C,
+                b'G' => Base::G,
+                b'T' => Base::T,
+                _ => Base::N
+            };
+
+            let mut genotype_vec = Vec::new();
+            genotype_vec.reserve(bases.len());
+            let mut alt_bases: Vec<Base> = Vec::new();
+            for mapped_base in bases {
+                let mut gt: usize = 0;
+                if *mapped_base != ref_base {
+                    gt = match *mapped_base {
+                        b'A' => {
+                            if !alt_bases.contains(&Base::A) {
+                                alt_bases.push(Base::A);
+                            }
+                            alt_bases.iter().position(|&r| r == Base::A).unwrap()
+                        },
+                        b'C' => {
+                            if !alt_bases.contains(&Base::C) {
+                                alt_bases.push(Base::C);
+                            }
+                            alt_bases.iter().position(|&r| r == Base::C).unwrap()
+                        },
+                        b'G' => {
+                            if !alt_bases.contains(&Base::G) {
+                                alt_bases.push(Base::G);
+                            }
+                            alt_bases.iter().position(|&r| r == Base::G).unwrap()
+                        },
+                        b'T' => {
+                            if !alt_bases.contains(&Base::T) {
+                                alt_bases.push(Base::T);
+                            }
+                            alt_bases.iter().position(|&r| r == Base::T).unwrap()
+                        },
+                        _ => {
+                            if !alt_bases.contains(&Base::N) {
+                                alt_bases.push(Base::N);
+                            }
+                            alt_bases.iter().position(|&r| r == Base::N).unwrap()
+                        },
+                    }
+                }
+                let field = Field::new(Key::Genotype, Some(Value::String(gt.to_string())));
+                genotype_vec.push(field);
+            }
+            let genotypes = Genotypes::new(
+                keys.clone(),
+                vec![Genotype::try_from(genotype_vec).expect("Could not construct genotypes")],
+            );
+            let record = vcf::Record::builder()
+                .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
+                .set_position(Position::from(*map_pos))
+                .add_reference_base(ref_allele)
+                .set_alternate_bases(AlternateBases::from(vec![Allele::Bases(alt_bases)]))
+                .set_genotypes(genotypes)
+                .build().expect("Could not construct record");
+            writer.write_record(&record)?;
+        }
+        Ok(())
     }
 
     pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
@@ -156,8 +246,12 @@ impl RefSka {
                 next_pos = *map_pos + 1;
                 seq.push(*base);
             }
-            let seq_char: String = seq.iter().map(|x| *x as char).collect();
-            write!(f, ">{}\n{}\n", sample_name, seq_char)?;
+            write_fasta(
+                sample_name.as_bytes(),
+                seq.as_slice(),
+                f,
+                needletail::parser::LineEnding::Unix,
+            )?;
         }
         Ok(())
     }
