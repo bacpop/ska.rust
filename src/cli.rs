@@ -123,14 +123,10 @@ pub enum Commands {
 
         /// Output prefix
         #[arg(short)]
-        output: String,
+        output: Option<String>,
 
         #[arg(long, value_enum, default_value_t = FileType::Aln)]
         output_format: FileType,
-
-        /// Output constant middle base sites
-        #[arg(long, default_value_t = DEFAULT_STRAND)]
-        const_sites: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

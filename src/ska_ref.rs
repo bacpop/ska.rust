@@ -4,6 +4,8 @@
 use std::fmt;
 use std::str;
 
+use std::io::{BufWriter, Write};
+
 extern crate needletail;
 use needletail::parse_fastx_file;
 use ndarray::{ArrayView, Array2, s};
@@ -120,11 +122,11 @@ impl RefSka {
         }
     }
 
-    pub fn write_vcf(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    pub fn write_vcf<W: Write>(&self, f: &mut W, bcf: bool) {
         if !self.is_mapped() {
             panic!("Tried to write VCF before variants mapped");
         }
-        write!(f, "placeholder")
+        write!(f, "placeholder").unwrap();
     }
 }
 
