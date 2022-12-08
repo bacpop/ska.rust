@@ -11,11 +11,12 @@ use std::fmt;
 
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufWriter, BufReader};
+use std::io::{BufReader, BufWriter, Write};
 
 use hashbrown::HashMap;
 use ndarray::{Array2, ArrayView, Axis};
-use serde::{Serialize, Deserialize};
+use needletail::parser::write_fasta;
+use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
 
@@ -26,7 +27,7 @@ pub struct MergeSkaArray {
     names: Vec<String>,
     split_kmers: Vec<u64>,
     variants: Array2<u8>,
-    variant_count: Vec<usize>
+    variant_count: Vec<usize>,
 }
 
 impl MergeSkaArray {
@@ -62,9 +63,15 @@ impl MergeSkaArray {
             split_kmers.push(*kmer);
             variant_count.push(bases.iter().filter(|b| **b != b'-').count());
             variants.push_row(ArrayView::from(bases)).unwrap();
-
         }
-        Self {k, rc, names, split_kmers, variants, variant_count}
+        Self {
+            k,
+            rc,
+            names,
+            split_kmers,
+            variants,
+            variant_count,
+        }
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
@@ -106,7 +113,7 @@ impl MergeSkaArray {
         for (name, _file) in del_names {
             match name_dict.get(name) {
                 Some(idx) => idx_list.push(*idx),
-                None => panic!("Could not find sample {name}")
+                None => panic!("Could not find sample {name}"),
             }
         }
         idx_list.sort();
@@ -131,7 +138,11 @@ impl MergeSkaArray {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
-        for count_it in self.variant_count.iter().zip(self.variants.axis_iter(Axis(0))) {
+        for count_it in self
+            .variant_count
+            .iter()
+            .zip(self.variants.axis_iter(Axis(0)))
+        {
             let (count, row) = count_it;
             let mut keep_var = false;
             if *count >= min_count {
@@ -155,16 +166,24 @@ impl MergeSkaArray {
         self.variants = filtered_variants;
         self.variant_count = filtered_counts;
     }
-}
 
-impl fmt::Display for MergeSkaArray {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.names.iter()
-            .zip(self.variants.t().outer_iter())
+    pub fn write_fasta<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
+        // Do the transpose, but recopy with correct strides
+        let var_t = self.variants.t();
+        let mut var_t_owned = Array2::zeros(var_t.raw_dim());
+        var_t_owned.assign(&var_t);
+
+        self.names
+            .iter()
+            .zip(var_t_owned.outer_iter())
             .try_for_each(|it| {
                 let (name, seq_u8) = it;
-                let seq_char: String = seq_u8.iter().map(|x| *x as char).collect();
-                write!(f, ">{}\n{}\n", name, seq_char)
+                write_fasta(
+                    name.as_bytes(),
+                    seq_u8.as_slice().expect("Array conversion error"),
+                    f,
+                    needletail::parser::LineEnding::Unix,
+                )
             })
     }
 }

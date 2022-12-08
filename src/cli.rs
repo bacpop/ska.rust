@@ -57,6 +57,10 @@ pub enum FileType {
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
+
+    /// Show progress messages
+    #[arg(short, long, global = true)]
+    pub verbose: bool
 }
 
 #[derive(Subcommand)]

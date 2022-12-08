@@ -128,10 +128,8 @@ impl RefSka {
         }
         write!(f, "placeholder").unwrap();
     }
-}
 
-impl fmt::Display for RefSka {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
             panic!("Tried to write VCF before variants mapped");
         }
