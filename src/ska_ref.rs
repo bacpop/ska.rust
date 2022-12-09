@@ -165,42 +165,45 @@ impl RefSka {
             genotype_vec.reserve(bases.len());
             let mut alt_bases: Vec<Base> = Vec::new();
             for mapped_base in bases {
-                let mut gt: usize = 0;
+                let mut gt = String::from("0");
                 if *mapped_base != ref_base {
                     gt = match *mapped_base {
                         b'A' => {
                             if !alt_bases.contains(&Base::A) {
                                 alt_bases.push(Base::A);
                             }
-                            alt_bases.iter().position(|&r| r == Base::A).unwrap()
+                            (alt_bases.iter().position(|&r| r == Base::A).unwrap() + 1).to_string()
                         },
                         b'C' => {
                             if !alt_bases.contains(&Base::C) {
                                 alt_bases.push(Base::C);
                             }
-                            alt_bases.iter().position(|&r| r == Base::C).unwrap()
+                            (alt_bases.iter().position(|&r| r == Base::C).unwrap() + 1).to_string()
                         },
                         b'G' => {
                             if !alt_bases.contains(&Base::G) {
                                 alt_bases.push(Base::G);
                             }
-                            alt_bases.iter().position(|&r| r == Base::G).unwrap()
+                            (alt_bases.iter().position(|&r| r == Base::G).unwrap() + 1).to_string()
                         },
                         b'T' => {
                             if !alt_bases.contains(&Base::T) {
                                 alt_bases.push(Base::T);
                             }
-                            alt_bases.iter().position(|&r| r == Base::T).unwrap()
+                            (alt_bases.iter().position(|&r| r == Base::T).unwrap() + 1).to_string()
                         },
+                        b'-' => {
+                            ".".to_string()
+                        }
                         _ => {
                             if !alt_bases.contains(&Base::N) {
                                 alt_bases.push(Base::N);
                             }
-                            alt_bases.iter().position(|&r| r == Base::N).unwrap()
+                            (alt_bases.iter().position(|&r| r == Base::N).unwrap() + 1).to_string()
                         },
-                    } + 1;
+                    };
                 }
-                let field = Field::new(Key::Genotype, Some(Value::String(gt.to_string())));
+                let field = Field::new(Key::Genotype, Some(Value::String(gt)));
                 genotype_vec.push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
             }
             if alt_bases.len() > 0 {
@@ -208,11 +211,12 @@ impl RefSka {
                     keys.clone(),
                     genotype_vec,
                 );
+                let alt_alleles: Vec<Allele> = alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();
                 let record = vcf::Record::builder()
                     .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
                     .set_position(Position::from(*map_pos))
                     .add_reference_base(ref_allele)
-                    .set_alternate_bases(AlternateBases::from(vec![Allele::Bases(alt_bases)]))
+                    .set_alternate_bases(AlternateBases::from(alt_alleles))
                     .set_genotypes(genotypes)
                     .build().expect("Could not construct record");
                 writer.write_record(&record)?;
