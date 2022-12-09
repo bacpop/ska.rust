@@ -180,34 +180,33 @@ fn main() {
             let mut ska_array = load_array(input, *threads);
 
             // Apply filters
-            log::debug!("Applying filters");
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
+            log::debug!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
             ska_array.filter(filter_threshold, *const_sites);
 
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
             log::debug!("Writing alignment");
             ska_array.write_fasta(&mut out_stream).expect("Couldn't write output fasta");
-            // write!(&mut out_stream, "{}", ska_array).unwrap();
         }
         Commands::Map {
             reference,
             input,
             output,
-            output_format,
+            format,
             threads,
         } => {
             log::debug!("Loading skf as dictionary");
             let ska_dict = load_array(input, *threads).to_dict();
 
-            log::debug!("Making skf of reference");
-            let mut ska_ref = RefSka::new(ska_dict.ksize(), &reference, ska_dict.rc());
+            log::debug!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+            let mut ska_ref = RefSka::new(ska_dict.kmer_len(), &reference, ska_dict.rc());
 
             log::debug!("Mapping");
             ska_ref.map(&ska_dict);
 
             let mut out_stream = set_ostream(output);
-            match output_format {
+            match format {
                 FileType::Aln => {
                     log::debug!("Writing alignment");
                     ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");

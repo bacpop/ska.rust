@@ -7,8 +7,6 @@
 // Can be converted to/from MergeSkaDict
 // Print will print out alignment
 
-use std::fmt;
-
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};

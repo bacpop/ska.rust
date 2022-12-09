@@ -110,7 +110,7 @@ impl RefSka {
     }
 
     pub fn map(&mut self, ska_dict: &MergeSkaDict) {
-        if self.k != ska_dict.ksize() {
+        if self.k != ska_dict.kmer_len() {
             panic!("K-mer sizes do not match ref:{} skf:{}", self.k, ska_dict.ksize());
         }
         self.mapped_names = ska_dict.names().clone();
@@ -198,23 +198,25 @@ impl RefSka {
                             }
                             alt_bases.iter().position(|&r| r == Base::N).unwrap()
                         },
-                    }
+                    } + 1;
                 }
                 let field = Field::new(Key::Genotype, Some(Value::String(gt.to_string())));
-                genotype_vec.push(field);
+                genotype_vec.push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
             }
-            let genotypes = Genotypes::new(
-                keys.clone(),
-                vec![Genotype::try_from(genotype_vec).expect("Could not construct genotypes")],
-            );
-            let record = vcf::Record::builder()
-                .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
-                .set_position(Position::from(*map_pos))
-                .add_reference_base(ref_allele)
-                .set_alternate_bases(AlternateBases::from(vec![Allele::Bases(alt_bases)]))
-                .set_genotypes(genotypes)
-                .build().expect("Could not construct record");
-            writer.write_record(&record)?;
+            if alt_bases.len() > 0 {
+                let genotypes = Genotypes::new(
+                    keys.clone(),
+                    genotype_vec,
+                );
+                let record = vcf::Record::builder()
+                    .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
+                    .set_position(Position::from(*map_pos))
+                    .add_reference_base(ref_allele)
+                    .set_alternate_bases(AlternateBases::from(vec![Allele::Bases(alt_bases)]))
+                    .set_genotypes(genotypes)
+                    .build().expect("Could not construct record");
+                writer.write_record(&record)?;
+            }
         }
         Ok(())
     }
