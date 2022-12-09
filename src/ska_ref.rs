@@ -80,10 +80,10 @@ impl RefSka {
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
-                let mut pos = kmer_it.get_pos();
+                let mut pos = kmer_it.get_middle_pos();
                 split_kmer_pos.push(RefKmer{kmer, base, pos, chrom, rc});
                 while let Some((kmer, base, rc)) = kmer_it.get_next_kmer() {
-                    pos = kmer_it.get_pos();
+                    pos = kmer_it.get_middle_pos();
                     split_kmer_pos.push(RefKmer{kmer, base, pos, chrom, rc});
                 }
             }
@@ -214,7 +214,7 @@ impl RefSka {
                 let alt_alleles: Vec<Allele> = alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();
                 let record = vcf::Record::builder()
                     .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
-                    .set_position(Position::from(*map_pos))
+                    .set_position(Position::from(*map_pos + 1))
                     .add_reference_base(ref_allele)
                     .set_alternate_bases(AlternateBases::from(alt_alleles))
                     .set_genotypes(genotypes)
@@ -237,21 +237,24 @@ impl RefSka {
             let mut seq: Vec<u8> = Vec::new();
             seq.reserve(self.total_size);
 
+            // TODO: this should also fill in the half-k seq behind the match
+            // (and then the half-k seq in front at the end of the loop)
             let (mut next_pos, mut curr_chrom) = (0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
                 // Move forward to next chromosome/contig
                 if *map_chrom > curr_chrom {
-                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..]);
+                    seq.extend(vec![b'-'; self.seq[curr_chrom].len()- *map_pos]);
                     curr_chrom += 1;
                     next_pos = 0;
                 }
                 if *map_pos > next_pos {
-                    // Copy in ref seq if no k-mers mapped over a region
-                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
+                    // Missing bases, if no k-mers mapped over a region
+                    seq.extend(vec![b'-'; *map_pos - next_pos]);
                 }
                 next_pos = *map_pos + 1;
                 seq.push(*base);
             }
+            seq.extend(vec![b'-'; self.seq[curr_chrom].len()- next_pos]);
             write_fasta(
                 sample_name.as_bytes(),
                 seq.as_slice(),

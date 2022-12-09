@@ -97,7 +97,7 @@ fn load_array(input: &Vec<String>, threads: usize) -> MergeSkaArray {
     } else {
         log::debug!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
-        let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, DEFAULT_STRAND, threads);
+        let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, !DEFAULT_STRAND, threads);
         ska_array = MergeSkaArray::new(&merged_dict);
     }
     return ska_array;
@@ -140,12 +140,27 @@ fn get_input_list(
 }
 
 fn main() {
+    log::debug!("Loading skf as dictionary");
+    let ska_dict = load_array(&vec!["test_1.fa".to_string(), "test_2.fa".to_string()], 1).to_dict();
+
+    log::debug!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+    let mut ska_ref = RefSka::new(ska_dict.kmer_len(), "test_ref.fa", ska_dict.rc());
+
+    log::debug!("Mapping");
+    ska_ref.map(&ska_dict);
+
+    let mut out_stream = set_ostream(&None);
+    ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");
+    ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
+}
+
+fn main2() {
     let args = cli_args();
     if args.verbose {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
     }
 
-    eprintln!("SKA: Split K-mer Alignment (the alignment-free aligner)");
+    eprintln!("SKA: Split K-mer Analysis (the alignment-free aligner)");
     let start = Instant::now();
     match &args.command {
         Commands::Build {

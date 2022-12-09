@@ -153,7 +153,8 @@ impl<'a> SplitKmer<'a> {
         }
     }
 
-    pub fn get_pos(&self) -> usize {
-        self.index
+    pub fn get_middle_pos(&self) -> usize {
+        let middle_idx = (self.k + 1) / 2 - 1;
+        self.index - middle_idx
     }
 }
