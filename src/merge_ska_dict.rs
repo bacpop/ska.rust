@@ -11,6 +11,7 @@ use hashbrown::HashMap;
 
 use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 use crate::ska_dict::SkaDict;
+use crate::ska_ref::RefSka;
 
 pub struct MergeSkaDict {
     k: usize,
@@ -130,6 +131,16 @@ impl MergeSkaDict {
                 }
             }
         }
+    }
+
+    pub fn weed(&mut self, weed_ref: &RefSka) {
+        let mut removed = 0;
+        for kmer in weed_ref.kmer_iter() {
+            if self.split_kmers.remove(&kmer).is_some() {
+                removed += 1;
+            }
+        }
+        log::debug!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
     }
 }
 

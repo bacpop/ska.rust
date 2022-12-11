@@ -272,7 +272,22 @@ fn main2() {
         Commands::Weed {
             skf_file,
             weed_file,
-        } => {}
+        } => {
+            log::debug!("Loading skf as dictionary");
+            let mut ska_dict = MergeSkaArray::load(skf_file.as_str()).unwrap().to_dict();
+
+            log::debug!("Making skf of weed file k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+            let ska_weed = RefSka::new(ska_dict.kmer_len(), &weed_file, ska_dict.rc());
+
+            log::debug!("Removing weed k-mers");
+            ska_dict.weed(&ska_weed);
+
+            log::debug!("Saving modified skf file");
+            let ska_array = MergeSkaArray::new(&ska_dict);
+            ska_array
+                .save(skf_file.as_str())
+                .expect("Failed to save output file");
+        }
         Commands::Nk {
             skf_file,
             full_info,

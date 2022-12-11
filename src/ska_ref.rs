@@ -57,6 +57,10 @@ impl RefSka {
         self.split_kmer_pos.len()
     }
 
+    pub fn kmer_iter(&self) -> impl Iterator<Item=u64> + '_ {
+        self.split_kmer_pos.iter().map(|k| k.kmer)
+    }
+
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
         if k < 5 || k > 31 || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -150,6 +154,7 @@ impl RefSka {
         writer.write_header(&header)?;
 
         // Write each record (column)
+        // TODO: need to add in missing positions
         let keys: Keys = "GT".parse().expect("Genotype format error");
         for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
             let ref_base = self.seq[*map_chrom][*map_pos];
@@ -239,6 +244,11 @@ impl RefSka {
 
             // TODO: this should also fill in the half-k seq behind the match
             // (and then the half-k seq in front at the end of the loop)
+            // so at each map, *WHEN MISSING SEQ NEEDED* (i.e. in the existing extend blocks) extend by
+            // '-' up to pos - k/2
+            // seq of length k/2
+            // the middle base
+            // 
             let (mut next_pos, mut curr_chrom) = (0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
                 // Move forward to next chromosome/contig
