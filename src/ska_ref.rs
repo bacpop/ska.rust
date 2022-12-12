@@ -172,41 +172,21 @@ impl RefSka {
             for mapped_base in bases {
                 let mut gt = String::from("0");
                 if *mapped_base != ref_base {
-                    gt = match *mapped_base {
-                        b'A' => {
-                            if !alt_bases.contains(&Base::A) {
-                                alt_bases.push(Base::A);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::A).unwrap() + 1).to_string()
-                        },
-                        b'C' => {
-                            if !alt_bases.contains(&Base::C) {
-                                alt_bases.push(Base::C);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::C).unwrap() + 1).to_string()
-                        },
-                        b'G' => {
-                            if !alt_bases.contains(&Base::G) {
-                                alt_bases.push(Base::G);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::G).unwrap() + 1).to_string()
-                        },
-                        b'T' => {
-                            if !alt_bases.contains(&Base::T) {
-                                alt_bases.push(Base::T);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::T).unwrap() + 1).to_string()
-                        },
-                        b'-' => {
-                            ".".to_string()
+                    if *mapped_base == b'-' {
+                        gt = ".".to_string();
+                    } else {
+                        let alt_base = match *mapped_base {
+                            b'A' => Base::A,
+                            b'C' => Base::C,
+                            b'G' => Base::G,
+                            b'T' => Base::T,
+                            _ => Base::N,
+                        };
+                        if !alt_bases.contains(&alt_base) {
+                            alt_bases.push(alt_base);
                         }
-                        _ => {
-                            if !alt_bases.contains(&Base::N) {
-                                alt_bases.push(Base::N);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::N).unwrap() + 1).to_string()
-                        },
-                    };
+                        gt = (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1).to_string();
+                    }
                 }
                 let field = Field::new(Key::Genotype, Some(Value::String(gt)));
                 genotype_vec.push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
@@ -237,34 +217,42 @@ impl RefSka {
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
+        let half_split_len = (self.k - 1) / 2;
         for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
             let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
             let mut seq: Vec<u8> = Vec::new();
             seq.reserve(self.total_size);
 
-            // TODO: this should also fill in the half-k seq behind the match
-            // (and then the half-k seq in front at the end of the loop)
-            // so at each map, *WHEN MISSING SEQ NEEDED* (i.e. in the existing extend blocks) extend by
-            // '-' up to pos - k/2
-            // seq of length k/2
-            // the middle base
-            // 
+            // TODO: test with INDELs
+            // if this proves tricky, it might be better to iterate through non-missing
+            // matches and paste each flanking end and middle base into the right place
+            // in the vec (and skip to next match where right end is beyond last paste)
             let (mut next_pos, mut curr_chrom) = (0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
                 // Move forward to next chromosome/contig
                 if *map_chrom > curr_chrom {
-                    seq.extend(vec![b'-'; self.seq[curr_chrom].len()- *map_pos]);
+                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
+                    seq.extend(vec![b'-'; self.seq[curr_chrom].len() - (next_pos + half_split_len)]);
                     curr_chrom += 1;
                     next_pos = 0;
                 }
                 if *map_pos > next_pos {
                     // Missing bases, if no k-mers mapped over a region
-                    seq.extend(vec![b'-'; *map_pos - next_pos]);
+                    seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
+                    seq.extend_from_slice(&self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos]);
                 }
                 next_pos = *map_pos + 1;
-                seq.push(*base);
+                if *base == b'-' {
+                    // This is around a split k-mer match, so we can fill in the
+                    // flanking region with the reference
+                    seq.push(self.seq[curr_chrom][*map_pos]);
+                } else {
+                    seq.push(*base);
+                }
             }
-            seq.extend(vec![b'-'; self.seq[curr_chrom].len()- next_pos]);
+            // Fill up to end of contig
+            seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
+            seq.extend(vec![b'-'; self.seq[curr_chrom].len() - (next_pos + half_split_len)]);
             write_fasta(
                 sample_name.as_bytes(),
                 seq.as_slice(),
