@@ -48,6 +48,16 @@ pub struct RefSka {
     mapped_names: Vec<String>
 }
 
+fn u8_to_Base(ref_base: u8) -> Base {
+    match ref_base {
+        b'A' => Base::A,
+        b'C' => Base::C,
+        b'G' => Base::G,
+        b'T' => Base::T,
+        _ => Base::N
+    }
+}
+
 impl RefSka {
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -155,16 +165,32 @@ impl RefSka {
 
         // Write each record (column)
         // TODO: need to add in missing positions
+        // TODO: deal with missing positions over chromosomes and at ends
         let keys: Keys = "GT".parse().expect("Genotype format error");
+        let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
+        let missing_genotype_vec = vec![Genotype::try_from(vec![missing_field]).expect("Could not construct genotypes"); self.mapped_names.len()];
+        let missing_genotypes = Genotypes::new(
+            keys.clone(),
+            missing_genotype_vec,
+        );
+
+        let (mut next_pos, mut curr_chrom) = (0, 0);
         for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
+            if *map_pos > next_pos {
+                for missing_pos in next_pos..*map_pos {
+                    let ref_allele = u8_to_Base(self.seq[*map_chrom][missing_pos]);
+                    let record = vcf::Record::builder()
+                        .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
+                        .set_position(Position::from(missing_pos))
+                        .add_reference_base(ref_allele)
+                        .set_genotypes(missing_genotypes.clone())
+                        .build().expect("Could not construct record");
+                    writer.write_record(&record)?;
+                }
+            }
+
             let ref_base = self.seq[*map_chrom][*map_pos];
-            let ref_allele = match ref_base {
-                b'A' => Base::A,
-                b'C' => Base::C,
-                b'G' => Base::G,
-                b'T' => Base::T,
-                _ => Base::N
-            };
+            let ref_allele = u8_to_Base(ref_base);
 
             let mut genotype_vec = Vec::new();
             genotype_vec.reserve(bases.len());
@@ -206,6 +232,7 @@ impl RefSka {
                     .build().expect("Could not construct record");
                 writer.write_record(&record)?;
             }
+            next_pos = *map_pos + 1;
         }
         Ok(())
     }
