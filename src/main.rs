@@ -139,7 +139,7 @@ fn get_input_list(
     return input_files;
 }
 
-fn main() {
+fn main2() {
     log::debug!("Loading skf as dictionary");
     let ska_dict = load_array(&vec!["test_1.fa".to_string(), "test_2.fa".to_string()], 1).to_dict();
 
@@ -154,7 +154,7 @@ fn main() {
     ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
 }
 
-fn main2() {
+fn main() {
     let args = cli_args();
     if args.verbose {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
