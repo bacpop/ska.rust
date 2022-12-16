@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use simple_logger;
+use indicatif::{ProgressBar, ProgressIterator, ParallelProgressIterator};
 
 use rayon::prelude::*;
 use regex::Regex;
@@ -53,11 +54,12 @@ fn build_and_merge(
             .unwrap();
         ska_dicts = input_files
             .par_iter()
+            .progress_count(input_files.len() as u64)
             .enumerate()
             .map(|(idx, (name, filename))| SkaDict::new(k, idx, filename, name, rc))
             .collect();
     } else {
-        for file_it in input_files.iter().enumerate() {
+        for file_it in input_files.iter().progress().enumerate() {
             let (idx, (name, filename)) = file_it;
             ska_dicts.push(SkaDict::new(k, idx, filename, name, rc))
         }
@@ -82,9 +84,12 @@ fn build_and_merge(
     // Merge indexes
     log::debug!("Merging skf dicts");
     let mut merged_dict = MergeSkaDict::new(k, ska_dicts.len(), rc);
+    let bar = ProgressBar::new(ska_dicts.len() as u64);
     for ska_dict in &mut ska_dicts {
         merged_dict.append(ska_dict);
+        bar.inc(1);
     }
+    bar.finish();
     return merged_dict;
 }
 

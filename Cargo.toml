@@ -27,6 +27,7 @@ regex = "1.7.0"
 clap = { version = "4.0.27", features = ["derive"] }
 rayon = "1.5.3"
 num_cpus = "1.0"
+indicatif = {version = "0.17.2", features = ["rayon"]}
 hashbrown = "0.12"
 ndarray = { version = "0.15.6", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
