@@ -4,6 +4,8 @@ extern crate num_cpus;
 
 pub const DEFAULT_KMER: usize = 17;
 pub const DEFAULT_STRAND: bool = false;
+pub const DEFAULT_MINCOUNT: u16 = 20;
+pub const DEFAULT_MINQUAL: u8 = 20;
 
 fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
@@ -89,6 +91,14 @@ pub enum Commands {
         /// Ignore reverse complement (all contigs are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
+
+        /// Minimum k-mer count (with reads)
+        #[arg(long, default_value_t = DEFAULT_MINCOUNT)]
+        min_count: u16,
+
+        /// Minimum k-mer count (with reads)
+        #[arg(long, default_value_t = DEFAULT_MINQUAL)]
+        min_qual: u8,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

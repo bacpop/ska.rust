@@ -29,8 +29,9 @@ rayon = "1.5.3"
 num_cpus = "1.0"
 indicatif = {version = "0.17.2", features = ["rayon"]}
 hashbrown = "0.12"
+ahash = "0.8.2"
 ndarray = { version = "0.15.6", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
 ciborium = "0.2.0"
-needletail = "0.4.1"
+needletail = { version = "0.4.1", features = ["compression"] }
 noodles-vcf = "0.22.0"

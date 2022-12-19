@@ -23,7 +23,9 @@ use crate::merge_ska_array::MergeSkaArray;
 pub mod cli;
 use crate::cli::*;
 
-fn read_input_fastas(seq_files: &Vec<String>) -> Vec<(String, String)> {
+type InputFastx = (String, String, Option<String>);
+
+fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
     let mut input_files = Vec::new();
     let re = Regex::new(r"^(.+)\.(?i:fa|fasta|fastq|fastq\.gz)$").unwrap();
     for file in seq_files {
@@ -32,15 +34,17 @@ fn read_input_fastas(seq_files: &Vec<String>) -> Vec<(String, String)> {
             Some(capture) => capture[1].to_string(),
             None => file.to_string(),
         };
-        input_files.push((name, file.to_string()));
+        input_files.push((name, file.to_string(), None));
     }
     return input_files;
 }
 
 fn build_and_merge(
-    input_files: &Vec<(String, String)>,
+    input_files: &Vec<InputFastx>,
     k: usize,
     rc: bool,
+    min_count: u16,
+    min_qual: u8,
     threads: usize,
 ) -> MergeSkaDict {
     // Build indexes
@@ -56,12 +60,12 @@ fn build_and_merge(
             .par_iter()
             .progress_count(input_files.len() as u64)
             .enumerate()
-            .map(|(idx, (name, filename))| SkaDict::new(k, idx, filename, name, rc))
+            .map(|(idx, (name, filename, second_file))| SkaDict::new(k, idx, filename, second_file, name, rc, min_count, min_qual))
             .collect();
     } else {
         for file_it in input_files.iter().progress().enumerate() {
-            let (idx, (name, filename)) = file_it;
-            ska_dicts.push(SkaDict::new(k, idx, filename, name, rc))
+            let (idx, (name, filename, second_file)) = file_it;
+            ska_dicts.push(SkaDict::new(k, idx, filename, second_file, name, rc, min_count, min_qual))
         }
     }
 
@@ -102,7 +106,7 @@ fn load_array(input: &Vec<String>, threads: usize) -> MergeSkaArray {
     } else {
         log::debug!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
-        let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, !DEFAULT_STRAND, threads);
+        let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, !DEFAULT_STRAND, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, threads);
         ska_array = MergeSkaArray::new(&merged_dict);
     }
     return ska_array;
@@ -124,9 +128,9 @@ fn set_ostream(oprefix: &Option<String>) -> BufWriter<Box<dyn Write>> {
 fn get_input_list(
     file_list: &Option<String>,
     seq_files: &Option<Vec<String>>,
-) -> Vec<(String, String)> {
+) -> Vec<InputFastx> {
     // Read input
-    let mut input_files: Vec<(String, String)> = Vec::new();
+    let mut input_files: Vec<InputFastx> = Vec::new();
     match file_list {
         Some(files) => {
             let f = File::open(files).expect("Unable to open file_list");
@@ -134,7 +138,13 @@ fn get_input_list(
             for line in f.lines() {
                 let line = line.expect("Unable to read line in file_list");
                 let fields: Vec<&str> = line.split_whitespace().collect();
-                input_files.push((fields[0].to_string(), fields[1].to_string()));
+                let second_file = match fields.len() {
+                    0..=1 => {panic!("Unable to parse line in file_list")},
+                    2 => None,
+                    3 => Some(fields[2].to_string()),
+                    _ => {panic!("Unable to parse line in file_list")},
+                };
+                input_files.push((fields[0].to_string(), fields[1].to_string(), second_file));
             }
         }
         None => {
@@ -144,7 +154,7 @@ fn get_input_list(
     return input_files;
 }
 
-fn main() {
+fn main2() {
     log::debug!("Loading skf as dictionary");
     let ska_dict = load_array(&vec!["test_1.fa".to_string(), "test_2.fa".to_string()], 1).to_dict();
 
@@ -159,7 +169,7 @@ fn main() {
     ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
 }
 
-fn main2() {
+fn main() {
     let args = cli_args();
     if args.verbose {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
@@ -174,6 +184,8 @@ fn main2() {
             output,
             k,
             single_strand,
+            min_count,
+            min_qual,
             threads
         } => {
             // Read input
@@ -181,7 +193,7 @@ fn main2() {
 
             // Build, merge
             let rc = !*single_strand;
-            let merged_dict = build_and_merge(&input_files, *k, rc, *threads);
+            let merged_dict = build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
 
             // Save
             log::debug!("Converting to array representation and saving");
@@ -267,7 +279,8 @@ fn main2() {
             let input_files = get_input_list(file_list, names);
 
             log::debug!("Deleting samples");
-            ska_array.delete_samples(&input_files);
+            let input_names = input_files.iter().map(|t| t.0.to_owned()).collect();
+            ska_array.delete_samples(&input_names);
 
             log::debug!("Saving modified skf file");
             ska_array

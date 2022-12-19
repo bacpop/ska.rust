@@ -99,7 +99,7 @@ impl MergeSkaArray {
         return dict;
     }
 
-    pub fn delete_samples(&mut self, del_names: &Vec<(String, String)>) {
+    pub fn delete_samples(&mut self, del_names: &Vec<String>) {
         // Find position of names in the array rows
         let mut name_dict: HashMap<String, usize> = HashMap::default();
         for (idx, name_pair) in self.names.iter().enumerate() {
@@ -108,7 +108,7 @@ impl MergeSkaArray {
 
         let mut idx_list = Vec::new();
         idx_list.reserve(del_names.len());
-        for (name, _file) in del_names {
+        for name in del_names {
             match name_dict.get(name) {
                 Some(idx) => idx_list.push(*idx),
                 None => panic!("Could not find sample {name}"),
