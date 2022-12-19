@@ -48,7 +48,8 @@ pub struct RefSka {
     mapped_names: Vec<String>
 }
 
-fn u8_to_Base(ref_base: u8) -> Base {
+#[inline]
+fn u8_to_base(ref_base: u8) -> Base {
     match ref_base {
         b'A' => Base::A,
         b'C' => Base::C,
@@ -178,7 +179,7 @@ impl RefSka {
         for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
             if *map_pos > next_pos {
                 for missing_pos in next_pos..*map_pos {
-                    let ref_allele = u8_to_Base(self.seq[*map_chrom][missing_pos]);
+                    let ref_allele = u8_to_base(self.seq[*map_chrom][missing_pos]);
                     let record = vcf::Record::builder()
                         .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
                         .set_position(Position::from(missing_pos))
@@ -190,7 +191,7 @@ impl RefSka {
             }
 
             let ref_base = self.seq[*map_chrom][*map_pos];
-            let ref_allele = u8_to_Base(ref_base);
+            let ref_allele = u8_to_base(ref_base);
 
             let mut genotype_vec = Vec::new();
             genotype_vec.reserve(bases.len());
@@ -201,13 +202,7 @@ impl RefSka {
                     if *mapped_base == b'-' {
                         gt = ".".to_string();
                     } else {
-                        let alt_base = match *mapped_base {
-                            b'A' => Base::A,
-                            b'C' => Base::C,
-                            b'G' => Base::G,
-                            b'T' => Base::T,
-                            _ => Base::N,
-                        };
+                        let alt_base = u8_to_base(*mapped_base);
                         if !alt_bases.contains(&alt_base) {
                             alt_bases.push(alt_base);
                         }
