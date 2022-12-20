@@ -4,7 +4,7 @@ extern crate num_cpus;
 
 pub const DEFAULT_KMER: usize = 17;
 pub const DEFAULT_STRAND: bool = false;
-pub const DEFAULT_MINCOUNT: u16 = 20;
+pub const DEFAULT_MINCOUNT: u16 = 10;
 pub const DEFAULT_MINQUAL: u8 = 20;
 
 fn valid_kmer(s: &str) -> Result<usize, String> {

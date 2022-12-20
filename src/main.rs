@@ -39,6 +39,14 @@ fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
     return input_files;
 }
 
+fn multi_append(input_dicts: &mut[SkaDict], total_size: usize, k: usize, rc: bool) -> MergeSkaDict {
+    let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
+    for ska_dict in &mut input_dicts.iter() {
+        merged_dict.append(ska_dict);
+    }
+    return merged_dict;
+}
+
 fn build_and_merge(
     input_files: &Vec<InputFastx>,
     k: usize,
@@ -88,12 +96,25 @@ fn build_and_merge(
     // Merge indexes
     log::debug!("Merging skf dicts");
     let mut merged_dict = MergeSkaDict::new(k, ska_dicts.len(), rc);
-    let bar = ProgressBar::new(ska_dicts.len() as u64);
-    for ska_dict in &mut ska_dicts {
-        merged_dict.append(ska_dict);
-        bar.inc(1);
+    if threads > 1 {
+        let total_size = ska_dicts.len();
+        let (bottom, top) = ska_dicts.split_at_mut(total_size / 2);
+        log::debug!("Double append");
+        let (bottom_merge, mut top_merge) =
+            rayon::join(|| multi_append(bottom, total_size, k, rc),
+                        || multi_append(top, total_size, k, rc));
+        log::debug!("Merge");
+        merged_dict = bottom_merge;
+        merged_dict.merge(&mut top_merge);
+    } else {
+        let bar = ProgressBar::new(ska_dicts.len() as u64);
+        for ska_dict in &mut ska_dicts {
+            merged_dict.append(ska_dict);
+            bar.inc(1);
+        }
+        bar.finish();
     }
-    bar.finish();
+    log::debug!("Merge done");
     return merged_dict;
 }
 
