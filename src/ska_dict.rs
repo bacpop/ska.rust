@@ -35,12 +35,12 @@ impl SkaDict {
     }
 
     // Iterates through all the k-mers from a file
-    fn add_file_kmers(&mut self, filename: &str, is_reads: bool) {
+    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, min_qual: u8) {
         let mut reader =
             parse_fastx_file(filename).expect(&format!("Invalid path/file: {}", filename));
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA/Q record");
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), self.k, self.rc);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), seqrec.qual(), self.k, self.rc, min_qual);
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base, _rc) = kmer_it.get_curr_kmer();
@@ -76,7 +76,16 @@ impl SkaDict {
         &self.name
     }
 
-    pub fn new(k: usize, sample_idx: usize, filename: &str, rev_file: &Option<String>, name: &str, rc: bool, min_count: u16, min_qual: u8) -> Self {
+    pub fn new(
+        k: usize,
+        sample_idx: usize,
+        filename: &str,
+        rev_file: &Option<String>,
+        name: &str,
+        rc: bool,
+        min_count: u16,
+        min_qual: u8,
+    ) -> Self {
         if k < 5 || k > 31 || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
@@ -90,13 +99,16 @@ impl SkaDict {
             sample_idx,
             name,
             split_kmers,
-            cm_filter
+            cm_filter,
         };
 
         // Check if we're working with reads, and initalise the CM filter if so
         let mut reader_peek =
             parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
-        let seq_peek = reader_peek.next().expect("Invalid FASTA/Q record").expect("Invalid FASTA/Q record");
+        let seq_peek = reader_peek
+            .next()
+            .expect("Invalid FASTA/Q record")
+            .expect("Invalid FASTA/Q record");
         let mut is_reads = false;
         if seq_peek.format() == Format::Fastq {
             sk_dict.cm_filter.init();
@@ -104,9 +116,9 @@ impl SkaDict {
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(filename, is_reads);
+        sk_dict.add_file_kmers(filename, is_reads, min_qual);
         if let Some(second_filename) = rev_file {
-            sk_dict.add_file_kmers(second_filename, is_reads);
+            sk_dict.add_file_kmers(second_filename, is_reads, min_qual);
         }
 
         if sk_dict.ksize() == 0 {

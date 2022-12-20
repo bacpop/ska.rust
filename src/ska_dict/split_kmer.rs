@@ -7,6 +7,8 @@ pub struct SplitKmer<'a> {
     lower_mask: u64,
     seq: Cow<'a, [u8]>,
     seq_len: usize,
+    qual: Option<&'a[u8]>,
+    min_qual: u8,
     index: usize,
     upper: u64,
     lower: u64,
@@ -18,7 +20,15 @@ pub struct SplitKmer<'a> {
 }
 
 impl<'a> SplitKmer<'a> {
-    fn build(seq: &[u8], seq_len: usize, k: usize, idx: &mut usize) -> Option<(u64, u64, u8)> {
+    #[inline(always)]
+    fn valid_qual(idx: usize, qual: Option<&'a[u8]>, min_qual: u8) -> bool {
+        match qual {
+            Some(qual_seq) => qual_seq[idx] - 33 > min_qual, // ASCII encoding starts from b'!' = 33
+            None => true
+        }
+    }
+
+    fn build(seq: &[u8], seq_len: usize, qual: Option<&'a[u8]>, k: usize, idx: &mut usize, min_qual: u8) -> Option<(u64, u64, u8)> {
         if *idx + k >= seq_len {
             return None;
         }
@@ -28,7 +38,7 @@ impl<'a> SplitKmer<'a> {
         let middle_idx = (k + 1) / 2 - 1;
         let mut i = 0;
         while i < k {
-            if valid_base(seq[i + *idx]) {
+            if valid_base(seq[i + *idx]) && Self::valid_qual(i + *idx, qual, min_qual) {
                 // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
                 if i < middle_idx {
@@ -70,8 +80,8 @@ impl<'a> SplitKmer<'a> {
             return success;
         }
         let base = self.seq[self.index];
-        if !valid_base(base) {
-            let new_kmer = Self::build(&*self.seq, self.seq_len, self.k, &mut self.index);
+        if !valid_base(base) || !Self::valid_qual(self.index, self.qual, self.min_qual) {
+            let new_kmer = Self::build(&*self.seq, self.seq_len, self.qual, self.k, &mut self.index, self.min_qual);
             if new_kmer.is_some() {
                 (self.upper, self.lower, self.middle_base) = new_kmer.unwrap();
                 if self.rc {
@@ -100,9 +110,9 @@ impl<'a> SplitKmer<'a> {
         return success;
     }
 
-    pub fn new(seq: Cow<'a, [u8]>, seq_len: usize, k: usize, rc: bool) -> Option<Self> {
+    pub fn new(seq: Cow<'a, [u8]>, seq_len: usize, qual: Option<&'a[u8]>, k: usize, rc: bool, min_qual: u8) -> Option<Self> {
         let (mut index, rc_upper, rc_lower, rc_middle_base) = (0, 0, 0, 0);
-        let first_kmer = Self::build(&*seq, seq_len, k, &mut index);
+        let first_kmer = Self::build(&*seq, seq_len, qual, k, &mut index, min_qual);
         if first_kmer.is_some() {
             let (upper, lower, middle_base) = first_kmer.unwrap();
             let (lower_mask, upper_mask) = generate_masks(k);
@@ -112,6 +122,8 @@ impl<'a> SplitKmer<'a> {
                 lower_mask,
                 seq_len,
                 seq,
+                qual,
+                min_qual,
                 upper,
                 lower,
                 middle_base,

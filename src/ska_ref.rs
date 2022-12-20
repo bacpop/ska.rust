@@ -17,7 +17,7 @@ use noodles_vcf::{
 };
 
 extern crate needletail;
-use needletail::{parse_fastx_file, parser::write_fasta};
+use needletail::{parse_fastx_file, parser::Format, parser::write_fasta};
 use ndarray::{ArrayView, Array2, s};
 
 use crate::merge_ska_dict::MergeSkaDict;
@@ -87,11 +87,14 @@ impl RefSka {
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
+            if seqrec.format() == Format::Fastq {
+                panic!("Cannot create reference from FASTQ files");
+            }
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
             total_size += seqrec.num_bases();
 
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), k, rc);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
