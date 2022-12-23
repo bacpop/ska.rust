@@ -8,6 +8,7 @@ use std::fmt;
 use std::mem;
 
 use hashbrown::HashMap;
+use packed_simd_2::u8x16;
 
 use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 use crate::ska_dict::SkaDict;
@@ -17,6 +18,7 @@ pub struct MergeSkaDict {
     k: usize,
     rc: bool,
     n_samples: usize,
+    n_vecs: usize,
     names: Vec<String>,
     split_kmers: HashMap<u64, Vec<u8>>,
 }
@@ -49,10 +51,12 @@ impl MergeSkaDict {
     pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
         let names = vec!["".to_string(); n_samples];
         let split_kmers = HashMap::default();
+        let n_vecs = 1 + ((n_samples - 1) / 16);
         return Self {
             k,
             rc,
             n_samples,
+            n_vecs,
             names,
             split_kmers,
         };
@@ -77,7 +81,7 @@ impl MergeSkaDict {
         self.names[other.idx()] = other.name().clone();
         if self.ksize() == 0 {
             for (kmer, base) in other.kmers() {
-                let mut base_vec: Vec<u8> = vec![b'-'; self.n_samples];
+                let mut base_vec: Vec<u8> = vec![0; self.n_vecs * 16];
                 base_vec[other.idx()] = *base;
                 self.split_kmers.insert(*kmer, base_vec);
             }
@@ -89,7 +93,7 @@ impl MergeSkaDict {
                         b[other.idx()] = *base;
                     })
                     .or_insert_with(|| {
-                        let mut new_base_vec: Vec<u8> = vec![b'-'; self.n_samples];
+                        let mut new_base_vec: Vec<u8> = vec![0; self.n_vecs * 16];
                         new_base_vec[other.idx()] = *base;
                         new_base_vec
                     });
@@ -120,12 +124,18 @@ impl MergeSkaDict {
                     self.split_kmers
                         .entry(*kmer)
                         .and_modify(|self_vec| {
+                            for i in (0..self.n_samples).step_by(16) {
+                                let new_vec = u8x16::from_slice_aligned(&self_vec[i..]) | u8x16::from_slice_aligned(&other_vec[i..]);
+                                new_vec.write_to_slice_aligned(&mut self_vec[i..]);
+                            }
+                            /*
                             for base_it in other_vec.iter().zip(self_vec.iter_mut()) {
                                 let (other_base, self_base) = base_it;
                                 if *self_base == b'-' {
                                     *self_base = *other_base;
                                 }
                             }
+                            */
                         })
                         .or_insert(mem::take(other_vec));
                 }
