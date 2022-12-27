@@ -8,7 +8,7 @@ use std::fmt;
 use std::mem;
 
 use hashbrown::HashMap;
-use indicatif::{ProgressBar, ProgressIterator, ParallelProgressIterator};
+use indicatif::{ProgressIterator, ParallelProgressIterator};
 use rayon::prelude::*;
 
 use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
@@ -188,13 +188,18 @@ fn parallel_append(depth: usize, dict_list: &mut [SkaDict], total_size: usize, k
     let (bottom, top) = dict_list.split_at_mut(dict_list.len() / 2);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) =
-        rayon::join(|| multi_append(bottom, total_size, k, rc),
-                    || multi_append(top, total_size, k, rc));
+        rayon::join(
+            || multi_append(bottom, total_size, k, rc),
+            || multi_append(top, total_size, k, rc)
+        );
         bottom_merge.merge(&mut top_merge);
         return bottom_merge;
     } else {
-        let mut bottom_merge = parallel_append(depth - 1, bottom, total_size, k, rc);
-        let mut top_merge = parallel_append(depth - 1, top, total_size, k, rc);
+        let (mut bottom_merge, mut top_merge) =
+        rayon::join(
+            || parallel_append(depth - 1, bottom, total_size, k, rc),
+            || parallel_append(depth - 1, top, total_size, k, rc)
+        );
         bottom_merge.merge(&mut top_merge);
         return bottom_merge;
     }
