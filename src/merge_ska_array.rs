@@ -73,14 +73,16 @@ impl MergeSkaArray {
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
-        let mut serial_file = BufWriter::new(File::create(filename)?);
-        ciborium::ser::into_writer(self, &mut serial_file)?;
+        let serial_file = BufWriter::new(File::create(filename)?);
+        let mut compress_writer = snap::write::FrameEncoder::new(serial_file);
+        ciborium::ser::into_writer(self, &mut compress_writer)?;
         Ok(())
     }
 
     pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
         let ska_file = BufReader::new(File::open(filename)?);
-        let ska_obj: Self = ciborium::de::from_reader(ska_file)?;
+        let decompress_reader = snap::read::FrameDecoder::new(ska_file);
+        let ska_obj: Self = ciborium::de::from_reader(decompress_reader)?;
         Ok(ska_obj)
     }
 
