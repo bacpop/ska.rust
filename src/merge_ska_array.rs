@@ -56,12 +56,12 @@ impl MergeSkaArray {
         let mut split_kmers: Vec<u64> = Vec::new();
         split_kmers.reserve(dynamic.ksize());
         let mut variant_count: Vec<usize> = Vec::new();
-        // TODO parallel it -> use slice_mut
         for (kmer, bases) in dynamic.kmer_dict() {
             split_kmers.push(*kmer);
-            variant_count.push(bases.iter().filter(|b| **b != b'-').count());
+            variant_count.push(bases.iter().filter(|b| **b != 0).count());
             variants.push_row(ArrayView::from(bases)).unwrap();
         }
+        variants.mapv_inplace(|b| u8::max(b, b'-')); // turns zeros to missing
         Self {
             k,
             rc,
@@ -89,7 +89,6 @@ impl MergeSkaArray {
         let mut names = self.names.clone();
         let mut split_kmers: HashMap<u64, Vec<u8>> = HashMap::new();
         split_kmers.reserve(self.variants.nrows());
-        //TODO parallelise
         for row_it in self.variants.outer_iter().zip(self.split_kmers.iter()) {
             let (row_vec, kmer) = row_it;
             split_kmers.insert(*kmer, row_vec.to_vec());

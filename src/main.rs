@@ -4,16 +4,12 @@ use std::path::Path;
 use std::time::Instant;
 
 use simple_logger;
-use indicatif::{ProgressBar, ProgressIterator, ParallelProgressIterator};
 
-use rayon::prelude::*;
 use regex::Regex;
 
 pub mod ska_dict;
-use crate::ska_dict::SkaDict;
-
 pub mod merge_ska_dict;
-use crate::merge_ska_dict::MergeSkaDict;
+use crate::merge_ska_dict::{InputFastx, build_and_merge};
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
@@ -22,8 +18,6 @@ use crate::merge_ska_array::MergeSkaArray;
 
 pub mod cli;
 use crate::cli::*;
-
-type InputFastx = (String, String, Option<String>);
 
 fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
     let mut input_files = Vec::new();
@@ -37,85 +31,6 @@ fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
         input_files.push((name, file.to_string(), None));
     }
     return input_files;
-}
-
-fn multi_append(input_dicts: &mut[SkaDict], total_size: usize, k: usize, rc: bool) -> MergeSkaDict {
-    let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
-    for ska_dict in &mut input_dicts.iter() {
-        merged_dict.append(ska_dict);
-    }
-    return merged_dict;
-}
-
-fn build_and_merge(
-    input_files: &Vec<InputFastx>,
-    k: usize,
-    rc: bool,
-    min_count: u16,
-    min_qual: u8,
-    threads: usize,
-) -> MergeSkaDict {
-    // Build indexes
-    log::debug!("Building skf dicts from sequence input");
-    let mut ska_dicts: Vec<SkaDict> = Vec::new();
-    ska_dicts.reserve(input_files.len());
-    if threads > 1 {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .unwrap();
-        ska_dicts = input_files
-            .par_iter()
-            .progress_count(input_files.len() as u64)
-            .enumerate()
-            .map(|(idx, (name, filename, second_file))| SkaDict::new(k, idx, filename, second_file, name, rc, min_count, min_qual))
-            .collect();
-    } else {
-        for file_it in input_files.iter().progress().enumerate() {
-            let (idx, (name, filename, second_file)) = file_it;
-            ska_dicts.push(SkaDict::new(k, idx, filename, second_file, name, rc, min_count, min_qual))
-        }
-    }
-
-    // Parallel build & merge is slower
-    /*
-    let n_threads = 4;
-    rayon::ThreadPoolBuilder::new().num_threads(n_threads).build_global().unwrap();
-    let ska_dict_p =
-    small_file
-         .par_iter()
-         .enumerate()
-         .map(|(idx, (name, filename))| SkaDict::new(kmer_size, idx, filename, name, rc))
-         .fold(|| MergeSkaDict::new(kmer_size, small_file.len(), rc),
-                |mut a: MergeSkaDict, b: SkaDict| {a.append(&b); a})
-         .reduce(|| MergeSkaDict::new(kmer_size, small_file.len(), rc),
-                  |mut a: MergeSkaDict, mut b: MergeSkaDict| { a.merge(&mut b); a });
-    let parallel = Instant::now();
-    */
-
-    // Merge indexes
-    log::debug!("Merging skf dicts");
-    let mut merged_dict = MergeSkaDict::new(k, ska_dicts.len(), rc);
-    if threads > 1 {
-        let total_size = ska_dicts.len();
-        let (bottom, top) = ska_dicts.split_at_mut(total_size / 2);
-        log::debug!("Double append");
-        let (bottom_merge, mut top_merge) =
-            rayon::join(|| multi_append(bottom, total_size, k, rc),
-                        || multi_append(top, total_size, k, rc));
-        log::debug!("Merge");
-        merged_dict = bottom_merge;
-        merged_dict.merge(&mut top_merge);
-    } else {
-        let bar = ProgressBar::new(ska_dicts.len() as u64);
-        for ska_dict in &mut ska_dicts {
-            merged_dict.append(ska_dict);
-            bar.inc(1);
-        }
-        bar.finish();
-    }
-    log::debug!("Merge done");
-    return merged_dict;
 }
 
 fn load_array(input: &Vec<String>, threads: usize) -> MergeSkaArray {
