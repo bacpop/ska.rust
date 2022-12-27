@@ -37,10 +37,10 @@ fn load_array(input: &Vec<String>, threads: usize) -> MergeSkaArray {
     // Obtain a merged ska array
     let ska_array: MergeSkaArray;
     if input.len() == 1 {
-        log::debug!("Single file as input, trying to load as skf");
+        log::info!("Single file as input, trying to load as skf");
         ska_array = MergeSkaArray::load(input[0].as_str()).unwrap();
     } else {
-        log::debug!("Multiple files as input, running ska build with default settings");
+        log::info!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
         let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, !DEFAULT_STRAND, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, threads);
         ska_array = MergeSkaArray::new(&merged_dict);
@@ -91,13 +91,13 @@ fn get_input_list(
 }
 
 fn main2() {
-    log::debug!("Loading skf as dictionary");
+    log::info!("Loading skf as dictionary");
     let ska_dict = load_array(&vec!["test_1.fa".to_string(), "test_2.fa".to_string()], 1).to_dict();
 
-    log::debug!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+    log::info!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
     let mut ska_ref = RefSka::new(ska_dict.kmer_len(), "test_ref.fa", ska_dict.rc());
 
-    log::debug!("Mapping");
+    log::info!("Mapping");
     ska_ref.map(&ska_dict);
 
     let mut out_stream = set_ostream(&None);
@@ -108,7 +108,7 @@ fn main2() {
 fn main() {
     let args = cli_args();
     if args.verbose {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 
     eprintln!("SKA: Split K-mer Analysis (the alignment-free aligner)");
@@ -130,9 +130,11 @@ fn main() {
             // Build, merge
             let rc = !*single_strand;
             let merged_dict = build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
+            // In debug mode (cannot be set from CLI, give details)
+            log::debug!("{}", format!("{}", merged_dict));
 
             // Save
-            log::debug!("Converting to array representation and saving");
+            log::info!("Converting to array representation and saving");
             let ska_array = MergeSkaArray::new(&merged_dict);
             ska_array
                 .save(format!("{output}.skf").as_str())
@@ -149,12 +151,12 @@ fn main() {
 
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
-            log::debug!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
+            log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
             ska_array.filter(filter_threshold, *const_sites);
 
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
-            log::debug!("Writing alignment");
+            log::info!("Writing alignment");
             ska_array.write_fasta(&mut out_stream).expect("Couldn't write output fasta");
         }
         Commands::Map {
@@ -164,23 +166,23 @@ fn main() {
             format,
             threads,
         } => {
-            log::debug!("Loading skf as dictionary");
+            log::info!("Loading skf as dictionary");
             let ska_dict = load_array(input, *threads).to_dict();
 
-            log::debug!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+            log::info!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
             let mut ska_ref = RefSka::new(ska_dict.kmer_len(), &reference, ska_dict.rc());
 
-            log::debug!("Mapping");
+            log::info!("Mapping");
             ska_ref.map(&ska_dict);
 
             let mut out_stream = set_ostream(output);
             match format {
                 FileType::Aln => {
-                    log::debug!("Writing alignment");
+                    log::info!("Writing alignment");
                     ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");
                 }
                 FileType::Vcf => {
-                    log::debug!("Writing VCF");
+                    log::info!("Writing VCF");
                     ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
                 }
             }
@@ -194,7 +196,7 @@ fn main() {
                 MergeSkaArray::load(&skf_files[0]).expect("Failed to load input file");
             let mut merged_dict = first_array.to_dict();
             for file_idx in 1..skf_files.len() {
-                log::debug!("Merging alignment {file_idx}");
+                log::info!("Merging alignment {file_idx}");
                 let next_array =
                     MergeSkaArray::load(&skf_files[file_idx]).expect("Failed to load input file");
                 merged_dict.merge(&mut next_array.to_dict());
@@ -209,16 +211,16 @@ fn main() {
             file_list,
             names,
         } => {
-            log::debug!("Loading skf file");
+            log::info!("Loading skf file");
             let mut ska_array =
                 MergeSkaArray::load(skf_file).expect("Could not load input skf file");
             let input_files = get_input_list(file_list, names);
 
-            log::debug!("Deleting samples");
+            log::info!("Deleting samples");
             let input_names = input_files.iter().map(|t| t.0.to_owned()).collect();
             ska_array.delete_samples(&input_names);
 
-            log::debug!("Saving modified skf file");
+            log::info!("Saving modified skf file");
             ska_array
                 .save(skf_file)
                 .expect("Could not save modified array");
@@ -227,16 +229,16 @@ fn main() {
             skf_file,
             weed_file,
         } => {
-            log::debug!("Loading skf as dictionary");
+            log::info!("Loading skf as dictionary");
             let mut ska_dict = MergeSkaArray::load(skf_file.as_str()).unwrap().to_dict();
 
-            log::debug!("Making skf of weed file k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+            log::info!("Making skf of weed file k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
             let ska_weed = RefSka::new(ska_dict.kmer_len(), &weed_file, ska_dict.rc());
 
-            log::debug!("Removing weed k-mers");
+            log::info!("Removing weed k-mers");
             ska_dict.weed(&ska_weed);
 
-            log::debug!("Saving modified skf file");
+            log::info!("Saving modified skf file");
             let ska_array = MergeSkaArray::new(&ska_dict);
             ska_array
                 .save(skf_file.as_str())
@@ -246,23 +248,23 @@ fn main() {
             skf_file,
             full_info,
         } => {
-            log::debug!("Printing basic info");
+            log::info!("Printing basic info");
             let ska_array_load = MergeSkaArray::load(skf_file).unwrap();
             let ska_dict = ska_array_load.to_dict();
             println!("{}", ska_dict);
 
             if *full_info {
-                log::debug!("Printing full info");
+                log::info!("Printing full info");
                 println!("{:?}", ska_dict);
             }
         }
     }
     let end = Instant::now();
 
-    eprintln!("SKA done in {}ms", end.duration_since(start).as_millis());
+    eprintln!("SKA done in {}s", end.duration_since(start).as_secs());
     eprintln!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
     eprintln!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
     eprintln!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
     eprintln!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
-    log::debug!("Complete");
+    log::info!("Complete");
 }

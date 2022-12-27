@@ -144,7 +144,7 @@ impl MergeSkaDict {
                 removed += 1;
             }
         }
-        log::debug!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
+        log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
     }
 }
 
@@ -209,7 +209,7 @@ pub fn build_and_merge(
     threads: usize,
 ) -> MergeSkaDict {
     // Build indexes
-    log::debug!("Building skf dicts from sequence input");
+    log::info!("Building skf dicts from sequence input");
     let mut ska_dicts: Vec<SkaDict> = Vec::new();
     ska_dicts.reserve(input_files.len());
     if threads > 1 {
@@ -235,18 +235,14 @@ pub fn build_and_merge(
     let max_threads = usize::max(1, usize::min(threads, 1 + ska_dicts.len() / 10));
     let max_depth = f64::floor(f64::log2(max_threads as f64)) as usize;
     if max_depth > 0 {
-        log::debug!("{}", format!("Merging skf dicts in parallel using {} threads", 1 << max_depth));
+        log::info!("{}", format!("Merging skf dicts in parallel using {} threads", 1 << max_depth));
         let total_size = ska_dicts.len();
         merged_dict = parallel_append(max_depth, &mut ska_dicts, total_size, k, rc);
     } else {
-        log::debug!("Merging skf dicts serially");
-        let bar = ProgressBar::new(ska_dicts.len() as u64);
-        for ska_dict in &mut ska_dicts {
+        log::info!("Merging skf dicts serially");
+        for ska_dict in ska_dicts.iter_mut().progress() {
             merged_dict.append(ska_dict);
-            bar.inc(1);
         }
-        bar.finish();
     }
-    log::debug!("Merge done");
     return merged_dict;
 }
