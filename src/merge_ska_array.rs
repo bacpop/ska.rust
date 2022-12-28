@@ -7,18 +7,21 @@
 // Can be converted to/from MergeSkaDict
 // Print will print out alignment
 
+use std::fmt;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use ndarray::{Array2, ArrayView, Axis};
 use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
+use crate::ska_ref::RefSka;
+use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray {
     k: usize,
     rc: bool,
@@ -42,6 +45,18 @@ impl MergeSkaArray {
         }
         self.variants = new_variants;
         self.variant_count = new_counts;
+    }
+
+    pub fn kmer_len(&self) -> usize {
+        self.k
+    }
+
+    pub fn rc(&self) -> bool {
+        self.rc
+    }
+
+    pub fn ksize(&self) -> usize {
+        self.split_kmers.len()
     }
 
     pub fn nsamples(&self) -> usize {
@@ -166,6 +181,31 @@ impl MergeSkaArray {
         self.variant_count = filtered_counts;
     }
 
+    pub fn weed(&mut self, weed_ref: &RefSka) {
+        let mut weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
+
+        let mut removed = 0;
+        let mut new_sk = Vec::new();
+        let mut new_variants = Array2::zeros((0, self.nsamples()));
+        let mut new_counts = Vec::new();
+        for kmer_it in self.split_kmers.iter()
+            .zip(self.variants.outer_iter())
+            .zip(self.variant_count.iter()) {
+            let ((kmer, var_row), count) = kmer_it;
+            if !weed_kmers.contains(kmer) {
+                new_sk.push(*kmer);
+                new_variants.push_row(var_row).unwrap();
+                new_counts.push(*count);
+            } else {
+                removed += 1;
+            }
+        }
+        self.split_kmers = new_sk;
+        self.variants = new_variants;
+        self.variant_count = new_counts;
+        log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
+    }
+
     pub fn write_fasta<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         // Do the transpose, but recopy with correct strides
         let var_t = self.variants.t();
@@ -184,5 +224,31 @@ impl MergeSkaArray {
                     needletail::parser::LineEnding::Unix,
                 )
             })
+    }
+}
+
+impl fmt::Display for MergeSkaArray {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.kmer_len(), self.rc(), self.ksize(), self.nsamples())?;
+        writeln!(f, "{:?}", self.names)
+    }
+}
+
+impl fmt::Debug for MergeSkaArray {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (lower_mask, upper_mask) = generate_masks(self.k);
+        self.split_kmers.iter().zip(self.variants.outer_iter())
+        .try_for_each(|it| {
+            let (split_kmer, vars_u8) = it;
+            let mut seq_string = String::with_capacity(self.nsamples());
+            for middle_base in vars_u8 {
+                let base = if *middle_base == 0 {'-'} else {*middle_base as char};
+                seq_string.push(base);
+                seq_string.push(',');
+            }
+            seq_string.pop();
+            let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
+            write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
+        })
     }
 }

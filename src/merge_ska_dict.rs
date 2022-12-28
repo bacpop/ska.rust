@@ -1,19 +1,16 @@
 // Class for split-kmers from multiple SkaDict
-// In dictonary representation to support merging/adding
-// Print will print out no kmers, no samples, split k-mers
+// This is an intermediate type which supports building/merging/adding, but then
+// should be converted to an array for most operations
 
 use core::mem::swap;
 use core::panic;
-use std::fmt;
 use std::mem;
 
 use hashbrown::HashMap;
 use indicatif::{ProgressIterator, ParallelProgressIterator};
 use rayon::prelude::*;
 
-use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 use crate::ska_dict::SkaDict;
-use crate::ska_ref::RefSka;
 
 pub type InputFastx = (String, String, Option<String>);
 
@@ -135,41 +132,6 @@ impl MergeSkaDict {
                 }
             }
         }
-    }
-
-    pub fn weed(&mut self, weed_ref: &RefSka) {
-        let mut removed = 0;
-        for kmer in weed_ref.kmer_iter() {
-            if self.split_kmers.remove(&kmer).is_some() {
-                removed += 1;
-            }
-        }
-        log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
-    }
-}
-
-impl fmt::Display for MergeSkaDict {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.k, self.rc(), self.ksize(), self.nsamples())?;
-        writeln!(f, "{:?}", self.names)
-    }
-}
-
-impl fmt::Debug for MergeSkaDict {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (lower_mask, upper_mask) = generate_masks(self.k);
-        self.split_kmers.iter().try_for_each(|it| {
-            let (split_kmer, vars_u8) = it;
-            let mut seq_string = String::with_capacity(self.nsamples());
-            for middle_base in vars_u8 {
-                let base = if *middle_base == 0 {'-'} else {*middle_base as char};
-                seq_string.push(base);
-                seq_string.push(',');
-            }
-            seq_string.pop();
-            let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
-            write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
-        })
     }
 }
 

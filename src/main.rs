@@ -57,8 +57,7 @@ fn main() {
             // Build, merge
             let rc = !*single_strand;
             let merged_dict = build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
-            // In debug mode (cannot be set from CLI, give details)
-            log::debug!("{}", format!("{}", merged_dict));
+
 
             // Save
             log::info!("Converting to array representation and saving");
@@ -75,6 +74,8 @@ fn main() {
             threads,
         } => {
             let mut ska_array = load_array(input, *threads);
+            // In debug mode (cannot be set from CLI, give details)
+            log::debug!("{}", format!("{}", ska_array));
 
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
@@ -156,17 +157,16 @@ fn main() {
             skf_file,
             weed_file,
         } => {
-            log::info!("Loading skf as dictionary");
-            let mut ska_dict = MergeSkaArray::load(skf_file.as_str()).unwrap().to_dict();
+            log::info!("Loading skf file");
+            let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
 
-            log::info!("Making skf of weed file k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
-            let ska_weed = RefSka::new(ska_dict.kmer_len(), &weed_file, ska_dict.rc());
+            log::info!("Making skf of weed file k={} rc={}", ska_array.kmer_len(), ska_array.rc());
+            let ska_weed = RefSka::new(ska_array.kmer_len(), &weed_file, ska_array.rc());
 
             log::info!("Removing weed k-mers");
-            ska_dict.weed(&ska_weed);
+            ska_array.weed(&ska_weed);
 
             log::info!("Saving modified skf file");
-            let ska_array = MergeSkaArray::new(&ska_dict);
             ska_array
                 .save(skf_file.as_str())
                 .expect("Failed to save output file");
@@ -176,13 +176,12 @@ fn main() {
             full_info,
         } => {
             log::info!("Printing basic info");
-            let ska_array_load = MergeSkaArray::load(skf_file).unwrap();
-            let ska_dict = ska_array_load.to_dict();
-            println!("{}", ska_dict);
+            let ska_array = MergeSkaArray::load(skf_file).unwrap();
+            println!("{}", ska_array);
 
             if *full_info {
                 log::info!("Printing full info");
-                println!("{:?}", ska_dict);
+                println!("{:?}", ska_array);
             }
         }
     }
