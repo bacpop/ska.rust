@@ -168,7 +168,7 @@ fn parallel_append(depth: usize, dict_list: &mut [SkaDict], total_size: usize, k
 }
 
 pub fn build_and_merge(
-    input_files: &Vec<InputFastx>,
+    input_files: &[InputFastx],
     k: usize,
     rc: bool,
     min_count: u16,

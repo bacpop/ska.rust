@@ -114,7 +114,7 @@ pub enum Commands {
         output: Option<String>,
 
         /// Minimum fraction of samples a k-mer has to appear in
-        #[arg(short, value_parser = zero_to_one, default_value_t = 0.9)]
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
 
         /// Output constant middle base sites
@@ -177,7 +177,15 @@ pub enum Commands {
         skf_file: String,
 
         /// A FASTA file containing sequences to remove
-        weed_file: String,
+        weed_file: Option<String>,
+
+        /// Minimum fraction of samples a k-mer has to appear in
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
+        min_freq: f64,
+
+        /// Remove constant middle base sites
+        #[arg(long, default_value_t = false)]
+        remove_const_sites: bool,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {

@@ -79,8 +79,9 @@ fn main() {
 
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
+            let update_kmers = false;
             log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
-            ska_array.filter(filter_threshold, *const_sites);
+            ska_array.filter(filter_threshold, *const_sites, update_kmers);
 
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
@@ -145,7 +146,7 @@ fn main() {
             let input_files = get_input_list(file_list, names);
 
             log::info!("Deleting samples");
-            let input_names = input_files.iter().map(|t| t.0.to_owned()).collect();
+            let input_names: Vec<&str> = input_files.iter().map(|t| &*t.0).collect();
             ska_array.delete_samples(&input_names);
 
             log::info!("Saving modified skf file");
@@ -156,15 +157,27 @@ fn main() {
         Commands::Weed {
             skf_file,
             weed_file,
+            min_freq,
+            remove_const_sites,
         } => {
             log::info!("Loading skf file");
             let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
 
-            log::info!("Making skf of weed file k={} rc={}", ska_array.kmer_len(), ska_array.rc());
-            let ska_weed = RefSka::new(ska_array.kmer_len(), &weed_file, ska_array.rc());
+            if let Some(weed_fasta) = weed_file {
+                log::info!("Making skf of weed file k={} rc={}", ska_array.kmer_len(), ska_array.rc());
+                let ska_weed = RefSka::new(ska_array.kmer_len(), &weed_fasta, ska_array.rc());
 
-            log::info!("Removing weed k-mers");
-            ska_array.weed(&ska_weed);
+                log::info!("Removing weed k-mers");
+                ska_array.weed(&ska_weed);
+            }
+
+            let filter_threshold = f64::floor(ska_array.nsamples() as f64 * *min_freq) as usize;
+            let const_sites = !*remove_const_sites;
+            if filter_threshold > 0 || !const_sites {
+                log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
+                let update_kmers = true;
+                ska_array.filter(filter_threshold, const_sites, update_kmers);
+            }
 
             log::info!("Saving modified skf file");
             ska_array

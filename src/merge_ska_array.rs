@@ -115,7 +115,7 @@ impl MergeSkaArray {
         return dict;
     }
 
-    pub fn delete_samples(&mut self, del_names: &Vec<String>) {
+    pub fn delete_samples(&mut self, del_names: &[&str]) {
         // Find position of names in the array rows
         let mut name_dict: HashMap<String, usize> = HashMap::default();
         for (idx, name_pair) in self.names.iter().enumerate() {
@@ -125,7 +125,7 @@ impl MergeSkaArray {
         let mut idx_list = Vec::new();
         idx_list.reserve(del_names.len());
         for name in del_names {
-            match name_dict.get(name) {
+            match name_dict.get(*name) {
                 Some(idx) => idx_list.push(*idx),
                 None => panic!("Could not find sample {name}"),
             }
@@ -148,16 +148,19 @@ impl MergeSkaArray {
         self.update_counts();
     }
 
-    pub fn filter(&mut self, min_count: usize, const_sites: bool) {
+    pub fn filter(&mut self, min_count: usize, const_sites: bool, update_kmers: bool) {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
+        let mut filtered_kmers = Vec::new();
+        let mut removed = 0;
         for count_it in self
             .variant_count
             .iter()
             .zip(self.variants.axis_iter(Axis(0)))
+            .zip(self.split_kmers.iter())
         {
-            let (count, row) = count_it;
+            let ((count, row), kmer) = count_it;
             let mut keep_var = false;
             if *count >= min_count {
                 if !const_sites {
@@ -175,14 +178,23 @@ impl MergeSkaArray {
             if keep_var {
                 filtered_variants.push_row(row).unwrap();
                 filtered_counts.push(*count);
+                if update_kmers {
+                    filtered_kmers.push(*kmer);
+                }
+            } else {
+                removed += 1;
             }
         }
         self.variants = filtered_variants;
         self.variant_count = filtered_counts;
+        if update_kmers {
+            self.split_kmers = filtered_kmers;
+        }
+        log::info!("Filtering removed {removed} split k-mers");
     }
 
     pub fn weed(&mut self, weed_ref: &RefSka) {
-        let mut weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
+        let weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
 
         let mut removed = 0;
         let mut new_sk = Vec::new();

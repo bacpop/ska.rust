@@ -9,7 +9,7 @@ use crate::merge_ska_array::MergeSkaArray;
 
 use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND};
 
-pub fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
+pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
     let mut input_files = Vec::new();
     let re = Regex::new(r"^(.+)\.(?i:fa|fasta|fastq|fastq\.gz)$").unwrap();
     for file in seq_files {
@@ -23,7 +23,7 @@ pub fn read_input_fastas(seq_files: &Vec<String>) -> Vec<InputFastx> {
     return input_files;
 }
 
-pub fn load_array(input: &Vec<String>, threads: usize) -> MergeSkaArray {
+pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
     // Obtain a merged ska array
     let ska_array: MergeSkaArray;
     if input.len() == 1 {
