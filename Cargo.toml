@@ -36,3 +36,5 @@ ciborium = "0.2.0"
 needletail = { version = "0.4.1", features = ["compression"] }
 noodles-vcf = "0.22.0"
 snap = "1.1.0"
+snapbox = "0.4.3"
+predicates = "2.1.5"
