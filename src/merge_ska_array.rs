@@ -7,18 +7,21 @@
 // Can be converted to/from MergeSkaDict
 // Print will print out alignment
 
+use std::fmt;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use ndarray::{Array2, ArrayView, Axis};
 use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
+use crate::ska_ref::RefSka;
+use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray {
     k: usize,
     rc: bool,
@@ -44,6 +47,18 @@ impl MergeSkaArray {
         self.variant_count = new_counts;
     }
 
+    pub fn kmer_len(&self) -> usize {
+        self.k
+    }
+
+    pub fn rc(&self) -> bool {
+        self.rc
+    }
+
+    pub fn ksize(&self) -> usize {
+        self.split_kmers.len()
+    }
+
     pub fn nsamples(&self) -> usize {
         self.variants.ncols()
     }
@@ -56,12 +71,12 @@ impl MergeSkaArray {
         let mut split_kmers: Vec<u64> = Vec::new();
         split_kmers.reserve(dynamic.ksize());
         let mut variant_count: Vec<usize> = Vec::new();
-        // TODO parallel it -> use slice_mut
         for (kmer, bases) in dynamic.kmer_dict() {
             split_kmers.push(*kmer);
-            variant_count.push(bases.iter().filter(|b| **b != b'-').count());
+            variant_count.push(bases.iter().filter(|b| **b != 0).count());
             variants.push_row(ArrayView::from(bases)).unwrap();
         }
+        variants.mapv_inplace(|b| u8::max(b, b'-')); // turns zeros to missing
         Self {
             k,
             rc,
@@ -73,14 +88,16 @@ impl MergeSkaArray {
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
-        let mut serial_file = BufWriter::new(File::create(filename)?);
-        ciborium::ser::into_writer(self, &mut serial_file)?;
+        let serial_file = BufWriter::new(File::create(filename)?);
+        let mut compress_writer = snap::write::FrameEncoder::new(serial_file);
+        ciborium::ser::into_writer(self, &mut compress_writer)?;
         Ok(())
     }
 
     pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
         let ska_file = BufReader::new(File::open(filename)?);
-        let ska_obj: Self = ciborium::de::from_reader(ska_file)?;
+        let decompress_reader = snap::read::FrameDecoder::new(ska_file);
+        let ska_obj: Self = ciborium::de::from_reader(decompress_reader)?;
         Ok(ska_obj)
     }
 
@@ -89,7 +106,6 @@ impl MergeSkaArray {
         let mut names = self.names.clone();
         let mut split_kmers: HashMap<u64, Vec<u8>> = HashMap::new();
         split_kmers.reserve(self.variants.nrows());
-        //TODO parallelise
         for row_it in self.variants.outer_iter().zip(self.split_kmers.iter()) {
             let (row_vec, kmer) = row_it;
             split_kmers.insert(*kmer, row_vec.to_vec());
@@ -99,7 +115,7 @@ impl MergeSkaArray {
         return dict;
     }
 
-    pub fn delete_samples(&mut self, del_names: &Vec<(String, String)>) {
+    pub fn delete_samples(&mut self, del_names: &[&str]) {
         // Find position of names in the array rows
         let mut name_dict: HashMap<String, usize> = HashMap::default();
         for (idx, name_pair) in self.names.iter().enumerate() {
@@ -108,8 +124,8 @@ impl MergeSkaArray {
 
         let mut idx_list = Vec::new();
         idx_list.reserve(del_names.len());
-        for (name, _file) in del_names {
-            match name_dict.get(name) {
+        for name in del_names {
+            match name_dict.get(*name) {
                 Some(idx) => idx_list.push(*idx),
                 None => panic!("Could not find sample {name}"),
             }
@@ -132,16 +148,19 @@ impl MergeSkaArray {
         self.update_counts();
     }
 
-    pub fn filter(&mut self, min_count: usize, const_sites: bool) {
+    pub fn filter(&mut self, min_count: usize, const_sites: bool, update_kmers: bool) {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
+        let mut filtered_kmers = Vec::new();
+        let mut removed = 0;
         for count_it in self
             .variant_count
             .iter()
             .zip(self.variants.axis_iter(Axis(0)))
+            .zip(self.split_kmers.iter())
         {
-            let (count, row) = count_it;
+            let ((count, row), kmer) = count_it;
             let mut keep_var = false;
             if *count >= min_count {
                 if !const_sites {
@@ -159,10 +178,44 @@ impl MergeSkaArray {
             if keep_var {
                 filtered_variants.push_row(row).unwrap();
                 filtered_counts.push(*count);
+                if update_kmers {
+                    filtered_kmers.push(*kmer);
+                }
+            } else {
+                removed += 1;
             }
         }
         self.variants = filtered_variants;
         self.variant_count = filtered_counts;
+        if update_kmers {
+            self.split_kmers = filtered_kmers;
+        }
+        log::info!("Filtering removed {removed} split k-mers");
+    }
+
+    pub fn weed(&mut self, weed_ref: &RefSka) {
+        let weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
+
+        let mut removed = 0;
+        let mut new_sk = Vec::new();
+        let mut new_variants = Array2::zeros((0, self.nsamples()));
+        let mut new_counts = Vec::new();
+        for kmer_it in self.split_kmers.iter()
+            .zip(self.variants.outer_iter())
+            .zip(self.variant_count.iter()) {
+            let ((kmer, var_row), count) = kmer_it;
+            if !weed_kmers.contains(kmer) {
+                new_sk.push(*kmer);
+                new_variants.push_row(var_row).unwrap();
+                new_counts.push(*count);
+            } else {
+                removed += 1;
+            }
+        }
+        self.split_kmers = new_sk;
+        self.variants = new_variants;
+        self.variant_count = new_counts;
+        log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
     }
 
     pub fn write_fasta<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
@@ -183,5 +236,31 @@ impl MergeSkaArray {
                     needletail::parser::LineEnding::Unix,
                 )
             })
+    }
+}
+
+impl fmt::Display for MergeSkaArray {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.kmer_len(), self.rc(), self.ksize(), self.nsamples())?;
+        writeln!(f, "{:?}", self.names)
+    }
+}
+
+impl fmt::Debug for MergeSkaArray {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (lower_mask, upper_mask) = generate_masks(self.k);
+        self.split_kmers.iter().zip(self.variants.outer_iter())
+        .try_for_each(|it| {
+            let (split_kmer, vars_u8) = it;
+            let mut seq_string = String::with_capacity(self.nsamples());
+            for middle_base in vars_u8 {
+                let base = if *middle_base == 0 {'-'} else {*middle_base as char};
+                seq_string.push(base);
+                seq_string.push(',');
+            }
+            seq_string.pop();
+            let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
+            write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
+        })
     }
 }

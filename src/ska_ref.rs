@@ -17,7 +17,7 @@ use noodles_vcf::{
 };
 
 extern crate needletail;
-use needletail::{parse_fastx_file, parser::write_fasta};
+use needletail::{parse_fastx_file, parser::Format, parser::write_fasta};
 use ndarray::{ArrayView, Array2, s};
 
 use crate::merge_ska_dict::MergeSkaDict;
@@ -48,6 +48,17 @@ pub struct RefSka {
     mapped_names: Vec<String>
 }
 
+#[inline]
+fn u8_to_base(ref_base: u8) -> Base {
+    match ref_base {
+        b'A' => Base::A,
+        b'C' => Base::C,
+        b'G' => Base::G,
+        b'T' => Base::T,
+        _ => Base::N
+    }
+}
+
 impl RefSka {
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -55,6 +66,10 @@ impl RefSka {
 
     pub fn ksize(&self) -> usize {
         self.split_kmer_pos.len()
+    }
+
+    pub fn kmer_iter(&self) -> impl Iterator<Item=u64> + '_ {
+        self.split_kmer_pos.iter().map(|k| k.kmer)
     }
 
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
@@ -72,18 +87,21 @@ impl RefSka {
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
+            if seqrec.format() == Format::Fastq {
+                panic!("Cannot create reference from FASTQ files");
+            }
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
             total_size += seqrec.num_bases();
 
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), k, rc);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
-                let mut pos = kmer_it.get_pos();
+                let mut pos = kmer_it.get_middle_pos();
                 split_kmer_pos.push(RefKmer{kmer, base, pos, chrom, rc});
                 while let Some((kmer, base, rc)) = kmer_it.get_next_kmer() {
-                    pos = kmer_it.get_pos();
+                    pos = kmer_it.get_middle_pos();
                     split_kmer_pos.push(RefKmer{kmer, base, pos, chrom, rc});
                 }
             }
@@ -150,16 +168,33 @@ impl RefSka {
         writer.write_header(&header)?;
 
         // Write each record (column)
+        // TODO: need to add in missing positions
+        // TODO: deal with missing positions over chromosomes and at ends
         let keys: Keys = "GT".parse().expect("Genotype format error");
+        let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
+        let missing_genotype_vec = vec![Genotype::try_from(vec![missing_field]).expect("Could not construct genotypes"); self.mapped_names.len()];
+        let missing_genotypes = Genotypes::new(
+            keys.clone(),
+            missing_genotype_vec,
+        );
+
+        let (mut next_pos, mut curr_chrom) = (0, 0);
         for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
+            if *map_pos > next_pos {
+                for missing_pos in next_pos..*map_pos {
+                    let ref_allele = u8_to_base(self.seq[*map_chrom][missing_pos]);
+                    let record = vcf::Record::builder()
+                        .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
+                        .set_position(Position::from(missing_pos))
+                        .add_reference_base(ref_allele)
+                        .set_genotypes(missing_genotypes.clone())
+                        .build().expect("Could not construct record");
+                    writer.write_record(&record)?;
+                }
+            }
+
             let ref_base = self.seq[*map_chrom][*map_pos];
-            let ref_allele = match ref_base {
-                b'A' => Base::A,
-                b'C' => Base::C,
-                b'G' => Base::G,
-                b'T' => Base::T,
-                _ => Base::N
-            };
+            let ref_allele = u8_to_base(ref_base);
 
             let mut genotype_vec = Vec::new();
             genotype_vec.reserve(bases.len());
@@ -167,41 +202,15 @@ impl RefSka {
             for mapped_base in bases {
                 let mut gt = String::from("0");
                 if *mapped_base != ref_base {
-                    gt = match *mapped_base {
-                        b'A' => {
-                            if !alt_bases.contains(&Base::A) {
-                                alt_bases.push(Base::A);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::A).unwrap() + 1).to_string()
-                        },
-                        b'C' => {
-                            if !alt_bases.contains(&Base::C) {
-                                alt_bases.push(Base::C);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::C).unwrap() + 1).to_string()
-                        },
-                        b'G' => {
-                            if !alt_bases.contains(&Base::G) {
-                                alt_bases.push(Base::G);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::G).unwrap() + 1).to_string()
-                        },
-                        b'T' => {
-                            if !alt_bases.contains(&Base::T) {
-                                alt_bases.push(Base::T);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::T).unwrap() + 1).to_string()
-                        },
-                        b'-' => {
-                            ".".to_string()
+                    if *mapped_base == b'-' {
+                        gt = ".".to_string();
+                    } else {
+                        let alt_base = u8_to_base(*mapped_base);
+                        if !alt_bases.contains(&alt_base) {
+                            alt_bases.push(alt_base);
                         }
-                        _ => {
-                            if !alt_bases.contains(&Base::N) {
-                                alt_bases.push(Base::N);
-                            }
-                            (alt_bases.iter().position(|&r| r == Base::N).unwrap() + 1).to_string()
-                        },
-                    };
+                        gt = (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1).to_string();
+                    }
                 }
                 let field = Field::new(Key::Genotype, Some(Value::String(gt)));
                 genotype_vec.push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
@@ -214,13 +223,14 @@ impl RefSka {
                 let alt_alleles: Vec<Allele> = alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();
                 let record = vcf::Record::builder()
                     .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
-                    .set_position(Position::from(*map_pos))
+                    .set_position(Position::from(*map_pos + 1))
                     .add_reference_base(ref_allele)
                     .set_alternate_bases(AlternateBases::from(alt_alleles))
                     .set_genotypes(genotypes)
                     .build().expect("Could not construct record");
                 writer.write_record(&record)?;
             }
+            next_pos = *map_pos + 1;
         }
         Ok(())
     }
@@ -232,26 +242,42 @@ impl RefSka {
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
+        let half_split_len = (self.k - 1) / 2;
         for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
             let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
             let mut seq: Vec<u8> = Vec::new();
             seq.reserve(self.total_size);
 
+            // TODO: test with INDELs
+            // if this proves tricky, it might be better to iterate through non-missing
+            // matches and paste each flanking end and middle base into the right place
+            // in the vec (and skip to next match where right end is beyond last paste)
             let (mut next_pos, mut curr_chrom) = (0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
                 // Move forward to next chromosome/contig
                 if *map_chrom > curr_chrom {
-                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..]);
+                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
+                    seq.extend(vec![b'-'; self.seq[curr_chrom].len() - (next_pos + half_split_len)]);
                     curr_chrom += 1;
                     next_pos = 0;
                 }
                 if *map_pos > next_pos {
-                    // Copy in ref seq if no k-mers mapped over a region
-                    seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
+                    // Missing bases, if no k-mers mapped over a region
+                    seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
+                    seq.extend_from_slice(&self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos]);
                 }
                 next_pos = *map_pos + 1;
-                seq.push(*base);
+                if *base == b'-' {
+                    // This is around a split k-mer match, so we can fill in the
+                    // flanking region with the reference
+                    seq.push(self.seq[curr_chrom][*map_pos]);
+                } else {
+                    seq.push(*base);
+                }
             }
+            // Fill up to end of contig
+            seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
+            seq.extend(vec![b'-'; self.seq[curr_chrom].len() - (next_pos + half_split_len)]);
             write_fasta(
                 sample_name.as_bytes(),
                 seq.as_slice(),

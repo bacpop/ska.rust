@@ -4,6 +4,8 @@ extern crate num_cpus;
 
 pub const DEFAULT_KMER: usize = 17;
 pub const DEFAULT_STRAND: bool = false;
+pub const DEFAULT_MINCOUNT: u16 = 10;
+pub const DEFAULT_MINQUAL: u8 = 20;
 
 fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
@@ -90,6 +92,14 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
 
+        /// Minimum k-mer count (with reads)
+        #[arg(long, default_value_t = DEFAULT_MINCOUNT)]
+        min_count: u16,
+
+        /// Minimum k-mer count (with reads)
+        #[arg(long, default_value_t = DEFAULT_MINQUAL)]
+        min_qual: u8,
+
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
@@ -104,7 +114,7 @@ pub enum Commands {
         output: Option<String>,
 
         /// Minimum fraction of samples a k-mer has to appear in
-        #[arg(short, value_parser = zero_to_one, default_value_t = 0.9)]
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
 
         /// Output constant middle base sites
@@ -167,7 +177,15 @@ pub enum Commands {
         skf_file: String,
 
         /// A FASTA file containing sequences to remove
-        weed_file: String,
+        weed_file: Option<String>,
+
+        /// Minimum fraction of samples a k-mer has to appear in
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
+        min_freq: f64,
+
+        /// Remove constant middle base sites
+        #[arg(long, default_value_t = false)]
+        remove_const_sites: bool,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {

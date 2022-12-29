@@ -2,12 +2,12 @@
 name = "ska"
 version = "0.1.0"
 authors = [
-    "John Lees <john@johnlees.me>",
+    "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
     "Johanna von Wachsmann <j.vwachsmann@web.de>",
 ]
 edition = "2021"
-description = "Split k-mer alignment"
+description = "Split k-mer analysis"
 repository = "https://github.com/bacpop/ska_rust/"
 homepage = "https://bacpop.com/software/"
 license = "Apache-2.0"
@@ -27,9 +27,12 @@ regex = "1.7.0"
 clap = { version = "4.0.27", features = ["derive"] }
 rayon = "1.5.3"
 num_cpus = "1.0"
+indicatif = {version = "0.17.2", features = ["rayon"]}
 hashbrown = "0.12"
+ahash = "0.8.2"
 ndarray = { version = "0.15.6", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
 ciborium = "0.2.0"
-needletail = "0.4.1"
+needletail = { version = "0.4.1", features = ["compression"] }
 noodles-vcf = "0.22.0"
+snap = "1.1.0"
