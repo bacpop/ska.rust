@@ -1,7 +1,7 @@
-use std::path::Path;
 use predicates::prelude::*;
+use std::path::Path;
 
-use snapbox::cmd::{Command, cargo_bin};
+use snapbox::cmd::{cargo_bin, Command};
 
 // Creates correct path for input/output files
 static FILE_IN: &'static str = "tests/files_in";
@@ -10,17 +10,23 @@ static FILE_TEST: &'static str = "tests/files_test";
 
 #[macro_export]
 macro_rules! file_in {
-    ($e:expr) => {&format!("{}/{}", FILE_IN, $e)}
+    ($e:expr) => {
+        &format!("{}/{}", FILE_IN, $e)
+    };
 }
 
 #[macro_export]
 macro_rules! file_out {
-    ($e:expr) => {&format!("{}/{}", FILE_OUT, $e)}
+    ($e:expr) => {
+        &format!("{}/{}", FILE_OUT, $e)
+    };
 }
 
 #[macro_export]
 macro_rules! file_test {
-    ($e:expr) => {&format!("{}/{}", FILE_TEST, $e)}
+    ($e:expr) => {
+        &format!("{}/{}", FILE_TEST, $e)
+    };
 }
 
 #[test]
@@ -45,8 +51,11 @@ fn build_and_align() {
         .success();
 
     let predicate_file = predicate::path::eq_file(Path::new(file_out!("basic.aln")));
-    assert_eq!(true, predicate_file.eval(Path::new(file_test!("basic1.aln"))) |
-                     predicate_file.eval(Path::new(file_test!("basic2.aln"))));
+    assert_eq!(
+        true,
+        predicate_file.eval(Path::new(file_test!("basic1.aln")))
+            | predicate_file.eval(Path::new(file_test!("basic2.aln")))
+    );
 }
 
 #[test]
@@ -61,7 +70,9 @@ fn basic_align() {
         .success();
 
     let predicate_file = predicate::path::eq_file(Path::new(file_out!("basic.aln")));
-    assert_eq!(true, predicate_file.eval(Path::new(file_test!("basic1.aln"))) |
-                     predicate_file.eval(Path::new(file_test!("basic2.aln"))));
+    assert_eq!(
+        true,
+        predicate_file.eval(Path::new(file_test!("basic1.aln")))
+            | predicate_file.eval(Path::new(file_test!("basic2.aln")))
+    );
 }
-

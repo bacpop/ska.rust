@@ -4,8 +4,8 @@ use std::path::Path;
 
 use regex::Regex;
 
-use crate::merge_ska_dict::{InputFastx, build_and_merge};
 use crate::merge_ska_array::MergeSkaArray;
+use crate::merge_ska_dict::{build_and_merge, InputFastx};
 
 use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND};
 
@@ -32,7 +32,14 @@ pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
     } else {
         log::info!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
-        let merged_dict = build_and_merge(&input_files, DEFAULT_KMER, !DEFAULT_STRAND, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, threads);
+        let merged_dict = build_and_merge(
+            &input_files,
+            DEFAULT_KMER,
+            !DEFAULT_STRAND,
+            DEFAULT_MINCOUNT,
+            DEFAULT_MINQUAL,
+            threads,
+        );
         ska_array = MergeSkaArray::new(&merged_dict);
     }
     return ska_array;
@@ -64,11 +71,16 @@ pub fn get_input_list(
             for line in f.lines() {
                 let line = line.expect("Unable to read line in file_list");
                 let fields: Vec<&str> = line.split_whitespace().collect();
+                // Should be 2 entries for fasta, 3 for fastq
                 let second_file = match fields.len() {
-                    0..=1 => {panic!("Unable to parse line in file_list")},
+                    0..=1 => {
+                        panic!("Unable to parse line in file_list")
+                    }
                     2 => None,
                     3 => Some(fields[2].to_string()),
-                    _ => {panic!("Unable to parse line in file_list")},
+                    _ => {
+                        panic!("Unable to parse line in file_list")
+                    }
                 };
                 input_files.push((fields[0].to_string(), fields[1].to_string(), second_file));
             }

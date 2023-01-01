@@ -60,7 +60,7 @@ pub struct Args {
 
     /// Show progress messages
     #[arg(short, long, global = true)]
-    pub verbose: bool
+    pub verbose: bool,
 }
 
 #[derive(Subcommand)]

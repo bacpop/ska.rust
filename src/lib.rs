@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use simple_logger;
 
-pub mod ska_dict;
 pub mod merge_ska_dict;
+pub mod ska_dict;
 use crate::merge_ska_dict::build_and_merge;
 
 pub mod ska_ref;
@@ -34,15 +34,15 @@ pub fn main() {
             single_strand,
             min_count,
             min_qual,
-            threads
+            threads,
         } => {
             // Read input
             let input_files = get_input_list(file_list, seq_files);
 
             // Build, merge
             let rc = !*single_strand;
-            let merged_dict = build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
-
+            let merged_dict =
+                build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
 
             // Save
             log::info!("Converting to array representation and saving");
@@ -71,7 +71,9 @@ pub fn main() {
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
             log::info!("Writing alignment");
-            ska_array.write_fasta(&mut out_stream).expect("Couldn't write output fasta");
+            ska_array
+                .write_fasta(&mut out_stream)
+                .expect("Couldn't write output fasta");
         }
         Commands::Map {
             reference,
@@ -83,7 +85,11 @@ pub fn main() {
             log::info!("Loading skf as dictionary");
             let ska_dict = load_array(input, *threads).to_dict();
 
-            log::info!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
+            log::info!(
+                "Making skf of reference k={} rc={}",
+                ska_dict.kmer_len(),
+                ska_dict.rc()
+            );
             let mut ska_ref = RefSka::new(ska_dict.kmer_len(), &reference, ska_dict.rc());
 
             log::info!("Mapping");
@@ -93,11 +99,15 @@ pub fn main() {
             match format {
                 FileType::Aln => {
                     log::info!("Writing alignment");
-                    ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");
+                    ska_ref
+                        .write_aln(&mut out_stream)
+                        .expect("Failed to write output alignment");
                 }
                 FileType::Vcf => {
                     log::info!("Writing VCF");
-                    ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
+                    ska_ref
+                        .write_vcf(&mut out_stream)
+                        .expect("Failed to write output VCF");
                 }
             }
         }
@@ -149,7 +159,11 @@ pub fn main() {
             let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
 
             if let Some(weed_fasta) = weed_file {
-                log::info!("Making skf of weed file k={} rc={}", ska_array.kmer_len(), ska_array.rc());
+                log::info!(
+                    "Making skf of weed file k={} rc={}",
+                    ska_array.kmer_len(),
+                    ska_array.rc()
+                );
                 let ska_weed = RefSka::new(ska_array.kmer_len(), &weed_fasta, ska_array.rc());
 
                 log::info!("Removing weed k-mers");
@@ -159,7 +173,9 @@ pub fn main() {
             let filter_threshold = f64::floor(ska_array.nsamples() as f64 * *min_freq) as usize;
             let const_sites = !*remove_const_sites;
             if filter_threshold > 0 || !const_sites {
-                log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
+                log::info!(
+                    "Applying filters: threshold={filter_threshold} const_sites={const_sites}"
+                );
                 let update_kmers = true;
                 ska_array.filter(filter_threshold, const_sites, update_kmers);
             }
