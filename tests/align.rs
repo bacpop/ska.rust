@@ -3,11 +3,11 @@ use predicates::prelude::*;
 
 use snapbox::cmd::{Command, cargo_bin};
 
+// Creates correct path for input/output files
 static FILE_IN: &'static str = "tests/files_in";
 static FILE_OUT: &'static str = "tests/files_out";
 static FILE_TEST: &'static str = "tests/files_test";
 
-// Creates correct path for input/output files
 #[macro_export]
 macro_rules! file_in {
     ($e:expr) => {&format!("{}/{}", FILE_IN, $e)}

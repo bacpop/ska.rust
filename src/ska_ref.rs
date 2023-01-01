@@ -8,6 +8,7 @@ use noodles_vcf::{
     self as vcf,
     header::record::value::{map::Contig, Map},
     header::format::Key,
+    Record,
     record::{
         reference_bases::Base,
         alternate_bases::Allele, AlternateBases,
@@ -48,6 +49,7 @@ pub struct RefSka {
     mapped_names: Vec<String>
 }
 
+// u8 representation used elsewhere to noodles_vcf
 #[inline]
 fn u8_to_base(ref_base: u8) -> Base {
     match ref_base {
@@ -59,9 +61,44 @@ fn u8_to_base(ref_base: u8) -> Base {
     }
 }
 
+// The KEYS field used, currently just genotype (GT)
+// These can be used as keys in the genotype builder
+#[inline]
+fn gt_keys() -> Keys {
+    "GT".parse().expect("Genotype format error")
+}
+
+// Genotypes "." when no reference mapped to (of sample length)
+// These can be used as genotypes in the record builder
+fn generate_missing_genotypes(n_samples: usize) -> Genotypes {
+    let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
+    let missing_genotype_vec = vec![Genotype::try_from(vec![missing_field]).expect("Could not construct genotypes"); n_samples];
+    Genotypes::new(
+        gt_keys(),
+        missing_genotype_vec,
+    )
+}
+
 impl RefSka {
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
+    }
+
+    // An iterator between start and end positions which generates records with the passed genotypes
+    // (so far, only missing)
+    // The result can then be used with a writer
+    // (I wrote it as an iterator to avoid passing the writer outside of the write function
+    // some pretty mad stuff here! ...lifetimes, move, iterator trait)
+    fn iter_missing_vcf_rows<'a>(&'a self, chrom: usize, start: usize, end: usize, geno: &'a Genotypes) -> impl Iterator<Item=Record> + 'a {
+        (start..end).into_iter().map(move |missing_pos| {
+            let ref_allele = u8_to_base(self.seq[chrom][missing_pos]);
+            vcf::Record::builder()
+                .set_chromosome(self.chrom_names[chrom].parse().expect("Invalid chromosome name"))
+                .set_position(Position::from(missing_pos + 1))
+                .add_reference_base(ref_allele)
+                .set_genotypes(geno.clone())
+                .build().expect("Could not construct record")
+        })
     }
 
     pub fn ksize(&self) -> usize {
@@ -168,27 +205,25 @@ impl RefSka {
         writer.write_header(&header)?;
 
         // Write each record (column)
-        // TODO: need to add in missing positions
-        // TODO: deal with missing positions over chromosomes and at ends
-        let keys: Keys = "GT".parse().expect("Genotype format error");
-        let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
-        let missing_genotype_vec = vec![Genotype::try_from(vec![missing_field]).expect("Could not construct genotypes"); self.mapped_names.len()];
-        let missing_genotypes = Genotypes::new(
-            keys.clone(),
-            missing_genotype_vec,
-        );
+        let keys = gt_keys();
+        let missing_genotypes = generate_missing_genotypes(self.mapped_names.len());
 
+        // Note that a lot of the logic here is similar to write_aln below, which
+        // is a bit simpler to follow
+        let half_split_len = (self.k - 1) / 2;
         let (mut next_pos, mut curr_chrom) = (0, 0);
         for ((map_chrom, map_pos), bases) in self.mapped_pos.iter().zip(self.mapped_variants.outer_iter()) {
+            // Fill missing bases to the end of the last chromosome
+            if *map_chrom > curr_chrom {
+                for record in self.iter_missing_vcf_rows(curr_chrom, next_pos + half_split_len, self.seq[curr_chrom].len(), &missing_genotypes) {
+                    writer.write_record(&record)?;
+                }
+                curr_chrom += 1;
+                next_pos = 0;
+            }
+            // Fill missing bases between k-mer matches
             if *map_pos > next_pos {
-                for missing_pos in next_pos..*map_pos {
-                    let ref_allele = u8_to_base(self.seq[*map_chrom][missing_pos]);
-                    let record = vcf::Record::builder()
-                        .set_chromosome(self.chrom_names[*map_chrom].parse().expect("Invalid chromosome name"))
-                        .set_position(Position::from(missing_pos))
-                        .add_reference_base(ref_allele)
-                        .set_genotypes(missing_genotypes.clone())
-                        .build().expect("Could not construct record");
+                for record in self.iter_missing_vcf_rows(*map_chrom, next_pos, *map_pos - half_split_len, &missing_genotypes) {
                     writer.write_record(&record)?;
                 }
             }
@@ -232,6 +267,11 @@ impl RefSka {
             }
             next_pos = *map_pos + 1;
         }
+        // Fill any missing bases at the end of final contig
+        let final_chrom_id = self.chrom_names.len() - 1;
+        for record in self.iter_missing_vcf_rows(final_chrom_id, next_pos + half_split_len, self.seq[final_chrom_id].len(), &missing_genotypes) {
+            writer.write_record(&record)?;
+        }
         Ok(())
     }
 
@@ -252,6 +292,12 @@ impl RefSka {
             // if this proves tricky, it might be better to iterate through non-missing
             // matches and paste each flanking end and middle base into the right place
             // in the vec (and skip to next match where right end is beyond last paste)
+            // 	the alternative would be to:
+            //      - allocate all missing
+            //      - iterate through ref
+            //      - write the whole k-mer in when found (ref, base, ref)
+            //      - then skip over k in ref
+            // (even just modifying map to skip over k would work, but not a VCF)
             let (mut next_pos, mut curr_chrom) = (0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
                 // Move forward to next chromosome/contig

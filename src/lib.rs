@@ -17,21 +17,6 @@ use crate::cli::*;
 pub mod io_utils;
 use crate::io_utils::*;
 
-fn main2() {
-    log::info!("Loading skf as dictionary");
-    let ska_dict = load_array(&vec!["test_1.fa".to_string(), "test_2.fa".to_string()], 1).to_dict();
-
-    log::info!("Making skf of reference k={} rc={}", ska_dict.kmer_len(), ska_dict.rc());
-    let mut ska_ref = RefSka::new(ska_dict.kmer_len(), "test_ref.fa", ska_dict.rc());
-
-    log::info!("Mapping");
-    ska_ref.map(&ska_dict);
-
-    let mut out_stream = set_ostream(&None);
-    ska_ref.write_aln(&mut out_stream).expect("Failed to write output alignment");
-    ska_ref.write_vcf(&mut out_stream).expect("Failed to write output VCF");
-}
-
 pub fn main() {
     let args = cli_args();
     if args.verbose {
