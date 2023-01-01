@@ -7,8 +7,8 @@
 // Can be converted to/from MergeSkaDict
 // Print will print out alignment
 
-use std::fmt;
 use std::error::Error;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
@@ -18,8 +18,8 @@ use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
+use crate::ska_dict::bit_encoding::{decode_kmer, generate_masks};
 use crate::ska_ref::RefSka;
-use crate::ska_dict::bit_encoding::{generate_masks, decode_kmer};
 
 #[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray {
@@ -200,9 +200,12 @@ impl MergeSkaArray {
         let mut new_sk = Vec::new();
         let mut new_variants = Array2::zeros((0, self.nsamples()));
         let mut new_counts = Vec::new();
-        for kmer_it in self.split_kmers.iter()
+        for kmer_it in self
+            .split_kmers
+            .iter()
             .zip(self.variants.outer_iter())
-            .zip(self.variant_count.iter()) {
+            .zip(self.variant_count.iter())
+        {
             let ((kmer, var_row), count) = kmer_it;
             if !weed_kmers.contains(kmer) {
                 new_sk.push(*kmer);
@@ -241,7 +244,14 @@ impl MergeSkaArray {
 
 impl fmt::Display for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "k={}\nrc={}\n{} k-mers\n{} samples\n", self.kmer_len(), self.rc(), self.ksize(), self.nsamples())?;
+        write!(
+            f,
+            "k={}\nrc={}\n{} k-mers\n{} samples\n",
+            self.kmer_len(),
+            self.rc(),
+            self.ksize(),
+            self.nsamples()
+        )?;
         writeln!(f, "{:?}", self.names)
     }
 }
@@ -249,18 +259,24 @@ impl fmt::Display for MergeSkaArray {
 impl fmt::Debug for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = generate_masks(self.k);
-        self.split_kmers.iter().zip(self.variants.outer_iter())
-        .try_for_each(|it| {
-            let (split_kmer, vars_u8) = it;
-            let mut seq_string = String::with_capacity(self.nsamples());
-            for middle_base in vars_u8 {
-                let base = if *middle_base == 0 {'-'} else {*middle_base as char};
-                seq_string.push(base);
-                seq_string.push(',');
-            }
-            seq_string.pop();
-            let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
-            write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
-        })
+        self.split_kmers
+            .iter()
+            .zip(self.variants.outer_iter())
+            .try_for_each(|it| {
+                let (split_kmer, vars_u8) = it;
+                let mut seq_string = String::with_capacity(self.nsamples());
+                for middle_base in vars_u8 {
+                    let base = if *middle_base == 0 {
+                        '-'
+                    } else {
+                        *middle_base as char
+                    };
+                    seq_string.push(base);
+                    seq_string.push(',');
+                }
+                seq_string.pop();
+                let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
+                write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
+            })
     }
 }

@@ -12,7 +12,7 @@ use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
-const CM_WIDTH: usize = 134217728; // 2^27
+const CM_WIDTH: usize = 1 << 27; // 2^27 =~ 130M
 const CM_HEIGHT: usize = 4;
 
 pub struct SkaDict {
@@ -40,7 +40,14 @@ impl SkaDict {
             parse_fastx_file(filename).expect(&format!("Invalid path/file: {}", filename));
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA/Q record");
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), seqrec.qual(), self.k, self.rc, min_qual);
+            let kmer_opt = SplitKmer::new(
+                seqrec.seq(),
+                seqrec.num_bases(),
+                seqrec.qual(),
+                self.k,
+                self.rc,
+                min_qual,
+            );
             if kmer_opt.is_some() {
                 let mut kmer_it = kmer_opt.unwrap();
                 let (kmer, base, _rc) = kmer_it.get_curr_kmer();

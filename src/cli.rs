@@ -60,7 +60,7 @@ pub struct Args {
 
     /// Show progress messages
     #[arg(short, long, global = true)]
-    pub verbose: bool
+    pub verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -107,6 +107,7 @@ pub enum Commands {
     /// Write an unordered alignment
     Align {
         /// A .skf file, or list of .fasta files
+        #[arg(required = true)]
         input: Vec<String>,
 
         /// Output prefix (omit to output to stdout)

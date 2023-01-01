@@ -12,11 +12,15 @@ pub struct CountMin {
 
 impl CountMin {
     pub fn empty(width: usize, height: usize, min_count: u16) -> Self {
+        // Consistent with consts used, but ensures a power of two
         let width_bits: usize = f64::floor(f64::log2(width as f64)) as usize;
         let width = 1 << (width_bits + 1);
         let mask = width as u64 - 1;
+
+        // Reserve for these gets call by the vec! macro used in init
         let hash_factory = Vec::new();
         let counts = Vec::new();
+
         Self {width, height, hash_factory, mask, counts, min_count}
     }
 
