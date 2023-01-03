@@ -1,78 +1,60 @@
-use predicates::prelude::*;
-use std::path::Path;
 
 use snapbox::cmd::{cargo_bin, Command};
 
-// Creates correct path for input/output files
-static FILE_IN: &'static str = "tests/files_in";
-static FILE_OUT: &'static str = "tests/files_out";
-static FILE_TEST: &'static str = "tests/files_test";
+mod common;
+use crate::common::{TestSetup, TestDir};
 
-#[macro_export]
-macro_rules! file_in {
-    ($e:expr) => {
-        &format!("{}/{}", FILE_IN, $e)
-    };
-}
-
-#[macro_export]
-macro_rules! file_out {
-    ($e:expr) => {
-        &format!("{}/{}", FILE_OUT, $e)
-    };
-}
-
-#[macro_export]
-macro_rules! file_test {
-    ($e:expr) => {
-        &format!("{}/{}", FILE_TEST, $e)
-    };
-}
+// NB: to view output, uncomment the current_dir lines
 
 #[test]
 fn build_and_align() {
+    let sandbox = TestSetup::setup();
+
     Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
-        .arg(file_out!("basic_build"))
+        .arg("basic_build")
         .arg("-k")
         .arg("17")
-        .arg(file_in!("test_1.fa"))
-        .arg(file_in!("test_2.fa"))
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .assert()
         .success();
 
     Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
         .arg("align")
-        .arg(file_out!("basic_build.skf"))
+        .arg("basic_build.skf")
         .arg("-o")
-        .arg(file_out!("basic.aln"))
+        .arg("basic.aln")
         .assert()
         .success();
 
-    let predicate_file = predicate::path::eq_file(Path::new(file_out!("basic.aln")));
     assert_eq!(
         true,
-        predicate_file.eval(Path::new(file_test!("basic1.aln")))
-            | predicate_file.eval(Path::new(file_test!("basic2.aln")))
-    );
+        sandbox.file_check("basic.aln", "basic1.aln")
+            | sandbox.file_check("basic.aln", "basic2.aln"));
 }
+
 
 #[test]
 fn basic_align() {
+    let sandbox = TestSetup::setup();
+
     Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
         .arg("align")
-        .arg(file_in!("test_1.fa"))
-        .arg(file_in!("test_2.fa"))
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
-        .arg(file_out!("basic.aln"))
+        .arg("basic.aln")
         .assert()
         .success();
 
-    let predicate_file = predicate::path::eq_file(Path::new(file_out!("basic.aln")));
     assert_eq!(
         true,
-        predicate_file.eval(Path::new(file_test!("basic1.aln")))
-            | predicate_file.eval(Path::new(file_test!("basic2.aln")))
-    );
+        sandbox.file_check("basic.aln", "basic1.aln")
+            | sandbox.file_check("basic.aln", "basic2.aln"));
 }
+

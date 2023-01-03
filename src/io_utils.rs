@@ -11,9 +11,12 @@ use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND
 
 pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
     let mut input_files = Vec::new();
-    let re = Regex::new(r"^(.+)\.(?i:fa|fasta|fastq|fastq\.gz)$").unwrap();
+    // matches the file name (no extension) in a full path
+    let re_path = Regex::new(r"^.+/(.+)\.(?i:fa|fasta|fastq|fastq\.gz)$").unwrap();
+    // matches the file name (no extension) with no path
+    let re_name = Regex::new(r"^(.+)\.(?i:fa|fasta|fastq|fastq\.gz)$").unwrap();
     for file in seq_files {
-        let caps = re.captures(file);
+        let caps = re_path.captures(file).or(re_name.captures(file));
         let name = match caps {
             Some(capture) => capture[1].to_string(),
             None => file.to_string(),
