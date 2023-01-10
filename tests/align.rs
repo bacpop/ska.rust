@@ -1,10 +1,53 @@
+use std::{io::{LineWriter, Write}, fs::File};
 
 use snapbox::cmd::{cargo_bin, Command};
 
 mod common;
-use crate::common::{TestSetup, TestDir};
+use crate::common::{TestDir, TestSetup};
 
 // NB: to view output, uncomment the current_dir lines
+
+#[test]
+fn build_cli() {
+    let sandbox = TestSetup::setup();
+
+    // Create an rfile in the tmp dir
+    let rfile_name = "file_list.txt";
+    let mut rfile = LineWriter::new(File::create(format!("{}/{}", sandbox.get_wd(), rfile_name)).expect("Could not write rfile"));
+    writeln!(rfile, "{}", &format!("test_1\t{}", sandbox.file_string("test_1.fa", TestDir::Input))).unwrap();
+    writeln!(rfile, "{}", &format!("test_2\t{}", sandbox.file_string("test_2.fa", TestDir::Input))).unwrap();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("basic_build_opts")
+        .args(&["-v", "--threads", "2", "-k", "31"])
+        .assert()
+        .success();
+
+    assert_eq!(true, sandbox.file_exists("basic_build_opts.skf"));
+}
+
+#[test]
+fn align_cli() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("basic.aln")
+        .args(&["-v", "--threads", "2", "--const-sites", "--min-freq", "0"])
+        .assert()
+        .success();
+
+        assert_eq!(true, sandbox.file_exists("basic.aln"));
+}
 
 #[test]
 fn build_and_align() {
@@ -16,7 +59,7 @@ fn build_and_align() {
         .arg("-o")
         .arg("basic_build")
         .arg("-k")
-        .arg("17")
+        .arg("15")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .assert()
@@ -34,9 +77,9 @@ fn build_and_align() {
     assert_eq!(
         true,
         sandbox.file_check("basic.aln", "basic1.aln")
-            | sandbox.file_check("basic.aln", "basic2.aln"));
+            | sandbox.file_check("basic.aln", "basic2.aln")
+    );
 }
-
 
 #[test]
 fn basic_align() {
@@ -55,6 +98,6 @@ fn basic_align() {
     assert_eq!(
         true,
         sandbox.file_check("basic.aln", "basic1.aln")
-            | sandbox.file_check("basic.aln", "basic2.aln"));
+            | sandbox.file_check("basic.aln", "basic2.aln")
+    );
 }
-
