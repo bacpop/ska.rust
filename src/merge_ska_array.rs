@@ -7,9 +7,11 @@
 // Can be converted to/from MergeSkaDict
 // Print will print out alignment
 
+use core::panic;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
+use std::mem;
 use std::io::{BufReader, BufWriter, Write};
 
 use hashbrown::{HashMap, HashSet};
@@ -35,14 +37,20 @@ impl MergeSkaArray {
     fn update_counts(&mut self) {
         let mut new_counts = Vec::new();
         new_counts.reserve(self.variant_count.len());
+
+        let mut new_sk = Vec::new();
+        new_sk.reserve(self.split_kmers.len());
+
         let mut new_variants = Array2::zeros((0, self.names.len()));
-        for var_row in self.variants.outer_iter() {
+        for (var_row, sk) in self.variants.outer_iter().zip(self.split_kmers.iter()) {
             let count = var_row.iter().filter(|b| **b != b'-').count();
             if count > 0 {
                 new_counts.push(count);
+                new_sk.push(*sk);
                 new_variants.push_row(var_row).unwrap();
             }
         }
+        self.split_kmers = new_sk;
         self.variants = new_variants;
         self.variant_count = new_counts;
     }
@@ -73,7 +81,7 @@ impl MergeSkaArray {
         let mut variant_count: Vec<usize> = Vec::new();
         for (kmer, bases) in dynamic.kmer_dict() {
             split_kmers.push(*kmer);
-            variant_count.push(bases.iter().filter(|b| **b != 0).count());
+            variant_count.push(bases.iter().filter(|b| **b != 0 && **b != b'-').count());
             variants.push_row(ArrayView::from(bases)).unwrap();
         }
         variants.mapv_inplace(|b| u8::max(b, b'-')); // turns zeros to missing
@@ -116,32 +124,40 @@ impl MergeSkaArray {
     }
 
     pub fn delete_samples(&mut self, del_names: &[&str]) {
-        // Find position of names in the array rows
-        let mut name_dict: HashMap<String, usize> = HashMap::default();
-        for (idx, name_pair) in self.names.iter().enumerate() {
-            name_dict.insert(name_pair.to_string(), idx);
+        if del_names.len() == 0 || del_names.len() == self.nsamples() {
+            panic!("Invalid number of samples to remove")
         }
 
-        let mut idx_list = Vec::new();
-        idx_list.reserve(del_names.len());
+        // Find position of names in the array rows
+        let mut del_name_set = HashSet::new();
         for name in del_names {
-            match name_dict.get(*name) {
-                Some(idx) => idx_list.push(*idx),
-                None => panic!("Could not find sample {name}"),
+            del_name_set.insert(name.to_string());
+        }
+        let mut idx_list = Vec::new();
+        let mut new_names = Vec::new();
+        for (idx, name) in self.names.iter_mut().enumerate() {
+            if del_name_set.contains(name) {
+                idx_list.push(idx);
+                del_name_set.remove(name);
+            } else {
+                new_names.push(mem::take(name));
             }
         }
-        idx_list.sort();
+
+        if del_name_set.len() > 0 {
+            panic!("Could not find sample(s): {:?}", del_name_set);
+        }
+        self.names = new_names;
+
         let mut idx_it = idx_list.iter();
         let mut next_idx = idx_it.next();
-
         let new_size = self.names.len() - idx_list.len();
-        let mut filtered_variants = Array2::zeros((0, new_size));
-        for sample_it in self.variants.t().outer_iter().enumerate() {
-            let (s_idx, sample_variants) = sample_it;
-            if *next_idx.unwrap_or(&new_size) == s_idx {
-                filtered_variants.push_column(sample_variants).unwrap();
-            } else {
+        let mut filtered_variants = Array2::zeros((self.ksize(), 0));
+        for (sample_idx, sample_variants) in self.variants.t().outer_iter().enumerate() {
+            if *next_idx.unwrap_or(&new_size) == sample_idx {
                 next_idx = idx_it.next();
+            } else {
+                filtered_variants.push_column(sample_variants).unwrap();
             }
         }
         self.variants = filtered_variants;
@@ -259,12 +275,13 @@ impl fmt::Display for MergeSkaArray {
 impl fmt::Debug for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = generate_masks(self.k);
+        println!("{}", self.variants);
         self.split_kmers
             .iter()
             .zip(self.variants.outer_iter())
             .try_for_each(|it| {
                 let (split_kmer, vars_u8) = it;
-                let mut seq_string = String::with_capacity(self.nsamples());
+                let mut seq_string = String::with_capacity(self.nsamples() * 2);
                 for middle_base in vars_u8 {
                     let base = if *middle_base == 0 {
                         '-'

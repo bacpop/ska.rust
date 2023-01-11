@@ -102,6 +102,8 @@ impl MergeSkaDict {
         }
     }
 
+    // For building, when individual dicts have been joined using append
+    // (CLI 'ska build')
     pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
@@ -134,6 +136,42 @@ impl MergeSkaDict {
                 }
             }
         }
+    }
+
+    // For joining two separate dicts (CLI 'ska merge')
+    pub fn extend<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
+        if other.k != self.k {
+            panic!("K-mer lengths do not match: {} {}", other.k, self.k);
+        }
+        if other.rc() != self.rc {
+            panic!("Strand use inconsistent");
+        }
+
+        // Add new names in
+        self.names.extend_from_slice(&other.names);
+        let total_samples = self.n_samples + other.nsamples();
+
+        // Where overlapping (and_modify) concat the base vecs
+        // Where missing, add empty entries for self, and the other base vec
+        for (kmer, other_vec) in &mut other.split_kmers {
+            self.split_kmers
+                .entry(*kmer)
+                .and_modify(|self_vec| {
+                    self_vec.extend_from_slice(other_vec);
+                })
+                .or_insert_with(|| {
+                    let mut empty_samples = vec![0; self.n_samples];
+                    empty_samples.extend_from_slice(other_vec);
+                    empty_samples
+                });
+        }
+        // Extend any other missing k-mers in self with empty entries for other
+        for (_kmer, self_vec) in &mut self.split_kmers {
+            if self_vec.len() != total_samples {
+                self_vec.extend(vec![0; other.nsamples()]);
+            }
+        }
+        self.n_samples = total_samples;
     }
 }
 

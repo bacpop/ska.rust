@@ -116,15 +116,19 @@ pub fn main() {
                 panic!("Need at least two files to merge");
             }
 
+            log::info!("Loading first alignment");
             let first_array =
                 MergeSkaArray::load(&skf_files[0]).expect("Failed to load input file");
             let mut merged_dict = first_array.to_dict();
+
             for file_idx in 1..skf_files.len() {
-                log::info!("Merging alignment {file_idx}");
+                log::info!("Merging alignment {}", format!("{}", file_idx + 1));
                 let next_array =
                     MergeSkaArray::load(&skf_files[file_idx]).expect("Failed to load input file");
-                merged_dict.merge(&mut next_array.to_dict());
+                merged_dict.extend(&mut next_array.to_dict());
             }
+
+            log::info!("Converting and saving merged alignment");
             let merged_array = MergeSkaArray::new(&merged_dict);
             merged_array
                 .save(format!("{output}.skf").as_str())

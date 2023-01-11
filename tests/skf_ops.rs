@@ -39,8 +39,6 @@ fn merge_delete() {
 
     assert_eq!(true, sandbox.file_exists("merge.skf"));
 
-    // TODO fix merge!
-
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
@@ -48,5 +46,35 @@ fn merge_delete() {
         .assert()
         .stdout_matches_path(sandbox.file_string("merge_nk.stdout", TestDir::Correct));
 
-    // TODO delete a sample then check nk again
+    // Try removing non-existent sample
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("delete")
+        .arg("test_3")
+        .arg("merge.skf")
+        .assert()
+        .failure();
+
+    // delete a sample then check nk same as original
+    let test1_nk = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("test_1.skf")
+        .output()
+        .unwrap();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("delete")
+        .arg("merge.skf")
+        .arg("test_2")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("merge.skf")
+        .assert()
+        .stdout_eq(test1_nk.stdout);
 }
