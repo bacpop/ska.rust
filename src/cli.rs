@@ -1,12 +1,19 @@
+//! Command line interface, built using [`crate::clap` with `Derive`](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html)
+
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 extern crate num_cpus;
 
+/// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
+/// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default minimum k-mer count for FASTQ files
 pub const DEFAULT_MINCOUNT: u16 = 10;
+/// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
 
+#[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
         .parse()
@@ -20,6 +27,7 @@ fn valid_kmer(s: &str) -> Result<usize, String> {
     }
 }
 
+#[doc(hidden)]
 fn zero_to_one(s: &str) -> Result<f64, String> {
     let f: f64 = s
         .parse()
@@ -31,6 +39,7 @@ fn zero_to_one(s: &str) -> Result<f64, String> {
     }
 }
 
+#[doc(hidden)]
 fn valid_cpus(s: &str) -> Result<usize, String> {
     let threads: usize = s
         .parse()
@@ -43,6 +52,7 @@ fn valid_cpus(s: &str) -> Result<usize, String> {
     }
 }
 
+/// Possible output file types
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum FileType {
     /// Variant call format
@@ -51,6 +61,7 @@ pub enum FileType {
     Aln,
 }
 
+/// Options that apply to all subcommands
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -63,6 +74,7 @@ pub struct Args {
     pub verbose: bool,
 }
 
+/// Subcommands and their specific options
 #[derive(Subcommand)]
 pub enum Commands {
     #[command(group(
@@ -199,6 +211,7 @@ pub enum Commands {
     },
 }
 
+/// Function to parse command line args into [`Args`] struct
 pub fn cli_args() -> Args {
     let args = Args::parse();
     return args;

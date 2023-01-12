@@ -1,3 +1,8 @@
+//! Common helper functions for parsing file input, loading, and setting output
+//!
+//! The functions are used by a few different subcommands to set correct
+//! args to build structs, given the command line input
+
 use std::fs::File;
 use std::io::{stdout, BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
@@ -9,6 +14,11 @@ use crate::merge_ska_dict::{build_and_merge, InputFastx};
 
 use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND};
 
+/// Given a list of input files, parses them into triples of name, filename and
+/// [`None`] to be used with [SkaDict](`crate::ska_dict::SkaDict::new()`).
+///
+/// To form the name, common file extensions are removed, and the basepath is
+/// used. If this cannot be parsed then the full filename is used
 pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
     let mut input_files = Vec::new();
     // matches the file name (no extension) in a full path
@@ -26,6 +36,18 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
     return input_files;
 }
 
+/// Given a list of files via the CLI, loads or creates a
+/// [MergeSkaArray](`crate::merge_ska_array::MergeSkaArray`).
+///
+/// This is to support functions like `ska align` and `ska map` working
+/// from either a .skf file previously produced by `ska build`, or from a file
+/// list so everything can be done in a single command.
+///
+/// If a single input file is given, then try and load it as an .skf file
+///
+/// If multiple files are given, they are assumed to be FASTA and
+/// [build_and_merge](`crate::merge_ska_dict::build_and_merge`) is used to
+/// create a merged dictionary, which is then converted to a merged array.
 pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
     // Obtain a merged ska array
     let ska_array: MergeSkaArray;
@@ -48,7 +70,9 @@ pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
     return ska_array;
 }
 
-// Write out to file/stdout
+/// Set a buffered stream to write to.
+///
+/// Either a file (if set) or stdout otherwise
 pub fn set_ostream(oprefix: &Option<String>) -> BufWriter<Box<dyn Write>> {
     let out_writer = match oprefix {
         Some(prefix) => {
@@ -61,6 +85,13 @@ pub fn set_ostream(oprefix: &Option<String>) -> BufWriter<Box<dyn Write>> {
     return out_stream;
 }
 
+/// Obtain a list of input files and names from command line input.
+///
+/// If `file_list` is provided, read each line as `name\tseq1\tseq2`, where
+/// `seq2` is optional, and if present the reverse fastqs. Otherwise, treat
+/// as fasta.
+///
+/// If `seq_files` are provided use [`read_input_fastas`].
 pub fn get_input_list(
     file_list: &Option<String>,
     seq_files: &Option<Vec<String>>,

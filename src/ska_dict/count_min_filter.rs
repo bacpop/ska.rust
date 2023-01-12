@@ -1,6 +1,7 @@
 
 use ahash::RandomState;
 
+#[derive(Debug, Clone)]
 pub struct CountMin {
     width: usize,
     height: usize,

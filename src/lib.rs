@@ -1,3 +1,4 @@
+//#![warn(missing_docs)]
 use std::time::Instant;
 
 use simple_logger;
@@ -17,6 +18,7 @@ use crate::cli::*;
 pub mod io_utils;
 use crate::io_utils::*;
 
+#[doc(hidden)]
 pub fn main() {
     let args = cli_args();
     if args.verbose {
