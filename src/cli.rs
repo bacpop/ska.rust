@@ -66,6 +66,7 @@ pub enum FileType {
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 pub struct Args {
+    #[doc(hidden)]
     #[command(subcommand)]
     pub command: Commands,
 
@@ -150,6 +151,7 @@ pub enum Commands {
         #[arg(short)]
         output: Option<String>,
 
+        /// Format of output file
         #[arg(short, long, value_enum, default_value_t = FileType::Aln)]
         format: FileType,
 

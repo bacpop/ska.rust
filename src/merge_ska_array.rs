@@ -1,11 +1,16 @@
-// Class for split-kmers from multiple SkaDict
-// In array representation to support:
-//  filter
-//  save/load
-//  mapping
-//  sample deletion
-// Can be converted to/from MergeSkaDict
-// Print will print out alignment
+//! Main type for working with multiple samples.
+//!
+//! In fixed size array representation to support:
+//!  - filter
+//!  - save/load
+//!  - mapping
+//!  - sample deletion
+//!  - printing out alignment
+//!
+//! Can be converted to/from [`MergeSkaDict`], which is also how to create
+//! from FASTA/FASTQ input.
+//!
+//! [`fmt::Display`] and [`fmt::Debug`] implemented to support `ska nk`.
 
 use core::panic;
 use std::error::Error;
@@ -23,17 +28,52 @@ use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::{decode_kmer, generate_masks};
 use crate::ska_ref::RefSka;
 
+/// Array representation of split k-mers from multiple samples.
+///
+/// Supports most modification and input/output.
+///
+/// # Examples
+/// ```
+/// use ska::merge_ska_array::MergeSkaArray;
+/// use ska::io_utils::set_ostream;
+///
+/// // Load an array from file
+/// let mut ska_array = MergeSkaArray::load(&"tests/test_files_in/merge.skf").expect("Could not open array");
+///
+/// // Write alignment as FASTA on stdout
+/// let mut alignment_file = set_ostream(&None);
+/// ska_array.write_fasta(&mut alignment_file);
+///
+/// // Remove constant sites and save
+/// let min_count = 1;          // no filtering by minor allele frequency
+/// let const_sites = false;    // remove sites with no minor allele
+/// let update_counts = true;   // keep counts updated, as saving
+/// ska_array.filter(min_count, const_sites, update_counts);
+/// ska_array.save(&"no_const_sites.skf");
+///
+/// // Delete a sample
+/// ska_array.delete_samples(&[&"test_1"]);
+/// ```
 #[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray {
+    /// K-mer size
     k: usize,
+    /// Whether reverse complement split k-mers were used
     rc: bool,
+    /// Sample names
     names: Vec<String>,
+    /// List of split k-mers
     split_kmers: Vec<u64>,
+    /// Array of middle bases, rows same order as split k-mers, columns same order as names
     variants: Array2<u8>,
+    /// Count of non-missing bases for each split k-mer
     variant_count: Vec<usize>,
 }
 
 impl MergeSkaArray {
+    /// Update `variant_count` after changing `variants`.
+    ///
+    /// Recalculates counts, and removes any totally empty rows.
     fn update_counts(&mut self) {
         let mut new_counts = Vec::new();
         new_counts.reserve(self.variant_count.len());
@@ -55,22 +95,7 @@ impl MergeSkaArray {
         self.variant_count = new_counts;
     }
 
-    pub fn kmer_len(&self) -> usize {
-        self.k
-    }
-
-    pub fn rc(&self) -> bool {
-        self.rc
-    }
-
-    pub fn ksize(&self) -> usize {
-        self.split_kmers.len()
-    }
-
-    pub fn nsamples(&self) -> usize {
-        self.variants.ncols()
-    }
-
+    /// Convert a dynamic [`MergeSkaDict`] to static array representation.
     pub fn new(dynamic: &MergeSkaDict) -> Self {
         let k = dynamic.kmer_len();
         let rc = dynamic.rc();
@@ -95,6 +120,9 @@ impl MergeSkaArray {
         }
     }
 
+    /// Save the split k-mer array to a `.skf` file.
+    ///
+    /// Serialised into [`ciborium`] format, and compressed with [`snappy`](`snap`)
     pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
         let serial_file = BufWriter::new(File::create(filename)?);
         let mut compress_writer = snap::write::FrameEncoder::new(serial_file);
@@ -102,6 +130,7 @@ impl MergeSkaArray {
         Ok(())
     }
 
+    /// Load a split k-mer array from a `.skf` file.
     pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
         let ska_file = BufReader::new(File::open(filename)?);
         let decompress_reader = snap::read::FrameDecoder::new(ska_file);
@@ -109,6 +138,9 @@ impl MergeSkaArray {
         Ok(ska_obj)
     }
 
+    /// Convert to a dictionary representation [`MergeSkaDict`].
+    ///
+    /// Necessary if adding more samples.
     pub fn to_dict(&self) -> MergeSkaDict {
         let n_samples = self.names.len();
         let mut names = self.names.clone();
@@ -123,6 +155,14 @@ impl MergeSkaArray {
         return dict;
     }
 
+    /// Delete a list of named samples.
+    ///
+    /// Also updates counts and removes any completely missing k-mers.
+    ///
+    /// # Panics
+    ///
+    /// - If any input sample name is not in the array.
+    /// - If no samples or all samples are being removed.
     pub fn delete_samples(&mut self, del_names: &[&str]) {
         if del_names.len() == 0 || del_names.len() == self.nsamples() {
             panic!("Invalid number of samples to remove")
@@ -164,6 +204,18 @@ impl MergeSkaArray {
         self.update_counts();
     }
 
+    /// Filters variants (middle bases) by frequency.
+    ///
+    /// Passing variants (rows) are added to a new array, which overwrites the old one.
+    ///
+    /// # Arguments
+    ///
+    /// - `min_count` -- minimum number of samples split k-mer found in.
+    /// - `const_sites` -- include sites where all middle bases are the same.
+    /// - `update_kmers` -- update counts and split k-mers after removing variants.
+    ///
+    /// The default for `update_kmers` should be `true`, but it can be `false`
+    /// if [`write_fasta()`] will be called immediately afterwards.
     pub fn filter(&mut self, min_count: usize, const_sites: bool, update_kmers: bool) {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
@@ -209,6 +261,15 @@ impl MergeSkaArray {
         log::info!("Filtering removed {removed} split k-mers");
     }
 
+    /// Removes (weeds) a given set of split k-mers from the array.
+    ///
+    /// Split k-mers to be removed must be from a single FASTA file (which
+    /// may be a multi-FASTA) generated with [`RefSka::new()`]
+    ///
+    /// Used with `ska weed`.
+    ///
+    /// # Examples
+    /// #TODO
     pub fn weed(&mut self, weed_ref: &RefSka) {
         let weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
 
@@ -237,6 +298,15 @@ impl MergeSkaArray {
         log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
     }
 
+    /// Write the middle bases as an alignment (FASTA).
+    ///
+    /// This is simply a transpose of the middle bases (which is actually
+    /// recopied in memory) and written as a FASTA using [`needletail`].
+    ///
+    /// The writer `f` can be anything supporting the [`Write`] trait, but
+    /// is typically generated by [`crate::io_utils::set_ostream`].
+    ///
+    /// This is used in `ska align`.
     pub fn write_fasta<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         // Do the transpose, but recopy with correct strides
         let var_t = self.variants.t();
@@ -256,8 +326,33 @@ impl MergeSkaArray {
                 )
             })
     }
+
+    /// K-mer length used when builiding
+    pub fn kmer_len(&self) -> usize {
+        self.k
+    }
+
+    /// Whether reverse complement was used when building
+    pub fn rc(&self) -> bool {
+        self.rc
+    }
+
+    /// Total number of split k-mers
+    pub fn ksize(&self) -> usize {
+        self.split_kmers.len()
+    }
+
+    /// Number of samples
+    pub fn nsamples(&self) -> usize {
+        self.variants.ncols()
+    }
 }
 
+/// Writes basic information.
+///
+/// k-mer length, reverse complement, number of split k-mers, number of samples
+///
+/// Used with `ska nk`
 impl fmt::Display for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -272,6 +367,9 @@ impl fmt::Display for MergeSkaArray {
     }
 }
 
+/// Writes all decoded split k-mers and middle bases.
+///
+/// Used with `ska nk --full-info`
 impl fmt::Debug for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = generate_masks(self.k);

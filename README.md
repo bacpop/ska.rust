@@ -50,4 +50,5 @@ Things you can no longer do:
 - `ska compare`, `ska humanise`, `ska info` or `ska summary` (use `ska nk --full-info`).
 - `ska distance` and `ska unique` (use [pp-sketchlib](https://github.com/bacpop/pp-sketchlib)).
 - `ska type` (use [PopPUNK](https://github.com/bacpop/PopPUNK) instead of MLST 🙂)
-- Ns are skipped.
+- Ns are always skipped, and will not be found in any split k-mers.
+- `.skf` files are not backwards compatible with version 1.

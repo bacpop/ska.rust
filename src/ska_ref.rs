@@ -1,5 +1,30 @@
-// Class for split-kmers from one input file
-// Used for ska map
+//! Types for listing split-kmers from one input file (usually a FASTA reference sequence).
+//!
+//! In [`RefSka`] split k-mers are stored in a [`Vec`] so fast iteration but not fast lookup
+//! is supported.
+//! This generally will be a reference file, but may also be k-mers to be
+//! tested/removed.
+//!
+//! Primarily used to support `ska map`. Functions to write out a mapped alignment
+//! (multi-FASTA using [`needletail`]) or VCF (using [`noodles_vcf`]) are included.
+//!
+//! # Examples
+//!  ```
+//! use ska::ska_ref::RefSka;
+//! use ska::io_utils::{load_array, set_ostream};
+//!
+//! // Load a saved array from build, convert to dict representation
+//! let threads = 1;
+//! let ska_dict = load_array(&["tests/test_files_in/merge.skf".to_string()], threads).to_dict();
+//!
+//! // Index a reference sequence
+//! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc());
+//!
+//! // Run mapping, output an alignment to stdout
+//! ref_kmers.map(&ska_dict);
+//! let mut out_stream = set_ostream(&None);
+//! ref_kmers.write_aln(&mut out_stream);
+//! ```
 
 use std::str;
 
@@ -22,37 +47,60 @@ use std::io::Write;
 
 extern crate needletail;
 use ndarray::{s, Array2, ArrayView};
-use needletail::{parse_fastx_file, parser::write_fasta, parser::Format};
+use needletail::{parse_fastx_file, parser::{write_fasta, Format}};
 
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::RC_IUPAC;
 use crate::ska_dict::split_kmer::SplitKmer;
 
+/// A split k-mer in the reference sequence encapsulated with positional data.
+#[derive(Debug, Clone)]
 pub struct RefKmer {
+    /// Encoded split k-mer
     pub kmer: u64,
+    /// Middle base
     pub base: u8,
+    /// Position in the chromosome
     pub pos: usize,
+    /// Index of the chromosome
     pub chrom: usize,
+    /// Whether on the reverse strand
     pub rc: bool,
 }
 
+/// A reference sequence, a list of its split k-mers, and optionally mapping information.
+///
+/// The default to after building with [`RefSka::new()`] will be a list of split-kmers,
+/// as [`Vec<RefKmer>`], along with the reference sequence itself for lookup purposes.
+///
+/// After running [`RefSka::map()`] against a [`MergeSkaDict`] mapped middle
+/// bases and positions will also be populated.
 pub struct RefSka {
-    // Index
+    /// k-mer size
     k: usize,
+    /// Concatenated list of split k-mers
     split_kmer_pos: Vec<RefKmer>,
 
-    // Sequence
+    /// Input sequence
+
+    /// Chromosome names
     chrom_names: Vec<String>,
+    /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
+    /// Total length of all input sequence
     total_size: usize,
 
-    // Mapping
-    mapped_pos: Vec<(usize, usize)>, // (chrom, pos)
+    /// Mapping information
+
+    /// Positions of mapped bases as (chrom, pos)
+    mapped_pos: Vec<(usize, usize)>,
+    /// Array of mapped bases, rows loci, columns samples
     mapped_variants: Array2<u8>,
+    /// Names of the mapped samples
     mapped_names: Vec<String>,
 }
 
-// u8 representation used elsewhere to noodles_vcf
+/// [`u8`] representation used elsewhere to [`noodles_vcf::record::reference_bases::Base`]
 #[inline]
 fn u8_to_base(ref_base: u8) -> Base {
     match ref_base {
@@ -64,15 +112,15 @@ fn u8_to_base(ref_base: u8) -> Base {
     }
 }
 
-// The KEYS field used, currently just genotype (GT)
-// These can be used as keys in the genotype builder
+/// The VCF KEYS field used is currently just genotype (GT)
+/// These can be used as [`Keys`] in the genotype builder
 #[inline]
 fn gt_keys() -> Keys {
     "GT".parse().expect("Genotype format error")
 }
 
-// Genotypes "." when no reference mapped to (of sample length)
-// These can be used as genotypes in the record builder
+/// Genotypes "." when no reference mapped to (of sample length)
+/// These can be used as genotypes in the record builder
 fn generate_missing_genotypes(n_samples: usize) -> Genotypes {
     let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
     let missing_genotype_vec = vec![
@@ -84,15 +132,17 @@ fn generate_missing_genotypes(n_samples: usize) -> Genotypes {
 }
 
 impl RefSka {
+    /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
     }
 
-    // An iterator between start and end positions which generates records with the passed genotypes
-    // (so far, only missing)
-    // The result can then be used with a writer
-    // (I wrote it as an iterator to avoid passing the writer outside of the write function
-    // some pretty mad stuff here! ...lifetimes, move, iterator trait)
+    /// An [`Iterator`] between start and end positions which generates records with the passed genotypes
+    ///
+    /// The result can then be used with a writer. So far, only over missing records.
+    ///
+    /// (I wrote it as an iterator to avoid passing the writer outside of the write function
+    /// some pretty mad stuff here! ...lifetimes, move, iterator trait)
     fn iter_missing_vcf_rows<'a>(
         &'a self,
         chrom: usize,
@@ -116,14 +166,18 @@ impl RefSka {
         })
     }
 
-    pub fn ksize(&self) -> usize {
-        self.split_kmer_pos.len()
-    }
-
-    pub fn kmer_iter(&self) -> impl Iterator<Item = u64> + '_ {
-        self.split_kmer_pos.iter().map(|k| k.kmer)
-    }
-
+    /// Create a list of split k-mers from an input FASTA file.
+    ///
+    /// Input may have multiple sequences (which are treated as chromosomes and
+    /// their indexes maintained).
+    ///
+    /// # Panics
+    /// If an invalid k-mer length (<5, >31 or even) is used.
+    ///
+    /// Or if input file is invalid:
+    /// - File doesn't exist or can't be opened.
+    /// - File cannot be parsed as FASTA (FASTQ is not supported).
+    /// - If there are no valid split k-mers.
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
         if k < 5 || k > 31 || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -191,6 +245,15 @@ impl RefSka {
         }
     }
 
+    /// Map split k-mers in a [`MergeSkaDict`] against the refrence sequence.
+    ///
+    /// Iterates through the referecne list and searches for split k-mers in
+    /// the merged dictionary. These are then added as rows of an array,
+    /// with position metadata stored in companion vectors.
+    ///
+    /// # Panics
+    ///
+    /// If k-mer sizes are incompatible
     pub fn map(&mut self, ska_dict: &MergeSkaDict) {
         if self.k != ska_dict.kmer_len() {
             panic!(
@@ -218,6 +281,31 @@ impl RefSka {
         }
     }
 
+    /// Number of valid split k-mers in the reference.
+    pub fn ksize(&self) -> usize {
+        self.split_kmer_pos.len()
+    }
+
+    /// An [`Iterator`] over the reference's split-kmers.
+    pub fn kmer_iter(&self) -> impl Iterator<Item = u64> + '_ {
+        self.split_kmer_pos.iter().map(|k| k.kmer)
+    }
+
+    /// Write mapped variants as a VCF, using [`noodles_vcf`].
+    ///
+    /// Rows are variants, columns are samples, so this is broadly equivalent
+    /// to writing out the mapped variant array and its metadata.
+    ///
+    /// Extra work is used to check for unmapped missing bases between split k-mer
+    /// matches.
+    ///
+    /// A basic VCF header is written out first.
+    ///
+    /// Variants are then written to the output buffer one at a time.
+    ///
+    /// # Panics
+    ///
+    /// If [`RefSka::map()`] has not been run yet
     pub fn write_vcf<W: Write>(&self, f: &mut W) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
             panic!("Tried to write VCF before variants mapped");
@@ -332,6 +420,19 @@ impl RefSka {
         Ok(())
     }
 
+    /// Write mapped variants as an aln/multi-FASTA file, using [`needletail`].
+    ///
+    /// Rows are samples, columns are variants, so this is broadly equivalent
+    /// to writing out the transpose of the mapped variant array.
+    ///
+    /// Extra work is used to check to write out flanking bases of the split
+    /// k-mer, and padding with any missing positions.
+    ///
+    /// Samples are written to the output buffer one at a time.
+    ///
+    /// # Panics
+    ///
+    /// If [`RefSka::map()`] has not been run yet
     pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
             panic!("Tried to write VCF before variants mapped");

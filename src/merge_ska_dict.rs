@@ -1,6 +1,10 @@
-// Class for split-kmers from multiple SkaDict
-// This is an intermediate type which supports building/merging/adding, but then
-// should be converted to an array for most operations
+//! Type for combining split-kmers from multiple [`SkaDict`].
+//!
+//! This is an intermediate type which supports building/merging/adding, but then
+//! should be converted to a [`crate::merge_ska_array::MergeSkaArray`] array for most operations.
+//! Except for [`crate::ska_ref::RefSka::map()`], which implements `ska map`
+//!
+//! [`build_and_merge`] is the main interface.
 
 use core::mem::swap;
 use core::panic;
@@ -12,41 +16,26 @@ use rayon::prelude::*;
 
 use crate::ska_dict::SkaDict;
 
+/// Tuple for name and fasta or paired fastq input
 pub type InputFastx = (String, String, Option<String>);
 
+/// Merged dictionary with names, and middle bases in [`Vec<u8>`] in the same order.
 pub struct MergeSkaDict {
+    /// K-mer size
     k: usize,
+    /// Whether reverse complement split k-mers were used
     rc: bool,
+    /// Total number of samples supported (some may be empty)
     n_samples: usize,
+    /// Sample names (some may be empty)
     names: Vec<String>,
+    /// Dictionary of split k-mers, and middle base vectors
     split_kmers: HashMap<u64, Vec<u8>>,
 }
 
 impl MergeSkaDict {
-    pub fn kmer_len(&self) -> usize {
-        self.k
-    }
-
-    pub fn rc(&self) -> bool {
-        self.rc
-    }
-
-    pub fn names(&self) -> &Vec<String> {
-        &self.names
-    }
-
-    pub fn kmer_dict(&self) -> &HashMap<u64, Vec<u8>> {
-        &self.split_kmers
-    }
-
-    pub fn ksize(&self) -> usize {
-        self.split_kmers.len()
-    }
-
-    pub fn nsamples(&self) -> usize {
-        self.n_samples
-    }
-
+    /// Create an empty merged dictionary, to be used with [`MergeSkaDict::merge()`]
+    /// or [`MergeSkaDict::append()`].
     pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
         let names = vec!["".to_string(); n_samples];
         let split_kmers = HashMap::default();
@@ -59,6 +48,9 @@ impl MergeSkaDict {
         };
     }
 
+    /// Directly add name and merged dictionary content
+    ///
+    /// Used when creating this struct from a [`crate::merge_ska_array::MergeSkaArray`]
     pub fn build_from_array<'a>(
         &'a mut self,
         names: &'a mut Vec<String>,
@@ -68,6 +60,14 @@ impl MergeSkaDict {
         swap(split_kmers, &mut &mut self.split_kmers);
     }
 
+    /// Add a single [`crate::ska_dict::SkaDict`](`SkaDict`) to the merged dictionary
+    ///
+    /// NB: this is not a real append, and to work the input must have a unique
+    /// `sample_idx < n_samples` set.
+    ///
+    /// # Panics
+    ///
+    /// If k-mer length or reverse complement do not match
     pub fn append(&mut self, other: &SkaDict) {
         if other.kmer_len() != self.k {
             panic!(
@@ -102,8 +102,14 @@ impl MergeSkaDict {
         }
     }
 
-    // For building, when individual dicts have been joined using append
-    // (CLI 'ska build')
+    /// Combine with another [`MergeSkaDict`] with non-overlapping samples
+    ///
+    /// Used when building, when individual dicts have been joined using append
+    /// (CLI `ska build`)
+    ///
+    /// # Panics
+    ///
+    /// If k-mer length or reverse complement do not match
     pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
@@ -138,7 +144,13 @@ impl MergeSkaDict {
         }
     }
 
-    // For joining two separate dicts (CLI 'ska merge')
+    /// Combine with another [`MergeSkaDict`] with additional samples
+    ///
+    /// For joining two separate dicts (CLI 'ska merge')
+    ///
+    /// # Panics
+    ///
+    /// If k-mer length or reverse complement do not match
     pub fn extend<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
@@ -173,10 +185,41 @@ impl MergeSkaDict {
         }
         self.n_samples = total_samples;
     }
+
+    /// K-mer length of split-kmers
+    pub fn kmer_len(&self) -> usize {
+        self.k
+    }
+
+    /// Whether reverse complement has been used
+    pub fn rc(&self) -> bool {
+        self.rc
+    }
+
+    /// Sample names
+    pub fn names(&self) -> &Vec<String> {
+        &self.names
+    }
+
+    /// Split k-mer dictionary
+    pub fn kmer_dict(&self) -> &HashMap<u64, Vec<u8>> {
+        &self.split_kmers
+    }
+
+    /// Total number of split k-mers
+    pub fn ksize(&self) -> usize {
+        self.split_kmers.len()
+    }
+
+    /// Number of samples
+    pub fn nsamples(&self) -> usize {
+        self.n_samples
+    }
 }
 
 // Functions to created merged dicts from files
 
+/// Serial `MergeSkaDict::append()` into a [`MergeSkaDict`]
 fn multi_append(
     input_dicts: &mut [SkaDict],
     total_size: usize,
@@ -190,7 +233,10 @@ fn multi_append(
     return merged_dict;
 }
 
-// Recursive merge, depth sets number of splits into two i.e. depth 1 splits in 2, depth 2 splits in 4
+/// Recursive parallel merge
+///
+/// Depth sets number of splits into two
+/// i.e. depth 1 splits in 2, depth 2 splits in 4
 fn parallel_append(
     depth: usize,
     dict_list: &mut [SkaDict],
@@ -216,6 +262,29 @@ fn parallel_append(
     }
 }
 
+/// Create a [`MergeSkaDict`] from input FASTA/FASTQ files
+///
+/// First build [`SkaDict`] in parallel for each input.
+///
+/// Then merge together, in parallel if there are enough input files,
+/// otherwise serially.
+///
+/// # Examples
+/// ```
+/// use ska::merge_ska_dict::{InputFastx, build_and_merge};
+///
+/// let input_files: [InputFastx; 2] = [("test1".to_string(),
+///                                      "tests/test_files_in/test_1.fa".to_string(),
+///                                      None),
+///                                     ("test2".to_string(),
+///                                      "tests/test_files_in/test_2.fa".to_string(),
+///                                      None)];
+/// let merged_dict = build_and_merge(&input_files, 17, true, 0, 0, 1);
+/// ```
+///
+/// # Panics
+///
+/// If any input files are invalid
 pub fn build_and_merge(
     input_files: &[InputFastx],
     k: usize,

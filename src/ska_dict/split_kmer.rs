@@ -19,20 +19,35 @@ use std::borrow::Cow;
 /// information (k-mer size, masks etc.)
 #[derive(Debug)]
 pub struct SplitKmer<'a> {
+    /// K-mer size
     k: usize,
+    /// Mask to extract upper k-mer
     upper_mask: u64,
+    /// Mask to extract lower k-mer
     lower_mask: u64,
+    /// Reference to input sequence
     seq: Cow<'a, [u8]>,
+    /// Size of seq
     seq_len: usize,
+    /// Reference to sequence quality scores
     qual: Option<&'a [u8]>,
+    /// Minimum quality score to allow in a split k-mers
     min_qual: u8,
+    /// Current index in input sequence
     index: usize,
+    /// Current upper part of split k-mer
     upper: u64,
+    /// Current lower part of split k-mer
     lower: u64,
+    /// Current middle base
     middle_base: u8,
+    /// Whether reverse complements are being used
     rc: bool,
+    /// Current upper part of split k-mer, reverse complemented
     rc_upper: u64,
+    /// Current lower part of split k-mer, reverse complemented
     rc_lower: u64,
+    /// Current middle base, reverse complemented
     rc_middle_base: u8,
 }
 

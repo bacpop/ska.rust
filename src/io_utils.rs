@@ -72,7 +72,7 @@ pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
 
 /// Set a buffered stream to write to.
 ///
-/// Either a file (if set) or stdout otherwise
+/// Either a file (if [`Some`]) or stdout otherwise (if [`None`]).
 pub fn set_ostream(oprefix: &Option<String>) -> BufWriter<Box<dyn Write>> {
     let out_writer = match oprefix {
         Some(prefix) => {

@@ -35,11 +35,17 @@ use ahash::RandomState;
 /// ```
 #[derive(Debug, Clone)]
 pub struct CountMin {
+    /// Table width (estimated number of unique k-mers)
     width: usize,
+    /// Table height (number of hashes)
     height: usize,
+    /// Hash generators
     hash_factory: Vec<RandomState>,
+    /// Mask to convert hash into table column
     mask: u64,
+    /// Table of counts
     counts: Vec<u16>,
+    /// Minimum count to pass filter
     min_count: u16,
 }
 
