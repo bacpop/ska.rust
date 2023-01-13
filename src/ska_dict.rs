@@ -94,15 +94,17 @@ impl SkaDict {
     /// # Examples
     ///
     /// To build with a FASTA
-    /// ```rust
+    /// ```
+    /// use ska::ska_dict::SkaDict;
+    ///
     /// let k = 31;
     /// let sample_idx = 0;
-    /// let ska_dict = SkaDict::new(k, sample_idx, &"file.fa", None, "sample1", true, 0, 0);
+    /// let ska_dict = SkaDict::new(k, sample_idx, &"tests/test_files_in/test_1.fa", &None, "test_1", true, 0, 0);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 20, and where all
     /// bases have a PHRED score of 30 or more
-    /// ```
+    /// ```ignore
     /// let ska_dict = SkaDict::new(k, sample_idx, &"reads_1.fastq.gz", &Some("reads_2.fastq.gz"), "sample1", true, 20, 30);
     /// ```
     ///
