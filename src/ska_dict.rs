@@ -28,7 +28,12 @@ use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
-const CM_WIDTH: usize = 1 << 27; // 2^27 =~ 130M
+
+/// Default countmin filter width (expected number of unique k-mers)
+///
+/// 2^27 =~ 130M
+const CM_WIDTH: usize = 1 << 27;
+/// Default number of countmin hashes/table height (controls false positive rate)
 const CM_HEIGHT: usize = 4;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.

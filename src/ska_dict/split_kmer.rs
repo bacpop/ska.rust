@@ -1,6 +1,23 @@
+//! Create split k-mers from sequences by rolling through input
+//!
+//! The [`SplitKmer`] struct stores a reference to then input sequence, the
+//! necessary values to extract k-mers, and the current split k-mer:middle base
+//! (as well as its reverse complement)
+//!
+//! Use [`SplitKmer::new()`] to initialise with sequence input from [`needletail`],
+//! and [`SplitKmer::get_next_kmer()`] to advance through the sequence.
+//!
+//! (This could be made into a rust iterator, but I didn't do this when I wrote
+//! it as I didn't know how yet.)
+
 use crate::ska_dict::bit_encoding::*;
 use std::borrow::Cow;
 
+/// Struct to generate all split k-mers from an input sequence
+///
+/// Holds reference to input sequence, current encoded k-mer, and other
+/// information (k-mer size, masks etc.)
+#[derive(Debug)]
 pub struct SplitKmer<'a> {
     k: usize,
     upper_mask: u64,
@@ -20,6 +37,7 @@ pub struct SplitKmer<'a> {
 }
 
 impl<'a> SplitKmer<'a> {
+    /// Quality score is at least minimum.
     #[inline(always)]
     fn valid_qual(idx: usize, qual: Option<&'a [u8]>, min_qual: u8) -> bool {
         match qual {
@@ -28,6 +46,10 @@ impl<'a> SplitKmer<'a> {
         }
     }
 
+    /// Build a new split k-mer at the given index.
+    ///
+    /// Called when initialised, or after skipping unknown bases. Returns
+    /// [`None`] if the end of the input has been reached.
     fn build(
         seq: &[u8],
         seq_len: usize,
@@ -74,12 +96,17 @@ impl<'a> SplitKmer<'a> {
         return Some((upper, lower, middle_base));
     }
 
+    /// Update the stored reverse complement using the stored split-k and middle base
     fn update_rc(&mut self) {
         self.rc_upper = revcomp64_v2(self.lower, self.k - 1) & self.upper_mask;
         self.rc_middle_base = rc_base(self.middle_base);
         self.rc_lower = revcomp64_v2(self.upper, self.k - 1) & self.lower_mask;
     }
 
+    /// Move forward to the next valid split k-mer
+    ///
+    /// Usually the next base, but if an N skips over it.
+    /// If end of sequence encountered then returns `false`.
     fn roll_fwd(&mut self) -> bool {
         let mut success = false;
         self.index += 1;
@@ -124,6 +151,12 @@ impl<'a> SplitKmer<'a> {
         return success;
     }
 
+    /// Create a [`SplitKmer`] iterator given reference to sequence input.
+    ///
+    /// Sequence, length and quality come from [`needletail`].
+    ///
+    /// Returns [`None`] if no valid split k-mers found in input (e.g. too short,
+    /// no sequence, too many Ns).
     pub fn new(
         seq: Cow<'a, [u8]>,
         seq_len: usize,
@@ -163,8 +196,12 @@ impl<'a> SplitKmer<'a> {
         }
     }
 
+    /// Get the current split k-mer
+    ///
+    /// Returns split k-mer, middle base, and whether the reverse complement
     pub fn get_curr_kmer(&self) -> (u64, u8, bool) {
         let split_kmer = self.upper | self.lower;
+        // Some of the most useful prints for debugging left as comments here
         // let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
         // println!("{} {}", upper, lower);
         if self.rc {
@@ -178,6 +215,10 @@ impl<'a> SplitKmer<'a> {
         return (split_kmer, self.middle_base, false);
     }
 
+    /// Get the next split k-mer in the sequence
+    ///
+    /// Returns split k-mer, middle base, and whether the reverse complement
+    /// or [`None`] if no next k-mer
     pub fn get_next_kmer(&mut self) -> Option<(u64, u8, bool)> {
         let next = self.roll_fwd();
         match next {
@@ -186,6 +227,7 @@ impl<'a> SplitKmer<'a> {
         }
     }
 
+    /// Get the index in the sequence of the current middle base
     pub fn get_middle_pos(&self) -> usize {
         let middle_idx = (self.k + 1) / 2 - 1;
         self.index - middle_idx

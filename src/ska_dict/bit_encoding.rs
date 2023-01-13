@@ -1,10 +1,29 @@
-// Easy encoding from ASCII are the 3rd and 2nd bits
-// This encodes as A: 00; C: 01; T: 10; G: 11
-// EOR w/ 10          10     10     10     10
-// gives rc           10     11     00     01
-// Same as used in GATB library
+//! Encode and decode DNA bases into bit representation.
+//!
+//! The main functions are those to encode and decode bases, and get their
+//! reverse complement. Each bases uses two bits, and are packed into 64-bit
+//! integers.
+//!
+//! Easy encoding from ASCII are the 3rd and 2nd bits (works with both
+//! upper and lowercase)
+//!
+//! ```none
+//! This encodes as A: 00; C: 01; T: 10; G: 11
+//!
+//! EOR w/ 10          10     10     10     10
+//! gives rc           10     11     00     01
+//! ```
+//! (Same as used in GATB library)
+//!
+//! Ns/n are checked cheaply in a similar way
+//!
+//! There are also lookup tables to support ambiguity using IUPAC codes.
+
+/// Table from bits 0-3 to ASCII (use [`decode_base()`] not this table).
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
 
+/// Generate bit masks which can be applied to the packed k-mer representation
+/// too extract the upper and lower parts of the split k-mer (as bits).
 #[inline(always)]
 pub fn generate_masks(k: usize) -> (u64, u64) {
     let half_size: usize = (k - 1) / 2;
@@ -13,27 +32,32 @@ pub fn generate_masks(k: usize) -> (u64, u64) {
     return (lower_mask, upper_mask);
 }
 
+/// Encode an ASCII char to bits 0-3.
 #[inline(always)]
 pub fn encode_base(base: u8) -> u8 {
     (base >> 1) & 0x3
 }
 
+/// Decode bits 0-3 to ASCII.
 #[inline(always)]
 pub fn decode_base(bitbase: u8) -> u8 {
     LETTER_CODE[bitbase as usize]
 }
 
+/// Reverse complement an encoded base.
 #[inline(always)]
 pub fn rc_base(base: u8) -> u8 {
     base ^ 2
 }
 
-// Checks for N or n
+/// Checks for N or n with ASCII input.
 #[inline(always)]
 pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
+/// Decodes an encoded and packed split k-mer (64-bits) into strings for upper
+/// and lower parts.
 pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (String, String) {
     let half_k: usize = (k - 1) / 2;
     let mut upper_bits = (kmer & upper_mask) >> (half_k * 2);
@@ -56,7 +80,13 @@ pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (St
     (upper_kmer, lower_kmer)
 }
 
-// Neat trick from https://www.biostars.org/p/113640/
+/// Reverse complement of an encoded and packed split k-mer (64-bits).
+///
+/// Neat trick from <https://www.biostars.org/p/113640/>.
+///
+/// In the [`crate::ska_dict::split_kmer::SplitKmer`] class reverse complement is given by a rolling
+/// method, but this is used when an entire split k-mer needs to be built
+/// e.g. on construction or after skipping an N.
 #[inline(always)]
 pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
     res = (res >> 2 & 0x3333333333333333) | (res & 0x3333333333333333) << 2;
@@ -102,6 +132,24 @@ pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
 // A + V -> V   C + V -> V   T + V -> N   G + V -> V
 // A + N -> N   C + N -> N   T + N -> N   G + N -> N
 
+/// Lookup table to return an ambiguity code by adding a new base to an existing code.
+///
+/// Table is indexed as `[existing_base, new_base]` where `new_base` is two-bit encoded
+/// and `existing_base` is ASCII/`u8`. Returns ASCII/`u8` IUPAC code.
+///
+/// Table is flattened and row-major i.e. strides are `(1, 256)`.
+///
+/// # Examples
+///
+/// ```
+/// use ska::ska_dict::bit_encoding::{encode_base, IUPAC};
+///
+/// // A + Y -> H
+/// let new_base = encode_base(b'A');
+/// let existing_base = b'Y';
+/// // Returns b'H'
+/// let updated_base = IUPAC[new_base as usize * 256 + existing_base as usize];
+/// ```
 pub const IUPAC: [u8; 1024] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0-15
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-31
@@ -188,6 +236,7 @@ pub const IUPAC: [u8; 1024] = [
 // N -> N
 // - -> -
 
+/// Lookup table which gives reverse complement of a single IUPAC code (ASCII/`u8`).
 pub const RC_IUPAC: [u8; 256] = [
     b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-',
     b'-', // 0-15
