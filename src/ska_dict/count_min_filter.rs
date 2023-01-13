@@ -1,4 +1,3 @@
-
 use ahash::RandomState;
 
 #[derive(Debug, Clone)]
@@ -22,7 +21,14 @@ impl CountMin {
         let hash_factory = Vec::new();
         let counts = Vec::new();
 
-        Self {width, height, hash_factory, mask, counts, min_count}
+        Self {
+            width,
+            height,
+            hash_factory,
+            mask,
+            counts,
+            min_count,
+        }
     }
 
     pub fn is_init(&self) -> bool {
@@ -52,5 +58,4 @@ impl CountMin {
         }
         return count >= self.min_count;
     }
-
 }

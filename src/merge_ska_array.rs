@@ -11,8 +11,8 @@ use core::panic;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::mem;
 use std::io::{BufReader, BufWriter, Write};
+use std::mem;
 
 use hashbrown::{HashMap, HashSet};
 use ndarray::{Array2, ArrayView, Axis};
