@@ -1,3 +1,253 @@
+//! Split k-mer analysis (version 2)  uses exact matching of split k-mer sequences to align closely related
+//! sequences, typically small haploid genomes such as bacteria and viruses.
+//!
+//! SKA can only align SNPs (or single base deletions) further than the k-mer length apart,
+//! and does not use a gap penalty approach or give alignment scores.
+//! But the advantages are speed and flexibility, particularly the ability to
+//! run on a reference free manner on both assemblies and reads.
+//!
+//! ## Details
+//!
+//! A split k-mer is a sequence of bases with the middle position removed. For
+//! example, the split 9-mer pattern is `XXXX-XXXX`, and the split 9-mers of the
+//! sequence `ACGAGAGTCTT` are:
+//!
+//! | Split k-mer | Middle base |
+//! |-------------|-------------|
+//! | `ACGAAGTC`  | `G`         |
+//! | `CGAGGTCT`  | `A`         |
+//! | `GAGATCTT`  | `G`         |
+//!
+//! Which is broadly how SKA represents sequences in `.skf` files, as a dictionary with split
+//! k-mers as keys and the middle base as values. These dictionaries are merged
+//! by exactly matching the split k-mers, such that the middle positions are aligned (but
+//! unordered). Split k-mers can also be matched to those from a reference sequence
+//! to give an ordered pseudoalignment.
+//!
+//! Various optimisations are used to make this as fast as possible.For a more thorough comparison with version 1.0 of SKA, see the
+//! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
+//!
+//! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
+//!
+//! # Usage
+//!
+//! `.skf` files represent merged split k-mers from multiple sequence files. They
+//! are created with `ska build`. You can subsequently use `ska align` to write
+//! out an ordered alignment from these files, or `ska map` to write an alignment
+//! ordered versus a reference sequence.
+//!
+//! Both `ska align` and `ska map` can take input sequence directly to obtain output alignments
+//! in a single command and without saving an `.skf` file. This uses the default options
+//! of `ska build`, so to change these you will need to run the alignment in two steps.
+//!
+//! Output from `ska align` and `ska map`is to STDOUT, so you can use a redirect `>` to save to a file or pipe `|`
+//! to stream into another compatible program on STDIN. You can also add an output
+//! file prefix directly with `-o` (for `ska build` this is required).
+//!
+//! Details and progress messages are written on STDERR. You can see more logging
+//! information by adding the verbose flag `-v`.
+//!
+//! ## ska build
+//!
+//! This command creates an `.skf` file from sequence (.fasta/.fasta.gz/.fastq/.fastq.gz) input.
+//! K-mer size must be odd, greater than 5, and a maximum of 31. Smaller k-mers
+//! are more sensitive and can find closer positions, but are less specific so
+//! may lead to more repeated split k-mers and ambiguous bases.
+//!
+//! This is typically the most computationally intensive step of `ska`, and
+//! multiple `--threads` can be used to split the work over multiple CPU cores.
+//!
+//! Build from two input FASTA files with a k-mer size of 31:
+//! ```bash
+//! ska build -o seqs -k 31 assemblies/seq1.fa assemblies/seq2.fa
+//! ```
+//! This will assume sample names of `seq1` and `seq2`. If you know the strand,
+//! for example with reference sequences or single stranded viruses, add `--single-strand`
+//! to ignore reverse complements.
+//!
+//! To use FASTQ files, specify sample names or more easily input a larger number of input files,
+//! you can provide a tab separated file list via `-f` instead of listing files. For example
+//! with a file called `input_sequence.txt`:
+//! ```text
+//! sample_1    assemblies/seq1.fa
+//! sample_2    reads/seq2_1.fastq.gz   reads/seq2_2.fastq.gz
+//! ```
+//! You'd run:
+//! ```bash
+//! ska build -o seqs -f input_sequence.txt --min-count 20 --min-qual 30
+//! ```
+//! Here demonstrating changing the error filtering criteria with the FASTQ files.
+//!
+//! ## ska align
+//!
+//! Create an alignment from a `.skf` file or sequence files. Sites (columns) are
+//! in an arbitrary order. Two basic filters are available: `--min-freq` which
+//! sets the maximum number of missing sites; `--const-sites` which also writes
+//! out middle bases with no variation. The latter may be useful for ascertainment
+//! bias correction in phylogenetic algorithms, but note the flanking split k-mers
+//! will never be included.
+//!
+//! With an `.skf` file from `ska build`, constant sites, and no missing variants:
+//! ```bash
+//! ska align --min-freq 1 --const-sites -o seqs seqs.skf
+//! ```
+//!
+//! Another example: directly from FASTA files, with default `build` and `align` settings,
+//! and gzipping the output alignment
+//! ```bash
+//! ska align seq*.fa --threads 8 | gzip -c - > seqs.aln.gz
+//! ```
+//!
+//! ## ska map
+//!
+//! Create an alignment from a `.skf` file or sequence files` by mapping its
+//! split k-mers to split k-mer of a reference sequence. This produces pseudoalignment
+//! with the same sites/columns as the reference sequence. Sites not mapped will
+//! be output as missing '-'.
+//!
+//! Pass the FASTA file of the reference as the first argument, and the skf file as
+//! the second argument:
+//! ```bash
+//! ska map ref.fa seqs.skf -o ref_mapped.aln
+//! ```
+//!
+//! You can also get a VCF as output, which has rows as variants, and only has the
+//! variable sites (but will include unmapped bases as missing).
+//! An example command, also demonstrating that everything can be done from input sequences in a single command:
+//! ```bash
+//! ska map ref.fa seq1.fa seq2.fa -f vcf --threads 2 | bgzip -c - > seqs.vcf.gz
+//! ```
+//!
+//! ## ska merge
+//!
+//! Use to combine multiple `.skf` files into one, for subsequent use in `align` or `map`.
+//! This may be particularly useful if `ska build` was run on multiple input files
+//! one at a time (for example in a job array).
+//!
+//! ```bash
+//! ska merge -o all_samples sample1.skf sample2.skf sample3.skf
+//! ```
+//!
+//! ## ska delete
+//!
+//! Remove samples by name from an `.skf` file. All sample names must exist in the
+//! file, or an error will be thrown. After removing samples, the input `.skf` file will be overwritten.
+//! Any split k-mers which have no observed missing bases after removal will also be deleted.
+//!
+//! ```bash
+//! ska delete all_samples.skf sample_1 sample_3
+//! ```
+//! If you wish to delete many samples, you can use `-f` to provide their names
+//! by line via an input file.
+//!
+//! ## ska weed
+//!
+//! Remove (weed) split k-mers from an `.skf` file. The split k-mers to be removed
+//! are generated from a FASTA file, which may for example contain known transposons or
+//! other repeat sequences. As with `delete`, the input `.skf` file is overwritten.
+//!
+//! ```bash
+//! ska weed all_samples.skf MGEs.fa
+//! ```
+//!
+//! In addition, you can also use `ska weed` to filter split k-mers by middle base, which does
+//! not require a list of split k-mers to be removed (but both can be used together, if you wish).
+//!
+//! For example, you may want to reduce the size of an `.skf` file for online use.
+//! You can do this by removing any constant sites (which are typically unused), and by hard-filtering
+//! by frequency (i.e. before writing output):
+//! ```bash
+//! ska weed --remove-const-sites --min-freq 0.9 all_samples.skf
+//! ```
+//!
+//! ## ska nk
+//! Return information on the *n*umber of *k*-mers in an `.skf` file. This will
+//! print on STDOUT:
+//! - The k-mer size.
+//! - Whether reverse complements were used.
+//! - The number of split k-mers.
+//! - The number of samples.
+//! - The sample names.
+//!
+//! ```bash
+//! ska nk all_samples.skf
+//! ```
+//!
+//! If you add `--full-info`, the split k-mer dictionary will be decoded and printed
+//! to STDOUT after the baseline information, for example:
+//! ```bash
+//! TAAATATC        TAAACGCC        A,-
+//! AGACTCTC        TACAGCTA        G,G
+//! AAACCATC        AAACACTC        A,-
+//! TTAAAAGA        TCTCGTAC        C,C
+//! ```
+//! This is tab-separated, showing the first and second half of the split k-mer
+//! and the middle bases of each sample (comma seperated).
+//!
+//! NB: Only one split k-mer is shown even if the reverse complement was used.
+//! These are not precisely canonical k-mers, as the encoding order `{A, C, T, G}` is used internally.
+//!
+//! # API usage
+//!
+//! See the submodule documentation linked below.
+//!
+//! To use `ska build` in other rust code:
+//! ```rust
+//! use ska::merge_ska_dict::{InputFastx, build_and_merge};
+//! use ska::merge_ska_array::MergeSkaArray;
+//!
+//! // Build, merge
+//! let input_files: [InputFastx; 2] = [("test1".to_string(),
+//!                                      "tests/test_files_in/test_1.fa".to_string(),
+//!                                      None),
+//!                                     ("test2".to_string(),
+//!                                      "tests/test_files_in/test_2.fa".to_string(),
+//!                                      None)];
+//! let rc = true;
+//! let k = 17;
+//! let min_count = 1;
+//! let min_qual = 0;
+//! let threads = 2;
+//! let merged_dict =
+//!     build_and_merge(&input_files, k, rc, min_count, min_qual, threads);
+//!
+//! // Save
+//! let ska_array = MergeSkaArray::new(&merged_dict);
+//! ska_array
+//!     .save(format!("merged.skf").as_str())
+//!     .expect("Failed to save output file");
+//! ```
+//!
+//! To use `ska align` in other rust code:
+//! ```rust
+//! use ska::io_utils::{load_array, set_ostream};
+//!
+//! // Load an .skf file
+//! let threads = 4;
+//! let input = vec!["tests/test_files_in/merge.skf".to_string()];
+//! let mut ska_array = load_array(&input, threads);
+//!
+//! // Apply filters
+//! let min_count = 2;
+//! let update_kmers = false;
+//! let const_sites = false;
+//! ska_array.filter(min_count, const_sites, update_kmers);
+//!
+//! // Write out to stdout
+//! let mut out_stream = set_ostream(&None);
+//! ska_array
+//!     .write_fasta(&mut out_stream)
+//!     .expect("Couldn't write output fasta");
+//! ```
+//!
+//! To use `ska map` in other rust code, see the example for [`RefSka`].
+//!
+//! ## Other APIs
+//!
+//! It would be possible to make a python API using [`maturin`](https://github.com/PyO3/maturin).
+//! Please submit a feature request if you would find this useful.
+//!
+
 #![warn(missing_docs)]
 use std::time::Instant;
 
