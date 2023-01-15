@@ -373,7 +373,6 @@ impl fmt::Display for MergeSkaArray {
 impl fmt::Debug for MergeSkaArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = generate_masks(self.k);
-        println!("{}", self.variants);
         self.split_kmers
             .iter()
             .zip(self.variants.outer_iter())

@@ -1,0 +1,8 @@
+k=17
+rc=true
+1 k-mers
+2 samples
+["test_1", "test_2"]
+
+AAAACACT	TTAAAAGA	C,T
+

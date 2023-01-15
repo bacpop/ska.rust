@@ -78,3 +78,49 @@ fn merge_delete() {
         .assert()
         .stdout_eq(test1_nk.stdout);
 }
+
+#[test]
+fn weed() {
+    let sandbox = TestSetup::setup();
+
+    Command::new("cp")
+        .current_dir(sandbox.get_wd())
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .arg("merge.skf")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("weed")
+        .arg("merge.skf")
+        .arg(sandbox.file_string("weed.fa", TestDir::Input))
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("merge.skf")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("weed_align.stdout", TestDir::Correct));
+
+    // With const sites/filter and nk full info
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("weed")
+        .arg("merge.skf")
+        .arg("--remove-const-sites")
+        .args(&["--min-freq", "1"])
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("merge.skf")
+        .arg("--full-info")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("weed_nk.stdout", TestDir::Correct));
+}
