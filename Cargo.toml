@@ -8,7 +8,7 @@ authors = [
 ]
 edition = "2021"
 description = "Split k-mer analysis"
-repository = "https://github.com/bacpop/ska_rust/"
+repository = "https://github.com/bacpop/ska.rust/"
 homepage = "https://bacpop.com/software/"
 license = "Apache-2.0"
 include = [
