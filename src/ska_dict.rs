@@ -80,8 +80,7 @@ impl SkaDict {
                 self.rc,
                 min_qual,
             );
-            if kmer_opt.is_some() {
-                let mut kmer_it = kmer_opt.unwrap();
+            if let Some(mut kmer_it) = kmer_opt {
                 let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                 self.add_to_dict(kmer, base, is_reads);
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
@@ -107,10 +106,19 @@ impl SkaDict {
     /// let ska_dict = SkaDict::new(k, sample_idx, &"tests/test_files_in/test_1.fa", &None, "test_1", true, 0, 0);
     /// ```
     ///
-    /// With FASTQ pair, only allowing k-mers with a count over 20, and where all
-    /// bases have a PHRED score of 30 or more
-    /// ```ignore
-    /// let ska_dict = SkaDict::new(k, sample_idx, &"reads_1.fastq.gz", &Some("reads_2.fastq.gz"), "sample1", true, 20, 30);
+    /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
+    /// bases have a PHRED score of 20 or more
+    /// ```
+    /// use ska::ska_dict::SkaDict;
+    ///
+    /// let min_count = 2;
+    /// let min_qual = 20;
+    /// let k = 9;
+    /// let sample_idx = 0;
+    /// let ska_dict = SkaDict::new(k, sample_idx,
+    ///                             &"tests/test_files_in/test_1_fwd.fastq.gz",
+    ///                             &Some("tests/test_files_in/test_2_fwd.fastq.gz".to_string()),
+    ///                             "sample1", true, min_count, min_qual);
     /// ```
     ///
     /// # Panics

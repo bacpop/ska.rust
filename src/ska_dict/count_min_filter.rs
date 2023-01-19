@@ -107,7 +107,11 @@ impl CountMin {
             if self.counts[table_idx] < u16::MAX {
                 self.counts[table_idx] += 1;
             }
-            count = u16::min(count, self.counts[table_idx])
+            if row_idx == 0 {
+                count = self.counts[table_idx];
+            } else {
+                count = u16::min(count, self.counts[table_idx]);
+            }
         }
         return count >= self.min_count;
     }

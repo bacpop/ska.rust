@@ -142,7 +142,7 @@ impl RefSka {
     /// The result can then be used with a writer. So far, only over missing records.
     ///
     /// (I wrote it as an iterator to avoid passing the writer outside of the write function
-    /// some pretty mad stuff here! ...lifetimes, move, iterator trait)
+    /// some pretty new rust stuff here! ...lifetimes, move, iterator trait)
     fn iter_missing_vcf_rows<'a>(
         &'a self,
         chrom: usize,
@@ -305,10 +305,10 @@ impl RefSka {
     ///
     /// # Panics
     ///
-    /// If [`RefSka::map()`] has not been run yet
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
     pub fn write_vcf<W: Write>(&self, f: &mut W) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
-            panic!("Tried to write VCF before variants mapped");
+            panic!("No split k-mers mapped to reference");
         }
 
         // Write the VCF header
@@ -432,10 +432,10 @@ impl RefSka {
     ///
     /// # Panics
     ///
-    /// If [`RefSka::map()`] has not been run yet
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
     pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
-            panic!("Tried to write VCF before variants mapped");
+            panic!("TNo split k-mers mapped to reference");
         }
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
