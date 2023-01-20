@@ -1,8 +1,3 @@
-use std::{
-    fs::File,
-    io::{LineWriter, Write},
-};
-
 use snapbox::cmd::{cargo_bin, Command};
 
 mod common;
@@ -13,31 +8,8 @@ use crate::common::{TestDir, TestSetup};
 #[test]
 fn build_cli() {
     let sandbox = TestSetup::setup();
-
     // Create an rfile in the tmp dir
-    let rfile_name = "file_list.txt";
-    let mut rfile = LineWriter::new(
-        File::create(format!("{}/{}", sandbox.get_wd(), rfile_name))
-            .expect("Could not write rfile"),
-    );
-    writeln!(
-        rfile,
-        "{}",
-        &format!(
-            "test_1\t{}",
-            sandbox.file_string("test_1.fa", TestDir::Input)
-        )
-    )
-    .unwrap();
-    writeln!(
-        rfile,
-        "{}",
-        &format!(
-            "test_2\t{}",
-            sandbox.file_string("test_2.fa", TestDir::Input)
-        )
-    )
-    .unwrap();
+    let rfile_name = sandbox.create_rfile(false);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())

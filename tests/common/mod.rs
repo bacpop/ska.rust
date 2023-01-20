@@ -1,12 +1,20 @@
+use std::{
+    path::{Path, PathBuf},
+    fs::File,
+    io::{LineWriter, Write},
+};
+
 use assert_fs::{prelude::*, TempDir};
 use predicates::prelude::*;
-use std::path::{Path, PathBuf};
+
+use hashbrown::HashSet;
 
 // Creates correct path for input/output files
 static FILE_IN: &'static str = "tests/test_files_in";
 static FILE_TEST: &'static str = "tests/test_results_correct";
 static SYM_IN: &'static str = "input";
 static SYM_TEST: &'static str = "correct";
+static RFILE_NAME: &'static str = "file_list.txt";
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TestDir {
@@ -72,4 +80,74 @@ impl TestSetup {
         let predicate_fn = predicate::path::is_file();
         predicate_fn.eval(self.wd.child(name_out).path())
     }
+
+    pub fn create_rfile(&self, fastq: bool) -> &str {
+        // Create an rfile in the tmp dir
+        let mut rfile = LineWriter::new(
+            File::create(format!("{}/{}", self.get_wd(), RFILE_NAME))
+                .expect("Could not write rfile"),
+        );
+        match fastq {
+            true => {
+                writeln!(
+                    rfile,
+                    "{}",
+                    &format!(
+                        "test_1\t{}\t{}",
+                        self.file_string("test_1_fwd.fastq.gz", TestDir::Input),
+                        self.file_string("test_1_rev.fastq.gz", TestDir::Input)
+                    )
+                )
+                .unwrap();
+                writeln!(
+                    rfile,
+                    "{}",
+                    &format!(
+                        "test_2\t{}\t{}",
+                        self.file_string("test_2_fwd.fastq.gz", TestDir::Input),
+                        self.file_string("test_2_rev.fastq.gz", TestDir::Input)
+                    )
+                )
+                .unwrap();
+            }
+            false => {
+                writeln!(
+                    rfile,
+                    "{}",
+                    &format!(
+                        "test_1\t{}",
+                        self.file_string("test_1.fa", TestDir::Input)
+                    )
+                )
+                .unwrap();
+                writeln!(
+                    rfile,
+                    "{}",
+                    &format!(
+                        "test_2\t{}",
+                        self.file_string("test_2.fa", TestDir::Input)
+                    )
+                )
+                .unwrap();
+            }
+        };
+        RFILE_NAME
+    }
+}
+
+// Helper for two sample fasta
+pub fn var_hash(aln_string: &[u8]) -> HashSet<(char, char)> {
+    let fastq_align_out = String::from_utf8(aln_string.to_vec()).unwrap();
+    let mut sample1: Vec<char> = Vec::new();
+    let mut variant_pairs: HashSet<(char, char)> = HashSet::new();
+    for (idx, line) in fastq_align_out.lines().enumerate() {
+        if idx == 1 {
+            sample1 = line.chars().collect();
+        } else if idx == 3 {
+            for (first, second) in sample1.iter().zip(line.chars()) {
+                variant_pairs.insert((*first, second));
+            }
+        }
+    }
+    return variant_pairs;
 }
