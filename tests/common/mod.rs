@@ -1,7 +1,7 @@
 use std::{
-    path::{Path, PathBuf},
     fs::File,
     io::{LineWriter, Write},
+    path::{Path, PathBuf},
 };
 
 use assert_fs::{prelude::*, TempDir};
@@ -81,7 +81,7 @@ impl TestSetup {
         predicate_fn.eval(self.wd.child(name_out).path())
     }
 
-    pub fn create_rfile(&self, fastq: bool) -> &str {
+    pub fn create_rfile(&self, prefix: &str, fastq: bool) -> &str {
         // Create an rfile in the tmp dir
         let mut rfile = LineWriter::new(
             File::create(format!("{}/{}", self.get_wd(), RFILE_NAME))
@@ -93,9 +93,10 @@ impl TestSetup {
                     rfile,
                     "{}",
                     &format!(
-                        "test_1\t{}\t{}",
-                        self.file_string("test_1_fwd.fastq.gz", TestDir::Input),
-                        self.file_string("test_1_rev.fastq.gz", TestDir::Input)
+                        "{}_1\t{}\t{}",
+                        prefix,
+                        self.file_string(&format!("{}_1_fwd.fastq.gz", prefix), TestDir::Input),
+                        self.file_string(&format!("{}_1_rev.fastq.gz", prefix), TestDir::Input),
                     )
                 )
                 .unwrap();
@@ -103,9 +104,10 @@ impl TestSetup {
                     rfile,
                     "{}",
                     &format!(
-                        "test_2\t{}\t{}",
-                        self.file_string("test_2_fwd.fastq.gz", TestDir::Input),
-                        self.file_string("test_2_rev.fastq.gz", TestDir::Input)
+                        "{}_2\t{}\t{}",
+                        prefix,
+                        self.file_string(&format!("{}_2_fwd.fastq.gz", prefix), TestDir::Input),
+                        self.file_string(&format!("{}_2_rev.fastq.gz", prefix), TestDir::Input),
                     )
                 )
                 .unwrap();
@@ -115,8 +117,9 @@ impl TestSetup {
                     rfile,
                     "{}",
                     &format!(
-                        "test_1\t{}",
-                        self.file_string("test_1.fa", TestDir::Input)
+                        "{}_1\t{}",
+                        prefix,
+                        self.file_string(&format!("{}_1.fa", prefix), TestDir::Input),
                     )
                 )
                 .unwrap();
@@ -124,8 +127,9 @@ impl TestSetup {
                     rfile,
                     "{}",
                     &format!(
-                        "test_2\t{}",
-                        self.file_string("test_2.fa", TestDir::Input)
+                        "{}_2\t{}",
+                        prefix,
+                        self.file_string(&format!("{}_2.fa", prefix), TestDir::Input),
                     )
                 )
                 .unwrap();

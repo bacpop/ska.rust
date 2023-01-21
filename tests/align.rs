@@ -1,7 +1,9 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 mod common;
-use crate::common::{TestDir, TestSetup};
+use crate::common::{var_hash, TestDir, TestSetup};
+
+use hashbrown::HashSet;
 
 // NB: to view output, uncomment the current_dir lines
 
@@ -9,7 +11,7 @@ use crate::common::{TestDir, TestSetup};
 fn build_cli() {
     let sandbox = TestSetup::setup();
     // Create an rfile in the tmp dir
-    let rfile_name = sandbox.create_rfile(false);
+    let rfile_name = sandbox.create_rfile(&"test", false);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -59,39 +61,31 @@ fn build_and_align() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    let fasta_align_out = Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("basic_build.skf")
-        .arg("-o")
-        .arg("basic.aln")
-        .assert()
-        .success();
+        .output()
+        .unwrap()
+        .stdout;
 
-    assert_eq!(
-        true,
-        sandbox.file_check("basic.aln", "basic1.aln")
-            | sandbox.file_check("basic.aln", "basic2.aln")
-    );
+    let correct_aln = HashSet::from([('A', 'T'), ('C', 'T')]);
+    assert_eq!(var_hash(&fasta_align_out), correct_aln);
 }
 
 #[test]
 fn basic_align() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    let fasta_align_out = Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
-        .arg("-o")
-        .arg("basic.aln")
-        .assert()
-        .success();
+        .output()
+        .unwrap()
+        .stdout;
 
-    assert_eq!(
-        true,
-        sandbox.file_check("basic.aln", "basic1.aln")
-            | sandbox.file_check("basic.aln", "basic2.aln")
-    );
+    let correct_aln = HashSet::from([('A', 'T'), ('C', 'T')]);
+    assert_eq!(var_hash(&fasta_align_out), correct_aln);
 }

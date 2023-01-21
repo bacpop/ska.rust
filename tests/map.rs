@@ -61,4 +61,3 @@ fn map_vcf() {
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
 }
-

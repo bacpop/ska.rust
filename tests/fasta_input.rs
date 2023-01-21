@@ -1,4 +1,3 @@
-
 use snapbox::cmd::{cargo_bin, Command};
 
 mod common;
@@ -115,4 +114,3 @@ fn repeats() {
         .assert()
         .stdout_matches_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
 }
-
