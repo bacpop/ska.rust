@@ -389,7 +389,7 @@ impl RefSka {
                 genotype_vec
                     .push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
             }
-            if alt_bases.is_empty() {
+            if !alt_bases.is_empty() {
                 let genotypes = Genotypes::new(keys.clone(), genotype_vec);
                 let alt_alleles: Vec<Allele> =
                     alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();

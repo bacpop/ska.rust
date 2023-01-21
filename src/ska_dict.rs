@@ -103,7 +103,7 @@ impl SkaDict {
     ///
     /// let k = 31;
     /// let sample_idx = 0;
-    /// let ska_dict = SkaDict::new(k, sample_idx, &"tests/test_files_in/test_1.fa", &None, "test_1", true, 0, 0);
+    /// let ska_dict = SkaDict::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, 0, 0);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
@@ -116,8 +116,8 @@ impl SkaDict {
     /// let k = 9;
     /// let sample_idx = 0;
     /// let ska_dict = SkaDict::new(k, sample_idx,
-    ///                             &"tests/test_files_in/test_1_fwd.fastq.gz",
-    ///                             &Some("tests/test_files_in/test_2_fwd.fastq.gz".to_string()),
+    ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
+    ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
     ///                             "sample1", true, min_count, min_qual);
     /// ```
     ///
