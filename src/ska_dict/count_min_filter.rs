@@ -81,7 +81,7 @@ impl CountMin {
     ///
     /// Allocates memory and sets hash functions.
     pub fn init(&mut self) {
-        if self.counts.len() == 0 {
+        if self.counts.is_empty() {
             self.hash_factory = vec![RandomState::new(); self.height];
             self.counts = vec![0; self.width * self.height];
         }
@@ -89,7 +89,7 @@ impl CountMin {
 
     /// Check if [`CountMin::init()`] has been called and table is ready for use
     pub fn is_init(&self) -> bool {
-        self.counts.len() > 0
+        !self.counts.is_empty()
     }
 
     /// Reset all counts to zero
@@ -104,15 +104,13 @@ impl CountMin {
         for hash_it in self.hash_factory.iter().enumerate() {
             let (row_idx, hash) = hash_it;
             let table_idx = row_idx * self.width + ((hash.hash_one(kmer) & self.mask) as usize);
-            if self.counts[table_idx] < u16::MAX {
-                self.counts[table_idx] += 1;
-            }
+            self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
             if row_idx == 0 {
                 count = self.counts[table_idx];
             } else {
                 count = u16::min(count, self.counts[table_idx]);
             }
         }
-        return count >= self.min_count;
+        count >= self.min_count
     }
 }

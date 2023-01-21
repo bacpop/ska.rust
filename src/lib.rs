@@ -251,8 +251,6 @@
 #![warn(missing_docs)]
 use std::time::Instant;
 
-use simple_logger;
-
 pub mod merge_ska_dict;
 pub mod ska_dict;
 use crate::merge_ska_dict::build_and_merge;
@@ -312,7 +310,7 @@ pub fn main() {
         } => {
             let mut ska_array = load_array(input, *threads);
             // In debug mode (cannot be set from CLI, give details)
-            log::debug!("{}", format!("{}", ska_array));
+            log::debug!("{ska_array}");
 
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
@@ -342,7 +340,7 @@ pub fn main() {
                 ska_dict.kmer_len(),
                 ska_dict.rc()
             );
-            let mut ska_ref = RefSka::new(ska_dict.kmer_len(), &reference, ska_dict.rc());
+            let mut ska_ref = RefSka::new(ska_dict.kmer_len(), reference, ska_dict.rc());
 
             log::info!("Mapping");
             ska_ref.map(&ska_dict);
@@ -373,10 +371,10 @@ pub fn main() {
                 MergeSkaArray::load(&skf_files[0]).expect("Failed to load input file");
             let mut merged_dict = first_array.to_dict();
 
-            for file_idx in 1..skf_files.len() {
+            for (file_idx, skf_in) in skf_files.iter().enumerate().skip(1) {
                 log::info!("Merging alignment {}", format!("{}", file_idx + 1));
                 let next_array =
-                    MergeSkaArray::load(&skf_files[file_idx]).expect("Failed to load input file");
+                    MergeSkaArray::load(skf_in).expect("Failed to load input file");
                 merged_dict.extend(&mut next_array.to_dict());
             }
 
@@ -420,7 +418,7 @@ pub fn main() {
                     ska_array.kmer_len(),
                     ska_array.rc()
                 );
-                let ska_weed = RefSka::new(ska_array.kmer_len(), &weed_fasta, ska_array.rc());
+                let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc());
 
                 log::info!("Removing weed k-mers");
                 ska_array.weed(&ska_weed);
@@ -447,11 +445,11 @@ pub fn main() {
         } => {
             log::info!("Printing basic info");
             let ska_array = MergeSkaArray::load(skf_file).unwrap();
-            println!("{}", ska_array);
+            println!("{ska_array}");
 
             if *full_info {
                 log::info!("Printing full info");
-                println!("{:?}", ska_array);
+                println!("{ska_array:?}");
             }
         }
     }

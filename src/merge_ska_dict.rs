@@ -39,13 +39,13 @@ impl MergeSkaDict {
     pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
         let names = vec!["".to_string(); n_samples];
         let split_kmers = HashMap::default();
-        return Self {
+        Self {
             k,
             rc,
             n_samples,
             names,
             split_kmers,
-        };
+        }
     }
 
     /// Directly add name and merged dictionary content
@@ -56,8 +56,8 @@ impl MergeSkaDict {
         names: &'a mut Vec<String>,
         split_kmers: &mut HashMap<u64, Vec<u8>>,
     ) {
-        swap(names, &mut &mut self.names);
-        swap(split_kmers, &mut &mut self.split_kmers);
+        swap(names, &mut self.names);
+        swap(split_kmers, &mut self.split_kmers);
     }
 
     /// Add a single [`crate::ska_dict::SkaDict`](`SkaDict`) to the merged dictionary
@@ -124,7 +124,7 @@ impl MergeSkaDict {
             } else {
                 for name_it in other.names.iter_mut().zip(self.names.iter_mut()) {
                     let (other_name, self_name) = name_it;
-                    if self_name == "" {
+                    if self_name.is_empty() {
                         swap(self_name, other_name);
                     }
                 }
@@ -230,7 +230,7 @@ fn multi_append(
     for ska_dict in &mut input_dicts.iter() {
         merged_dict.append(ska_dict);
     }
-    return merged_dict;
+    merged_dict
 }
 
 /// Recursive parallel merge
@@ -251,14 +251,14 @@ fn parallel_append(
             || multi_append(top, total_size, k, rc),
         );
         bottom_merge.merge(&mut top_merge);
-        return bottom_merge;
+        bottom_merge
     } else {
         let (mut bottom_merge, mut top_merge) = rayon::join(
             || parallel_append(depth - 1, bottom, total_size, k, rc),
             || parallel_append(depth - 1, top, total_size, k, rc),
         );
         bottom_merge.merge(&mut top_merge);
-        return bottom_merge;
+        bottom_merge
     }
 }
 
@@ -307,7 +307,7 @@ pub fn build_and_merge(
             .progress_count(input_files.len() as u64)
             .enumerate()
             .map(|(idx, (name, filename, second_file))| {
-                SkaDict::new(k, idx, filename, second_file, name, rc, min_count, min_qual)
+                SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, min_count, min_qual)
             })
             .collect();
     } else {
@@ -316,8 +316,7 @@ pub fn build_and_merge(
             ska_dicts.push(SkaDict::new(
                 k,
                 idx,
-                filename,
-                second_file,
+                (filename, second_file.as_ref()),
                 name,
                 rc,
                 min_count,
@@ -346,5 +345,5 @@ pub fn build_and_merge(
             merged_dict.append(ska_dict);
         }
     }
-    return merged_dict;
+    merged_dict
 }

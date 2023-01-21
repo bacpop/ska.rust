@@ -69,7 +69,7 @@ impl SkaDict {
     /// to the dictionary
     fn add_file_kmers(&mut self, filename: &str, is_reads: bool, min_qual: u8) {
         let mut reader =
-            parse_fastx_file(filename).expect(&format!("Invalid path/file: {}", filename));
+            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
@@ -131,14 +131,13 @@ impl SkaDict {
     pub fn new(
         k: usize,
         sample_idx: usize,
-        filename: &str,
-        rev_file: &Option<String>,
+        files: (&str, Option<&String>),
         name: &str,
         rc: bool,
         min_count: u16,
         min_qual: u8,
     ) -> Self {
-        if k < 5 || k > 31 || k % 2 == 0 {
+        if !(5..=31).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
         // Default/empty structs
@@ -156,7 +155,7 @@ impl SkaDict {
 
         // Check if we're working with reads, and initalise the CM filter if so
         let mut reader_peek =
-            parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
+            parse_fastx_file(files.0).unwrap_or_else(|_| panic!("Invalid path/file: {}", files.0));
         let seq_peek = reader_peek
             .next()
             .expect("Invalid FASTA/Q record")
@@ -168,15 +167,15 @@ impl SkaDict {
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(filename, is_reads, min_qual);
-        if let Some(second_filename) = rev_file {
+        sk_dict.add_file_kmers(files.0, is_reads, min_qual);
+        if let Some(second_filename) = files.1 {
             sk_dict.add_file_kmers(second_filename, is_reads, min_qual);
         }
 
         if sk_dict.ksize() == 0 {
-            panic!("{} has no valid sequence", filename);
+            panic!("{} has no valid sequence", files.0);
         }
-        return sk_dict;
+        sk_dict
     }
 
     /// K-mer length used for split k-mers

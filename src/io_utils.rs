@@ -33,7 +33,7 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
         };
         input_files.push((name, file.to_string(), None));
     }
-    return input_files;
+    input_files
 }
 
 /// Given a list of files via the CLI, loads or creates a
@@ -50,10 +50,9 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
 /// create a merged dictionary, which is then converted to a merged array.
 pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
     // Obtain a merged ska array
-    let ska_array: MergeSkaArray;
     if input.len() == 1 {
         log::info!("Single file as input, trying to load as skf");
-        ska_array = MergeSkaArray::load(input[0].as_str()).unwrap();
+        MergeSkaArray::load(input[0].as_str()).unwrap()
     } else {
         log::info!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
@@ -65,9 +64,8 @@ pub fn load_array(input: &[String], threads: usize) -> MergeSkaArray {
             DEFAULT_MINQUAL,
             threads,
         );
-        ska_array = MergeSkaArray::new(&merged_dict);
+        MergeSkaArray::new(&merged_dict)
     }
-    return ska_array;
 }
 
 /// Set a buffered stream to write to.
@@ -77,12 +75,11 @@ pub fn set_ostream(oprefix: &Option<String>) -> BufWriter<Box<dyn Write>> {
     let out_writer = match oprefix {
         Some(prefix) => {
             let path = Path::new(prefix);
-            Box::new(File::create(&path).unwrap()) as Box<dyn Write>
+            Box::new(File::create(path).unwrap()) as Box<dyn Write>
         }
         None => Box::new(stdout()) as Box<dyn Write>,
     };
-    let out_stream = BufWriter::new(out_writer);
-    return out_stream;
+    BufWriter::new(out_writer)
 }
 
 /// Obtain a list of input files and names from command line input.
@@ -97,9 +94,9 @@ pub fn get_input_list(
     seq_files: &Option<Vec<String>>,
 ) -> Vec<InputFastx> {
     // Read input
-    let mut input_files: Vec<InputFastx> = Vec::new();
     match file_list {
         Some(files) => {
+            let mut input_files: Vec<InputFastx> = Vec::new();
             let f = File::open(files).expect("Unable to open file_list");
             let f = BufReader::new(f);
             for line in f.lines() {
@@ -118,10 +115,10 @@ pub fn get_input_list(
                 };
                 input_files.push((fields[0].to_string(), fields[1].to_string(), second_file));
             }
+            input_files
         }
         None => {
-            input_files = read_input_fastas(seq_files.as_ref().unwrap());
+            read_input_fastas(seq_files.as_ref().unwrap())
         }
     }
-    return input_files;
 }

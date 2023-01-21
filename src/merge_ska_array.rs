@@ -152,7 +152,7 @@ impl MergeSkaArray {
         }
         let mut dict = MergeSkaDict::new(self.k, n_samples, self.rc);
         dict.build_from_array(&mut names, &mut split_kmers);
-        return dict;
+        dict
     }
 
     /// Delete a list of named samples.
@@ -164,7 +164,7 @@ impl MergeSkaArray {
     /// - If any input sample name is not in the array.
     /// - If no samples or all samples are being removed.
     pub fn delete_samples(&mut self, del_names: &[&str]) {
-        if del_names.len() == 0 || del_names.len() == self.nsamples() {
+        if del_names.is_empty() || del_names.len() == self.nsamples() {
             panic!("Invalid number of samples to remove")
         }
 
@@ -184,7 +184,7 @@ impl MergeSkaArray {
             }
         }
 
-        if del_name_set.len() > 0 {
+        if !del_name_set.is_empty() {
             panic!("Could not find sample(s): {:?}", del_name_set);
         }
         self.names = new_names;
@@ -390,7 +390,7 @@ impl fmt::Debug for MergeSkaArray {
                 }
                 seq_string.pop();
                 let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
-                write!(f, "{}\t{}\t{}\n", upper, lower, seq_string)
+                writeln!(f, "{upper}\t{lower}\t{seq_string}")
             })
     }
 }

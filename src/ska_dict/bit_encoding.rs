@@ -29,7 +29,7 @@ pub fn generate_masks(k: usize) -> (u64, u64) {
     let half_size: usize = (k - 1) / 2;
     let lower_mask = (1 << (half_size * 2)) - 1;
     let upper_mask = lower_mask << (half_size * 2);
-    return (lower_mask, upper_mask);
+    (lower_mask, upper_mask)
 }
 
 /// Encode an ASCII char to bits 0-3.
@@ -65,7 +65,7 @@ pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (St
     for _idx in 0..half_k {
         let base = decode_base((upper_bits & 0x3) as u8);
         upper_kmer.push(base as char);
-        upper_bits = upper_bits >> 2;
+        upper_bits >>= 2;
     }
     upper_kmer = upper_kmer.chars().rev().collect::<String>();
 
@@ -74,7 +74,7 @@ pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (St
     for _idx in 0..half_k {
         let base = decode_base((lower_bits & 0x3) as u8);
         lower_kmer.push(base as char);
-        lower_bits = lower_bits >> 2;
+        lower_bits >>= 2;
     }
     lower_kmer = lower_kmer.chars().rev().collect::<String>();
     (upper_kmer, lower_kmer)
@@ -94,9 +94,9 @@ pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
     res = (res >> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) << 8;
     res = (res >> 16 & 0x0000FFFF0000FFFF) | (res & 0x0000FFFF0000FFFF) << 16;
     res = (res >> 32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
-    res = res ^ 0xAAAAAAAAAAAAAAAA;
+    res ^= 0xAAAAAAAAAAAAAAAA;
 
-    return res >> (2 * (32 - k_size));
+    res >> (2 * (32 - k_size))
 }
 
 // A 	Adenine

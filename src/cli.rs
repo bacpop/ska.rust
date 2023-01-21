@@ -17,11 +17,9 @@ pub const DEFAULT_MINQUAL: u8 = 20;
 fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
         .parse()
-        .map_err(|_| format!("`{}` isn't a valid k-mer", s))?;
-    if k < 5 || k > 31 || k % 2 == 0 {
-        Err(format!(
-            "K-mer must an odd number between 5 and 31 (inclusive)"
-        ))
+        .map_err(|_| format!("`{s}` isn't a valid k-mer"))?;
+    if !(5..=31).contains(&k) || k % 2 == 0 {
+        Err("K-mer must an odd number between 5 and 31 (inclusive)".to_string())
     } else {
         Ok(k)
     }
@@ -31,9 +29,9 @@ fn valid_kmer(s: &str) -> Result<usize, String> {
 fn zero_to_one(s: &str) -> Result<f64, String> {
     let f: f64 = s
         .parse()
-        .map_err(|_| format!("`{}` isn't a valid frequency", s))?;
-    if f < 0.0 || f > 1.0 {
-        Err(format!("Frequency must be between 0 and 1 (inclusive)"))
+        .map_err(|_| format!("`{s}` isn't a valid frequency"))?;
+    if !(0.0..=1.0).contains(&f) {
+        Err("Frequency must be between 0 and 1 (inclusive)".to_string())
     } else {
         Ok(f)
     }
@@ -43,10 +41,10 @@ fn zero_to_one(s: &str) -> Result<f64, String> {
 fn valid_cpus(s: &str) -> Result<usize, String> {
     let threads: usize = s
         .parse()
-        .map_err(|_| format!("`{}` isn't a valid number of cores", s))?;
+        .map_err(|_| format!("`{s}` isn't a valid number of cores"))?;
     let max_threads = num_cpus::get();
     if threads < 1 || threads > max_threads {
-        Err(format!("Threads must be between 1 and {}", max_threads))
+        Err("Threads must be between 1 and {max_threads}".to_string())
     } else {
         Ok(threads)
     }
@@ -215,6 +213,5 @@ pub enum Commands {
 
 /// Function to parse command line args into [`Args`] struct
 pub fn cli_args() -> Args {
-    let args = Args::parse();
-    return args;
+    Args::parse()
 }

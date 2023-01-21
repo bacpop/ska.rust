@@ -179,7 +179,7 @@ impl RefSka {
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
-        if k < 5 || k > 31 || k % 2 == 0 {
+        if !(5..=31).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
 
@@ -189,7 +189,7 @@ impl RefSka {
         let mut total_size = 0;
 
         let mut reader =
-            parse_fastx_file(&filename).expect(&format!("Invalid path/file: {}", filename));
+            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}",));
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
@@ -201,8 +201,7 @@ impl RefSka {
             total_size += seqrec.num_bases();
 
             let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
-            if kmer_opt.is_some() {
-                let mut kmer_it = kmer_opt.unwrap();
+            if let Some(mut kmer_it) = kmer_opt {
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
                 let mut pos = kmer_it.get_middle_pos();
                 split_kmer_pos.push(RefKmer {
@@ -226,8 +225,8 @@ impl RefSka {
             chrom += 1;
             seq.push(seqrec.seq().to_vec());
         }
-        if split_kmer_pos.len() == 0 {
-            panic!("{} has no valid sequence", filename);
+        if split_kmer_pos.is_empty() {
+            panic!("{filename} has no valid sequence");
         }
 
         let mapped_variants = Array2::zeros((0, 0));
@@ -387,7 +386,7 @@ impl RefSka {
                 genotype_vec
                     .push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
             }
-            if alt_bases.len() > 0 {
+            if alt_bases.is_empty() {
                 let genotypes = Genotypes::new(keys.clone(), genotype_vec);
                 let alt_alleles: Vec<Allele> =
                     alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();

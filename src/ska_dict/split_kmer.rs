@@ -12,6 +12,7 @@
 
 use crate::ska_dict::bit_encoding::*;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 
 /// Struct to generate all split k-mers from an input sequence
 ///
@@ -85,14 +86,18 @@ impl<'a> SplitKmer<'a> {
             if valid_base(seq[i + *idx]) && Self::valid_qual(i + *idx, qual, min_qual) {
                 // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
-                if i < middle_idx {
-                    upper = upper << 2;
-                    upper |= (next_base as u64) << (middle_idx * 2);
-                } else if i > middle_idx {
-                    lower = lower << 2;
-                    lower |= next_base as u64;
-                } else {
-                    middle_base = next_base;
+                match i.cmp(&middle_idx) {
+                    Ordering::Greater => {
+                        lower <<= 2;
+                        lower |= next_base as u64;
+                    }
+                    Ordering::Less => {
+                        upper <<= 2;
+                        upper |= (next_base as u64) << (middle_idx * 2);
+                    }
+                    Ordering::Equal => {
+                        middle_base = next_base;
+                    }
                 }
                 i += 1;
             } else {
@@ -108,7 +113,7 @@ impl<'a> SplitKmer<'a> {
             }
         }
         *idx += k - 1;
-        return Some((upper, lower, middle_base));
+        Some((upper, lower, middle_base))
     }
 
     /// Update the stored reverse complement using the stored split-k and middle base
@@ -131,15 +136,15 @@ impl<'a> SplitKmer<'a> {
         let base = self.seq[self.index];
         if !valid_base(base) || !Self::valid_qual(self.index, self.qual, self.min_qual) {
             let new_kmer = Self::build(
-                &*self.seq,
+                &self.seq,
                 self.seq_len,
                 self.qual,
                 self.k,
                 &mut self.index,
                 self.min_qual,
             );
-            if new_kmer.is_some() {
-                (self.upper, self.lower, self.middle_base) = new_kmer.unwrap();
+            if let Some(kmer_tuple) = new_kmer {
+                (self.upper, self.lower, self.middle_base) = kmer_tuple;
                 if self.rc {
                     self.update_rc();
                 }
@@ -163,7 +168,7 @@ impl<'a> SplitKmer<'a> {
             }
             success = true;
         }
-        return success;
+        success
     }
 
     /// Create a [`SplitKmer`] iterator given reference to sequence input.
@@ -181,7 +186,7 @@ impl<'a> SplitKmer<'a> {
         min_qual: u8,
     ) -> Option<Self> {
         let (mut index, rc_upper, rc_lower, rc_middle_base) = (0, 0, 0, 0);
-        let first_kmer = Self::build(&*seq, seq_len, qual, k, &mut index, min_qual);
+        let first_kmer = Self::build(&seq, seq_len, qual, k, &mut index, min_qual);
         if let Some((upper, lower, middle_base)) = first_kmer {
             let (lower_mask, upper_mask) = generate_masks(k);
             let mut split_kmer = Self {
@@ -204,9 +209,9 @@ impl<'a> SplitKmer<'a> {
             if rc {
                 split_kmer.update_rc();
             }
-            return Some(split_kmer);
+            Some(split_kmer)
         } else {
-            return None;
+            None
         }
     }
 
@@ -226,7 +231,7 @@ impl<'a> SplitKmer<'a> {
                 return (rc_split_kmer, self.rc_middle_base, true);
             }
         }
-        return (split_kmer, self.middle_base, false);
+        (split_kmer, self.middle_base, false)
     }
 
     /// Get the next split k-mer in the sequence
