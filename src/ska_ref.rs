@@ -153,7 +153,7 @@ impl RefSka {
         end: usize,
         geno: &'a Genotypes,
     ) -> impl Iterator<Item = Record> + 'a {
-        (start..end).into_iter().map(move |missing_pos| {
+        (start..end).map(move |missing_pos| {
             let ref_allele = u8_to_base(self.seq[chrom][missing_pos]);
             vcf::Record::builder()
                 .set_chromosome(
