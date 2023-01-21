@@ -76,7 +76,6 @@ impl CountMin {
         }
     }
 
-
     /// Initialises table so it is ready for use.
     ///
     /// Allocates memory and sets hash functions.

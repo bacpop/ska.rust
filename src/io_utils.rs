@@ -117,8 +117,6 @@ pub fn get_input_list(
             }
             input_files
         }
-        None => {
-            read_input_fastas(seq_files.as_ref().unwrap())
-        }
+        None => read_input_fastas(seq_files.as_ref().unwrap()),
     }
 }

@@ -47,7 +47,10 @@ use std::io::Write;
 
 extern crate needletail;
 use ndarray::{s, Array2, ArrayView};
-use needletail::{parse_fastx_file, parser::{write_fasta, Format}};
+use needletail::{
+    parse_fastx_file,
+    parser::{write_fasta, Format},
+};
 
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::RC_IUPAC;

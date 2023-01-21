@@ -307,7 +307,15 @@ pub fn build_and_merge(
             .progress_count(input_files.len() as u64)
             .enumerate()
             .map(|(idx, (name, filename, second_file))| {
-                SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, min_count, min_qual)
+                SkaDict::new(
+                    k,
+                    idx,
+                    (filename, second_file.as_ref()),
+                    name,
+                    rc,
+                    min_count,
+                    min_qual,
+                )
             })
             .collect();
     } else {

@@ -373,8 +373,7 @@ pub fn main() {
 
             for (file_idx, skf_in) in skf_files.iter().enumerate().skip(1) {
                 log::info!("Merging alignment {}", format!("{}", file_idx + 1));
-                let next_array =
-                    MergeSkaArray::load(skf_in).expect("Failed to load input file");
+                let next_array = MergeSkaArray::load(skf_in).expect("Failed to load input file");
                 merged_dict.extend(&mut next_array.to_dict());
             }
 
