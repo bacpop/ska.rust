@@ -1,6 +1,6 @@
 use snapbox::cmd::{cargo_bin, Command};
 
-mod common;
+pub mod common;
 use crate::common::{TestDir, TestSetup};
 
 // NB: to view output, uncomment the current_dir lines

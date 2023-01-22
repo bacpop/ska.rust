@@ -1,7 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
-mod common;
-use crate::common::{TestDir, TestSetup};
+pub mod common;
+use crate::common::{TestDir, TestSetup, var_hash};
 
 #[test]
 fn align_n() {
@@ -48,6 +48,78 @@ fn map_n() {
         .arg("N_test.skf")
         .assert()
         .stdout_matches_path(sandbox.file_string("map_N.stdout", TestDir::Correct));
+}
+
+#[test]
+fn rev_comp() {
+    let sandbox = TestSetup::setup();
+
+    // Test an RC sequence gives same alignment out
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("fwd_build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .assert()
+        .success();
+
+    let no_rc_aln = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("fwd_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("fwd_build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2_rc.fa", TestDir::Input))
+        .assert()
+        .success();
+
+    let rc_aln = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("fwd_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&no_rc_aln), var_hash(&rc_aln));
+
+    // Now with rc off
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("fwd_build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2_rc.fa", TestDir::Input))
+        .arg("--single-strand")
+        .assert()
+        .success();
+
+    let ss_aln = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("fwd_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&ss_aln).is_empty(), true);
 }
 
 #[test]

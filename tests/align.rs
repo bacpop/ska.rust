@@ -1,6 +1,6 @@
 use snapbox::cmd::{cargo_bin, Command};
 
-mod common;
+pub mod common;
 use crate::common::{var_hash, TestDir, TestSetup};
 
 use hashbrown::HashSet;
