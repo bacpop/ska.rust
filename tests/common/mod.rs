@@ -147,9 +147,7 @@ impl TestSetup {
         let paths = read_dir(self.file_string("par_test", TestDir::Input)).unwrap();
         for path in paths {
             let path_str = path.unwrap().path().display().to_string();
-            writeln!(
-                rfile,
-                "{path_str}\t{path_str}").unwrap();
+            writeln!(rfile, "{path_str}\t{path_str}").unwrap();
         }
         RFILE_NAME
     }
