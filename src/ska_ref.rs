@@ -466,17 +466,24 @@ impl RefSka {
                     );
                     seq.extend(vec![
                         b'-';
-                        self.seq[curr_chrom].len() - (next_pos + half_split_len)
+                        self.seq[curr_chrom].len() - (next_pos + half_split_len) // This shouldn't overflow
                     ]);
                     curr_chrom += 1;
                     next_pos = 0;
                 }
                 if *map_pos > next_pos {
-                    // Missing bases, if no k-mers mapped over a region
-                    seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
-                    seq.extend_from_slice(
-                        &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
-                    );
+                    if *map_pos > next_pos + half_split_len {
+                        // Missing bases, then first flanking half of split k-mer
+                        // if no k-mers mapped over a large region
+                        seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
+                        seq.extend_from_slice(
+                            &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
+                        );
+                    } else {
+                        // Short missing region, which can happen with fastq input
+                        // Reasonable to take bases from match
+                        seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
+                    }
                 }
                 next_pos = *map_pos + 1;
                 if *base == b'-' {

@@ -50,6 +50,83 @@ fn align_fastq() {
     assert_eq!(var_hash(&fastq_align_out), var_hash(&fasta_align_out));
 }
 
+// Uses perfect reads with the same fasta input as merge.skf
+#[test]
+fn map_fastq() {
+    let sandbox = TestSetup::setup();
+    let rfile_name = sandbox.create_rfile(&"test", true);
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(&["--min-count", "1", "-v", "-k", "9", "--min-qual", "2"])
+        .assert()
+        .success();
+
+    let fastq_map_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("reads.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("assemblies")
+        .args(&["-v", "-k", "9"])
+        .assert()
+        .success();
+
+    let fasta_map_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("assemblies.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(
+        String::from_utf8(fastq_map_out),
+        String::from_utf8(fasta_map_out)
+    );
+
+    let fastq_map_out_vcf = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("reads.skf")
+        .args(&["-f", "vcf"])
+        .output()
+        .unwrap()
+        .stdout;
+
+    let fasta_map_out_vcf = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("assemblies.skf")
+        .args(&["-f", "vcf"])
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(
+        String::from_utf8(fastq_map_out_vcf),
+        String::from_utf8(fasta_map_out_vcf)
+    );
+}
+
 // Add errors and low quality scores to split k-mers around
 // CACT    TTAA    C,T
 // zgrep 'TTAA.AGTG' test_1_fwd.fastq.gz
