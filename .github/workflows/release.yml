@@ -1,10 +1,11 @@
 name: Make release
 
-on: push
-  tags:
-    - "v*.*.*"
-  branches:
-    - release_testing
+on:
+  push:
+    tags:
+      - "v*.*.*"
+    branches:
+      - release_testing
 
 env:
   CARGO_TERM_COLOR: always
