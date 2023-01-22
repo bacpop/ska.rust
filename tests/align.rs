@@ -93,6 +93,8 @@ fn basic_align() {
 #[test]
 fn parallel_align() {
     let sandbox = TestSetup::setup();
+    // Needs at least ten samples per threads, so make lots of copies
+    // (confimed with -v that this actually uses the multi-thread algorithm)
     let rfile_name = sandbox.create_par_rfile();
 
     // Serial alignment
