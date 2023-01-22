@@ -1,7 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 pub mod common;
-use crate::common::{TestDir, TestSetup, var_hash};
+use crate::common::{var_hash, TestDir, TestSetup};
 
 #[test]
 fn align_n() {
