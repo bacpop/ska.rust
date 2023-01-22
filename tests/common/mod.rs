@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{read_dir, File},
     io::{LineWriter, Write},
     path::{Path, PathBuf},
 };
@@ -137,21 +137,46 @@ impl TestSetup {
         };
         RFILE_NAME
     }
+
+    pub fn create_par_rfile(&self) -> &str {
+        let mut rfile = LineWriter::new(
+            File::create(format!("{}/{}", self.get_wd(), RFILE_NAME))
+                .expect("Could not write rfile"),
+        );
+
+        let paths = read_dir(self.file_string("par_test", TestDir::Input)).unwrap();
+        for path in paths {
+            let path_str = path.unwrap().path().display().to_string();
+            writeln!(
+                rfile,
+                "{path_str}\t{path_str}").unwrap();
+        }
+        RFILE_NAME
+    }
 }
 
-// Helper for two sample fasta
-pub fn var_hash(aln_string: &[u8]) -> HashSet<(char, char)> {
+// Helper for multi sample fasta, where column order isn't conserved
+pub fn var_hash(aln_string: &[u8]) -> HashSet<Vec<char>> {
     let fastq_align_out = String::from_utf8(aln_string.to_vec()).unwrap();
-    let mut sample1: Vec<char> = Vec::new();
-    let mut variant_pairs: HashSet<(char, char)> = HashSet::new();
+    let mut sample_vecs: Vec<Vec<char>> = Vec::new();
+
+    // Read sample lines
     for (idx, line) in fastq_align_out.lines().enumerate() {
-        if idx == 1 {
-            sample1 = line.chars().collect();
-        } else if idx == 3 {
-            for (first, second) in sample1.iter().zip(line.chars()) {
-                variant_pairs.insert((*first, second));
-            }
+        if idx % 2 == 1 {
+            let line_vec: Vec<char> = line.chars().collect();
+            sample_vecs.push(line_vec);
         }
     }
+
+    // Transpose into a set
+    let mut variant_pairs: HashSet<Vec<char>> = HashSet::new();
+    for var_idx in 0..sample_vecs[0].len() {
+        let mut var_vec = Vec::new();
+        for sample_vec in &sample_vecs {
+            var_vec.push(sample_vec[var_idx]);
+        }
+        variant_pairs.insert(var_vec);
+    }
+
     return variant_pairs;
 }

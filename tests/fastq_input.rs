@@ -79,7 +79,7 @@ fn error_fastq() {
         .unwrap()
         .stdout;
     let mut all_hash = var_hash(&fastq_align_out_all);
-    all_hash.remove(&('C', 'T'));
+    all_hash.remove(&vec!['C', 'T']);
 
     // With errors
     let rfile_name = sandbox.create_rfile(&"test_error", true);

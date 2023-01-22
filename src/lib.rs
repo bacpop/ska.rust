@@ -240,7 +240,7 @@
 //!     .expect("Couldn't write output fasta");
 //! ```
 //!
-//! To use `ska map` in other rust code, see the example for [`RefSka`].
+//! To use `ska map` in other rust code, see the example for [`ska_ref`].
 //!
 //! ## Other APIs
 //!

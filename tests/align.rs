@@ -69,7 +69,7 @@ fn build_and_align() {
         .unwrap()
         .stdout;
 
-    let correct_aln = HashSet::from([('A', 'T'), ('C', 'T')]);
+    let correct_aln = HashSet::from([vec!['A', 'T'], vec!['C', 'T']]);
     assert_eq!(var_hash(&fasta_align_out), correct_aln);
 }
 
@@ -86,6 +86,54 @@ fn basic_align() {
         .unwrap()
         .stdout;
 
-    let correct_aln = HashSet::from([('A', 'T'), ('C', 'T')]);
+    let correct_aln = HashSet::from([vec!['A', 'T'], vec!['C', 'T']]);
     assert_eq!(var_hash(&fasta_align_out), correct_aln);
+}
+
+#[test]
+fn parallel_align() {
+    let sandbox = TestSetup::setup();
+    let rfile_name = sandbox.create_par_rfile();
+
+    // Serial alignment
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("serial_build")
+        .args(&["-v", "--threads", "1", "-k", "15"])
+        .assert()
+        .success();
+
+    let serial_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("serial_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    // Parallel alignment algorithm used
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("parallel_build")
+        .args(&["-v", "--threads", "2", "-k", "15"])
+        .assert()
+        .success();
+
+    let parallel_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("parallel_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&serial_align_out), var_hash(&parallel_align_out));
 }
