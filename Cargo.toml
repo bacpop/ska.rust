@@ -14,7 +14,10 @@ license = "Apache-2.0"
 readme = "README.md"
 include = [
     "/Cargo.toml",
-    "/src/*.rs"
+    "/LICENSE",
+    "/NOTICE",
+    "/src",
+    "/tests"
 ]
 keywords = ["bioinformatics", "genomics", "sequencing", "k-mer", "alignment"]
 categories = ["command-line-utilities", "science"]
