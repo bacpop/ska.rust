@@ -60,6 +60,7 @@ impl CountMin {
         // Consistent with consts used, but ensures a power of two
         let width_bits: usize = f64::floor(f64::log2(width as f64)) as usize;
         let width = 1 << (width_bits + 1);
+        // TODO change this to use MSB rather than LSB
         let mask = width as u64 - 1;
 
         // Reserve for these gets call by the vec! macro used in init

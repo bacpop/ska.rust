@@ -1,7 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 pub mod common;
-use crate::common::{var_hash, TestDir, TestSetup};
+use crate::common::*;
 
 use hashbrown::HashSet;
 
@@ -11,7 +11,7 @@ use hashbrown::HashSet;
 fn build_cli() {
     let sandbox = TestSetup::setup();
     // Create an rfile in the tmp dir
-    let rfile_name = sandbox.create_rfile(&"test", false);
+    let rfile_name = sandbox.create_rfile(&"test", FxType::Fasta);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())

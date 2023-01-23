@@ -1,7 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 pub mod common;
-use crate::common::{TestDir, TestSetup};
+use crate::common::*;
 
 // NB: to view output, uncomment the current_dir lines
 
@@ -60,4 +60,54 @@ fn map_vcf() {
         .arg("vcf")
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
+}
+
+#[test]
+fn map_rev_comp() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("rc_build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2_rc.fa", TestDir::Input))
+        .assert()
+        .success();
+
+    let rc_map = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("fwd_build.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let fwd_map = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .output()
+        .unwrap()
+        .stdout;
+
+    cmp_map_aln(&rc_map, &fwd_map);
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("ss_map")
+        .arg("-k")
+        .arg("15")
+        .arg("--single-strand")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2_rc.fa", TestDir::Input))
+        .assert()
+        .success();
 }

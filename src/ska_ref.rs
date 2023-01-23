@@ -27,6 +27,7 @@
 //! ```
 
 use std::str;
+use std::io::Write;
 
 use noodles_vcf::{
     self as vcf,
@@ -43,7 +44,6 @@ use noodles_vcf::{
     },
     Record,
 };
-use std::io::Write;
 
 extern crate needletail;
 use ndarray::{s, Array2, ArrayView};
@@ -51,6 +51,9 @@ use needletail::{
     parse_fastx_file,
     parser::{write_fasta, Format},
 };
+
+pub mod aln_writer;
+use crate::ska_ref::aln_writer::AlnWriter;
 
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::RC_IUPAC;
@@ -298,16 +301,16 @@ impl RefSka {
     /// Rows are variants, columns are samples, so this is broadly equivalent
     /// to writing out the mapped variant array and its metadata.
     ///
-    /// Extra work is used to check for unmapped missing bases between split k-mer
+    /// - Extra work is used to check for unmapped missing bases between split k-mer
     /// matches.
-    ///
-    /// A basic VCF header is written out first.
-    ///
-    /// Variants are then written to the output buffer one at a time.
+    /// - A basic VCF header is written out first.
+    /// - Variants are then written to the output buffer one at a time.
+    /// - Any ambiguous base is currently output as N, for simplicity.
     ///
     /// # Panics
     ///
-    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped to
+    /// the reference.
     pub fn write_vcf<W: Write>(&self, f: &mut W) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
@@ -434,7 +437,10 @@ impl RefSka {
     ///
     /// # Panics
     ///
-    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped.
+    ///
+    /// Will panic if output length not the same as reference, to safeguard against
+    /// terror in the implementation
     pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
             panic!("TNo split k-mers mapped to reference");
@@ -448,17 +454,19 @@ impl RefSka {
             let mut seq: Vec<u8> = Vec::new();
             seq.reserve(self.total_size);
 
-            // if this proves tricky, it might be better to iterate through non-missing
-            // matches and paste each flanking end and middle base into the right place
-            // in the vec (and skip to next match where right end is beyond last paste)
-            // 	the alternative would be to:
-            //      - allocate all missing
-            //      - iterate through ref
-            //      - write the whole k-mer in when found (ref, base, ref)
-            //      - then skip over k in ref
-            // (even just modifying map to skip over k would work, but not a VCF)
-            let (mut next_pos, mut curr_chrom) = (0, 0);
+            // TODO: there needs to be a small amount past the last k-mer added sometimes,
+            // as the last matching k-mer would extend, but we skipped over it
+            // TODO: same for chromosome skip
+            let (mut next_pos, mut curr_chrom, mut last_mapped) = (0, 0, 0);
             for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
+                println!("{map_pos} {next_pos} {}", String::from_utf8(seq.clone()).unwrap());
+                if *base == b'-' {
+                    continue;
+                }
+                if *map_pos < next_pos {
+                    last_mapped = *map_pos + half_split_len;
+                    continue;
+                }
                 // Move forward to next chromosome/contig
                 if *map_chrom > curr_chrom {
                     seq.extend_from_slice(
@@ -471,35 +479,45 @@ impl RefSka {
                     curr_chrom += 1;
                     next_pos = 0;
                 }
-                if *map_pos > next_pos {
-                    if *map_pos > next_pos + half_split_len {
-                        // Missing bases, then first flanking half of split k-mer
-                        // if no k-mers mapped over a large region
-                        seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
+                if *map_pos > next_pos + half_split_len {
+                    if *map_pos - next_pos - half_split_len > last_mapped {
                         seq.extend_from_slice(
-                            &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
+                            &self.seq[curr_chrom][seq.len()..(last_mapped + half_split_len)],
                         );
-                    } else {
-                        // Short missing region, which can happen with fastq input
-                        // Reasonable to take bases from match
-                        seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
                     }
+                    // Missing bases
+                    seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
                 }
-                next_pos = *map_pos + 1;
-                if *base == b'-' {
-                    // This is around a split k-mer match, so we can fill in the
-                    // flanking region with the reference
-                    seq.push(self.seq[curr_chrom][*map_pos]);
-                } else {
-                    seq.push(*base);
-                }
+                // First half of split k-mer
+                seq.extend_from_slice(
+                    &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
+                );
+                // Middle base
+                seq.push(*base);
+                // Second half of split k-mer
+                seq.extend_from_slice(
+                    &self.seq[curr_chrom][(*map_pos + 1)..=(*map_pos + half_split_len)],
+                );
+                next_pos = *map_pos + self.k;
             }
             // Fill up to end of contig
-            seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
+            if *map_pos - next_pos - half_split_len > last_mapped {
+                seq.extend_from_slice(
+                    &self.seq[curr_chrom][last_mapped..(*map_pos - next_pos - half_split_len)],
+                );
+            }
             seq.extend(vec![
                 b'-';
-                self.seq[curr_chrom].len() - (next_pos + half_split_len)
+                self.seq[curr_chrom].len() - next_pos
             ]);
+            println!("{next_pos} {}", String::from_utf8(seq.clone()).unwrap());
+            if seq.len() != self.total_size {
+                panic!(
+                    "Internal error: output length {} not identical to chromosome length {}",
+                    seq.len(),
+                    self.total_size
+                );
+            }
             write_fasta(
                 sample_name.as_bytes(),
                 seq.as_slice(),
@@ -510,3 +528,4 @@ impl RefSka {
         Ok(())
     }
 }
+
