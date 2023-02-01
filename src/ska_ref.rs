@@ -443,84 +443,21 @@ impl RefSka {
     /// terror in the implementation
     pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
-            panic!("TNo split k-mers mapped to reference");
+            panic!("No split k-mers mapped to reference");
         }
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
-        let half_split_len = (self.k - 1) / 2;
         for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
             let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
-            let mut seq: Vec<u8> = Vec::new();
-            seq.reserve(self.total_size);
-
-            // TODO: there needs to be a small amount past the last k-mer added sometimes,
-            // as the last matching k-mer would extend, but we skipped over it
-            // TODO: same for chromosome skip
-            let (mut next_pos, mut curr_chrom, mut last_mapped) = (0, 0, 0);
-            for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
-                println!("{map_pos} {next_pos} {}", String::from_utf8(seq.clone()).unwrap());
-                if *base == b'-' {
-                    continue;
-                }
-                if *map_pos < next_pos {
-                    last_mapped = *map_pos + half_split_len;
-                    continue;
-                }
-                // Move forward to next chromosome/contig
-                if *map_chrom > curr_chrom {
-                    seq.extend_from_slice(
-                        &self.seq[curr_chrom][next_pos..(next_pos + half_split_len)],
-                    );
-                    seq.extend(vec![
-                        b'-';
-                        self.seq[curr_chrom].len() - (next_pos + half_split_len) // This shouldn't overflow
-                    ]);
-                    curr_chrom += 1;
-                    next_pos = 0;
-                }
-                if *map_pos > next_pos + half_split_len {
-                    if *map_pos - next_pos - half_split_len > last_mapped {
-                        seq.extend_from_slice(
-                            &self.seq[curr_chrom][seq.len()..(last_mapped + half_split_len)],
-                        );
-                    }
-                    // Missing bases
-                    seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
-                }
-                // First half of split k-mer
-                seq.extend_from_slice(
-                    &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
-                );
-                // Middle base
-                seq.push(*base);
-                // Second half of split k-mer
-                seq.extend_from_slice(
-                    &self.seq[curr_chrom][(*map_pos + 1)..=(*map_pos + half_split_len)],
-                );
-                next_pos = *map_pos + self.k;
+            let mut seq = AlnWriter::new(&self.seq, self.total_size, self.k);
+            for ((mapped_chrom, mapped_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
+                seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
             }
-            // Fill up to end of contig
-            if *map_pos - next_pos - half_split_len > last_mapped {
-                seq.extend_from_slice(
-                    &self.seq[curr_chrom][last_mapped..(*map_pos - next_pos - half_split_len)],
-                );
-            }
-            seq.extend(vec![
-                b'-';
-                self.seq[curr_chrom].len() - next_pos
-            ]);
-            println!("{next_pos} {}", String::from_utf8(seq.clone()).unwrap());
-            if seq.len() != self.total_size {
-                panic!(
-                    "Internal error: output length {} not identical to chromosome length {}",
-                    seq.len(),
-                    self.total_size
-                );
-            }
+            let aligned_seq = seq.get_seq().expect("Internal map error");
             write_fasta(
                 sample_name.as_bytes(),
-                seq.as_slice(),
+                aligned_seq,
                 f,
                 needletail::parser::LineEnding::Unix,
             )?;
