@@ -26,8 +26,10 @@
 //! ref_kmers.write_aln(&mut out_stream);
 //! ```
 
-use std::str;
 use std::io::Write;
+use std::str;
+
+use rayon::prelude::*;
 
 use noodles_vcf::{
     self as vcf,
@@ -93,8 +95,6 @@ pub struct RefSka {
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
-    /// Total length of all input sequence
-    total_size: usize,
 
     /// Mapping information
 
@@ -192,7 +192,6 @@ impl RefSka {
         let mut split_kmer_pos = Vec::new();
         let mut seq = Vec::new();
         let mut chrom_names = Vec::new();
-        let mut total_size = 0;
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}",));
@@ -204,7 +203,6 @@ impl RefSka {
             }
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
-            total_size += seqrec.num_bases();
 
             let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
             if let Some(mut kmer_it) = kmer_opt {
@@ -241,7 +239,6 @@ impl RefSka {
         Self {
             k,
             seq,
-            total_size,
             chrom_names,
             split_kmer_pos,
             mapped_pos,
@@ -441,23 +438,37 @@ impl RefSka {
     ///
     /// Will panic if output length not the same as reference, to safeguard against
     /// terror in the implementation
-    pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
+    pub fn write_aln<W: Write>(
+        &self,
+        f: &mut W,
+        threads: usize,
+    ) -> Result<(), needletail::errors::ParseError> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
         }
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
-        for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
-            let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
-            let mut seq = AlnWriter::new(&self.seq, self.total_size, self.k);
-            for ((mapped_chrom, mapped_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
-                seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
+
+        let mut seqs_out = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+        seqs_out.par_iter_mut().enumerate().for_each(|(idx, seq)| {
+            let sample_vars = self.mapped_variants.slice(s![.., idx]);
+            for ((mapped_chrom, mapped_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter())
+            {
+                if *base != b'-' {
+                    seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
+                }
             }
-            let aligned_seq = seq.get_seq().expect("Internal map error");
+        });
+
+        for (sample_name, mut aligned_seq) in self.mapped_names.iter().zip(seqs_out) {
             write_fasta(
                 sample_name.as_bytes(),
-                aligned_seq,
+                aligned_seq.get_seq(),
                 f,
                 needletail::parser::LineEnding::Unix,
             )?;
@@ -465,4 +476,3 @@ impl RefSka {
         Ok(())
     }
 }
-

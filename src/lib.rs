@@ -348,9 +348,9 @@ pub fn main() {
             let mut out_stream = set_ostream(output);
             match format {
                 FileType::Aln => {
-                    log::info!("Writing alignment");
+                    log::info!("Writing alignment with {} threads", *threads);
                     ska_ref
-                        .write_aln(&mut out_stream)
+                        .write_aln(&mut out_stream, *threads)
                         .expect("Failed to write output alignment");
                 }
                 FileType::Vcf => {
