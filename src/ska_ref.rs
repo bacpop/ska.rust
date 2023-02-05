@@ -23,7 +23,7 @@
 //! // Run mapping, output an alignment to stdout
 //! ref_kmers.map(&ska_dict);
 //! let mut out_stream = set_ostream(&None);
-//! ref_kmers.write_aln(&mut out_stream);
+//! ref_kmers.write_aln(&mut out_stream, threads);
 //! ```
 
 use std::io::Write;
@@ -147,8 +147,7 @@ impl RefSka {
     ///
     /// The result can then be used with a writer. So far, only over missing records.
     ///
-    /// (I wrote it as an iterator to avoid passing the writer outside of the write function
-    /// some pretty new rust stuff here! ...lifetimes, move, iterator trait)
+    /// (I wrote it as an iterator to avoid passing the writer outside of the write function)
     fn iter_missing_vcf_rows<'a>(
         &'a self,
         chrom: usize,
@@ -435,9 +434,6 @@ impl RefSka {
     /// # Panics
     ///
     /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped.
-    ///
-    /// Will panic if output length not the same as reference, to safeguard against
-    /// terror in the implementation
     pub fn write_aln<W: Write>(
         &self,
         f: &mut W,
@@ -450,6 +446,7 @@ impl RefSka {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
 
+        // Do most of the writing in parallel
         let mut seqs_out = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)

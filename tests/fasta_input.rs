@@ -36,6 +36,8 @@ fn map_n() {
         .arg("build")
         .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("N_test_2.fa", TestDir::Input))
+        .arg("-k")
+        .arg("11")
         .arg("-o")
         .arg("N_test")
         .assert()

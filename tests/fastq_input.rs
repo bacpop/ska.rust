@@ -97,8 +97,8 @@ fn map_fastq() {
         .stdout;
 
     assert_eq!(
-        String::from_utf8(fastq_map_out),
-        String::from_utf8(fasta_map_out)
+        String::from_utf8(fastq_map_out).unwrap(),
+        String::from_utf8(fasta_map_out).unwrap()
     );
 
     let fastq_map_out_vcf = Command::new(cargo_bin("ska"))
