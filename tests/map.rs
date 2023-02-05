@@ -119,4 +119,12 @@ fn map_rev_comp() {
         .arg(sandbox.file_string("test_2_rc.fa", TestDir::Input))
         .assert()
         .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg("ss_map.skf")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("map_ss.stdout", TestDir::Correct));
 }
