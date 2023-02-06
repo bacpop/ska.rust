@@ -36,9 +36,16 @@ fn map_aln() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
-        .args(&["-v", "--threads", "2"])
         .assert()
         .stdout_matches_path(sandbox.file_string("map_aln_k9.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .assert()
+        .stdout_matches_path(sandbox.file_string("map_aln_two_chrom.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -69,6 +76,16 @@ fn map_vcf() {
         .arg("vcf")
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .arg("-f")
+        .arg("vcf")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
 }
 
 #[test]
