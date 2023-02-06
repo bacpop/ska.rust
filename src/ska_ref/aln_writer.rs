@@ -24,6 +24,7 @@ pub struct AlnWriter<'a> {
     ref_seq: &'a Vec<Vec<u8>>,
     seq_out: Vec<u8>,
     half_split_len: usize,
+    finalised: bool
 }
 
 impl<'a> AlnWriter<'a> {
@@ -31,6 +32,7 @@ impl<'a> AlnWriter<'a> {
     /// and the k-mer size used for the mapping
     pub fn new(ref_seq: &'a Vec<Vec<u8>>, k: usize) -> Self {
         let (curr_chrom, last_mapped, last_written, chrom_offset) = (0, 0, 0, 0);
+        let finalised = false;
         let total_size = ref_seq.iter().map(|x| x.len()).sum();
         let seq_out = vec![b'-'; total_size];
         let half_split_len = (k - 1) / 2;
@@ -44,6 +46,7 @@ impl<'a> AlnWriter<'a> {
             ref_seq,
             seq_out,
             half_split_len,
+            finalised
         }
     }
 
@@ -118,10 +121,19 @@ impl<'a> AlnWriter<'a> {
         }
     }
 
-    /// Retrieve the written sequence. Fills to the end of the final contig
-    /// so should only be called after the last call to [`AlnWriter::write_split_kmer()`].
-    pub fn get_seq(&'a mut self) -> &'a [u8] {
+    /// Fills to the end of the final contig
+    /// Should only be called after the last call to [`AlnWriter::write_split_kmer()`].
+    pub fn finalise(&mut self) {
         self.fill_contig();
+        self.finalised = true;
+    }
+
+    /// Retrieve the written sequence. Calls [`AlnWriter::finalise()`] if not already called.
+    pub fn get_seq(&'a mut self) -> &'a [u8] {
+        if !self.finalised {
+            self.fill_contig();
+            self.finalised = true;
+        }
         self.seq_out.as_slice()
     }
 }

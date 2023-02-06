@@ -292,6 +292,30 @@ impl RefSka {
         self.split_kmer_pos.iter().map(|k| k.kmer)
     }
 
+    fn gen_seqs(&self, threads: usize) -> Vec<AlnWriter> {
+        if !self.is_mapped() {
+            panic!("No split k-mers mapped to reference");
+        }
+
+        // Do most of the writing in parallel
+        let mut seq_writers = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+        seq_writers.par_iter_mut().enumerate().for_each(|(idx, seq)| {
+            let sample_vars = self.mapped_variants.slice(s![.., idx]);
+            for ((mapped_chrom, mapped_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter())
+            {
+                if *base != b'-' {
+                    seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
+                }
+            }
+            seq.finalise();
+        });
+        seq_writers
+    }
+
     /// Write mapped variants as a VCF, using [`noodles_vcf`].
     ///
     /// Rows are variants, columns are samples, so this is broadly equivalent
@@ -373,17 +397,16 @@ impl RefSka {
             for mapped_base in bases {
                 let mut gt = String::from("0");
                 if *mapped_base != ref_base {
-                    if *mapped_base == b'-' {
-                        gt = ".".to_string();
-                    } else {
+
                         let alt_base = u8_to_base(*mapped_base);
                         if !alt_bases.contains(&alt_base) {
                             alt_bases.push(alt_base);
                         }
                         gt = (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1)
                             .to_string();
-                    }
+
                 }
+                println!("{} {} {} {}", *map_pos, *mapped_base as char, gt, alt_bases.len());
                 let field = Field::new(Key::Genotype, Some(Value::String(gt)));
                 genotype_vec
                     .push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
@@ -439,30 +462,12 @@ impl RefSka {
         f: &mut W,
         threads: usize,
     ) -> Result<(), needletail::errors::ParseError> {
-        if !self.is_mapped() {
-            panic!("No split k-mers mapped to reference");
-        }
         if self.chrom_names.len() > 1 {
             eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
         }
 
-        // Do most of the writing in parallel
-        let mut seqs_out = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .unwrap();
-        seqs_out.par_iter_mut().enumerate().for_each(|(idx, seq)| {
-            let sample_vars = self.mapped_variants.slice(s![.., idx]);
-            for ((mapped_chrom, mapped_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter())
-            {
-                if *base != b'-' {
-                    seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
-                }
-            }
-        });
-
-        for (sample_name, mut aligned_seq) in self.mapped_names.iter().zip(seqs_out) {
+        let alignments = self.gen_seqs(threads);
+        for (sample_name, mut aligned_seq) in self.mapped_names.iter().zip(alignments) {
             write_fasta(
                 sample_name.as_bytes(),
                 aligned_seq.get_seq(),
