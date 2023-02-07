@@ -52,7 +52,12 @@ And other improvements:
 All of which make ska.rust run faster and with smaller file size and memory
 footprint than the original.
 
-Things you can no longer do:
+## Planned features
+
+- Support up to k=63
+- Add support for amiguity in VCF output
+
+## Things you can no longer do
 
 - Use k > 31 (shouldn't be necessary).
 - `ska annotate` (use bedtools).
