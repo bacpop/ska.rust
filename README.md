@@ -1,4 +1,4 @@
-# Split K-mer Analysis (version 2)
+# Split K-mer Analysis (version 2) <img src='ska_logo.png' align="right" height="100" />
 
 <!-- badges: start -->
 [![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)
