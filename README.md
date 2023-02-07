@@ -1,12 +1,12 @@
 # Split K-mer Analysis (version 2)
 
 <!-- badges: start -->
+[![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)
+[![docs.rs](https://img.shields.io/docsrs/ska)](https://docs.rs/ska)
+[![Clippy check](https://github.com/bacpop/ska.rust/actions/workflows/clippy.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/clippy.yml)
+[![codecov](https://codecov.io/gh/bacpop/ska.rust/branch/master/graph/badge.svg?token=FZXT39NKA3)](https://codecov.io/gh/bacpop/ska.rust)
 [![Crates.io](https://img.shields.io/crates/v/ska)](https://crates.io/crates/ska)
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/bacpop/ska.rust)](https://github.com/bacpop/ska.rust/releases)
-[![docs.rs](https://img.shields.io/docsrs/ska)](https://docs.rs/ska)
-[![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/bacpop/ska.rust/branch/master/graph/badge.svg?token=FZXT39NKA3)](https://codecov.io/gh/bacpop/ska.rust)
-[![Clippy check](https://github.com/bacpop/ska.rust/actions/workflows/clippy.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/clippy.yml)
 <!-- badges: end -->
 
 ## Installation
