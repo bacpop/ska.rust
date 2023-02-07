@@ -64,8 +64,8 @@ jobs:
       - name: Organise files
         shell: bash
         run: |
-          cp build/ska-macOS-latest-stable ska-macOS-latest-stable.tar.gz
-          cp build/ska-ubuntu-latest-stable ska-ubuntu-latest-stable.tar.gz
+          cp build/ska-macOS-latest-stable/ska-macOS-latest-stable.tar.gz .
+          cp build/ska-ubuntu-latest-stable/ska-ubuntu-latest-stable.tar.gz .
 
       - name: Create release
         id: create_release
