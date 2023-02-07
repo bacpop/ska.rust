@@ -5,15 +5,13 @@
 //! interval tree) at every position. Used when converting alignment to VCF.
 
 /// Builds the contig change indices and keeps track of the current chromosome.
-///
-/// NB: not robust to leaps in the passed index, as chromosome is only incremented
-/// by one (so works for linear iteration over pos only)
 #[derive(Debug)]
 pub struct IdxCheck {
     end_coor: Vec<usize>,
 }
 
 impl IdxCheck {
+    /// Create indicies from Vec of Vec repr of a reference sequence
     pub fn new(ref_seq: &[Vec<u8>]) -> Self {
         let mut end_coor = Vec::new();
 
@@ -26,6 +24,7 @@ impl IdxCheck {
         Self { end_coor }
     }
 
+    /// Iterate over index to return (chromosome, position) tuples
     pub fn iter(&self) -> IdxCheckIter<'_> {
         IdxCheckIter {
             end_coor: &self.end_coor,
@@ -35,6 +34,9 @@ impl IdxCheck {
     }
 }
 
+/// Carries state which keeps track of chromosome during iteration
+///
+/// Iterator as separate class so [`IdxCheck`] not modified during iteration
 pub struct IdxCheckIter<'a> {
     end_coor: &'a Vec<usize>,
     current_chr: usize,

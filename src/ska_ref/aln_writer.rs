@@ -50,6 +50,7 @@ impl<'a> AlnWriter<'a> {
         }
     }
 
+    /// Get the total length of the concatenated sequence output
     pub fn total_size(&self) -> usize {
         self.seq_out.len()
     }
