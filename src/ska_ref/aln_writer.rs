@@ -24,7 +24,7 @@ pub struct AlnWriter<'a> {
     ref_seq: &'a Vec<Vec<u8>>,
     seq_out: Vec<u8>,
     half_split_len: usize,
-    finalised: bool
+    finalised: bool,
 }
 
 impl<'a> AlnWriter<'a> {
@@ -46,8 +46,12 @@ impl<'a> AlnWriter<'a> {
             ref_seq,
             seq_out,
             half_split_len,
-            finalised
+            finalised,
         }
+    }
+
+    pub fn total_size(&self) -> usize {
+        self.seq_out.len()
     }
 
     // Fill fwd bases, and any skipped over.

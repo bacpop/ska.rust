@@ -16,6 +16,14 @@ fake_ref_chrom1	11	.	G	.	.	.	.	GT	.	.
 fake_ref_chrom1	12	.	T	.	.	.	.	GT	.	.
 fake_ref_chrom1	35	.	T	A	.	.	.	GT	0	1
 fake_ref_chrom1	58	.	G	A	.	.	.	GT	0	1
+fake_ref_chrom1	67	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom1	68	.	A	.	.	.	.	GT	0	.
+fake_ref_chrom1	69	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom1	70	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom1	71	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom1	72	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom1	73	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom1	74	.	T	.	.	.	.	GT	0	.
 fake_ref_chrom1	75	.	A	.	.	.	.	GT	.	.
 fake_ref_chrom1	76	.	C	.	.	.	.	GT	.	.
 fake_ref_chrom1	77	.	G	.	.	.	.	GT	.	.
@@ -30,3 +38,11 @@ fake_ref_chrom1	85	.	G	.	.	.	.	GT	.	.
 fake_ref_chrom1	86	.	T	.	.	.	.	GT	.	.
 fake_ref_chrom2	23	.	T	A	.	.	.	GT	0	1
 fake_ref_chrom2	46	.	G	A	.	.	.	GT	0	1
+fake_ref_chrom2	55	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom2	56	.	A	.	.	.	.	GT	0	.
+fake_ref_chrom2	57	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom2	58	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom2	59	.	G	.	.	.	.	GT	0	.
+fake_ref_chrom2	60	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom2	61	.	T	.	.	.	.	GT	0	.
+fake_ref_chrom2	62	.	T	.	.	.	.	GT	0	.

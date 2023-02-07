@@ -15,6 +15,14 @@ fake_ref	11	.	G	.	.	.	.	GT	.	.
 fake_ref	12	.	T	.	.	.	.	GT	.	.
 fake_ref	35	.	T	A	.	.	.	GT	0	1
 fake_ref	58	.	G	A	.	.	.	GT	0	1
+fake_ref	67	.	G	.	.	.	.	GT	0	.
+fake_ref	68	.	A	.	.	.	.	GT	0	.
+fake_ref	69	.	T	.	.	.	.	GT	0	.
+fake_ref	70	.	G	.	.	.	.	GT	0	.
+fake_ref	71	.	G	.	.	.	.	GT	0	.
+fake_ref	72	.	T	.	.	.	.	GT	0	.
+fake_ref	73	.	T	.	.	.	.	GT	0	.
+fake_ref	74	.	T	.	.	.	.	GT	0	.
 fake_ref	75	.	A	.	.	.	.	GT	.	.
 fake_ref	76	.	C	.	.	.	.	GT	.	.
 fake_ref	77	.	G	.	.	.	.	GT	.	.
