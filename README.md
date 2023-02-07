@@ -2,6 +2,7 @@
 
 <!-- badges: start -->
 [![Crates.io](https://img.shields.io/crates/v/ska)](https://crates.io/crates/ska)
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/bacpop/ska.rust)](https://github.com/bacpop/ska.rust/releases)
 [![docs.rs](https://img.shields.io/docsrs/ska)](https://docs.rs/ska)
 [![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)
 <!-- badges: end -->
