@@ -30,7 +30,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ matrix.toolchain }}
+            toolchain: ${{ matrix.config.toolchain }}
             override: true
 
       # NB see https://github.com/actions-rs/cargo if we ever want to try cross
@@ -39,7 +39,8 @@ jobs:
         shell: bash
         run: |
           cargo install --path .
-          tar czvf ska-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz $HOME/.cargo/bin/ska
+          cp $HOME/.cargo/bin/ska .
+          tar czvf ska-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz ska LICENSE NOTICE README.md
 
       - name: Upload package
         if: success()
@@ -63,20 +64,20 @@ jobs:
       - name: Organise files
         shell: bash
         run: |
-          cp build/ska-macOS-latest-stable.tar.gz .
-          cp build/ska-ubuntu-latest-stable.tar.gz .
+          cp build/ska-macOS-latest-stable/ska-macOS-latest-stable.tar.gz .
+          cp build/ska-ubuntu-latest-stable/ska-ubuntu-latest-stable.tar.gz .
 
       - name: Create release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release {{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
           generate_release_notes: true
           files: |
-            ska_*.tar.gz
+            ska-*.tar.gz
 
   push_crate:
     runs-on: ubuntu-latest
