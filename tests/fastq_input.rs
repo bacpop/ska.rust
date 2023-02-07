@@ -1,13 +1,13 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 pub mod common;
-use crate::common::{var_hash, TestDir, TestSetup};
+use crate::common::*;
 
 // Uses perfect reads with the same fasta input as merge.skf
 #[test]
 fn align_fastq() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test", true);
+    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -54,7 +54,7 @@ fn align_fastq() {
 #[test]
 fn map_fastq() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test", true);
+    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -97,8 +97,8 @@ fn map_fastq() {
         .stdout;
 
     assert_eq!(
-        String::from_utf8(fastq_map_out),
-        String::from_utf8(fasta_map_out)
+        String::from_utf8(fastq_map_out).unwrap(),
+        String::from_utf8(fasta_map_out).unwrap()
     );
 
     let fastq_map_out_vcf = Command::new(cargo_bin("ska"))
@@ -136,7 +136,7 @@ fn error_fastq() {
     let sandbox = TestSetup::setup();
 
     // Without errors
-    let rfile_name = sandbox.create_rfile(&"test", true);
+    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -159,7 +159,7 @@ fn error_fastq() {
     all_hash.remove(&vec!['C', 'T']);
 
     // With errors
-    let rfile_name = sandbox.create_rfile(&"test_error", true);
+    let rfile_name = sandbox.create_rfile(&"test_error", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -182,7 +182,7 @@ fn error_fastq() {
     assert_eq!(var_hash(&fastq_align_out_error), all_hash);
 
     // With low quality score
-    let rfile_name = sandbox.create_rfile(&"test_quality", true);
+    let rfile_name = sandbox.create_rfile(&"test_quality", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")

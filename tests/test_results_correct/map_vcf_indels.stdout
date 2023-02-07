@@ -1,6 +1,6 @@
 ##fileformat=VCFv4.3
 ##contig=<ID=fake_ref>
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	test_1	test_2
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	test_1	indel_test
 fake_ref	1	.	A	.	.	.	.	GT	.	.
 fake_ref	2	.	C	.	.	.	.	GT	.	.
 fake_ref	3	.	G	.	.	.	.	GT	.	.
@@ -13,16 +13,17 @@ fake_ref	9	.	A	.	.	.	.	GT	.	.
 fake_ref	10	.	C	.	.	.	.	GT	.	.
 fake_ref	11	.	G	.	.	.	.	GT	.	.
 fake_ref	12	.	T	.	.	.	.	GT	.	.
-fake_ref	35	.	T	A	.	.	.	GT	0	1
-fake_ref	58	.	G	A	.	.	.	GT	0	1
-fake_ref	67	.	G	.	.	.	.	GT	0	.
-fake_ref	68	.	A	.	.	.	.	GT	0	.
-fake_ref	69	.	T	.	.	.	.	GT	0	.
-fake_ref	70	.	G	.	.	.	.	GT	0	.
-fake_ref	71	.	G	.	.	.	.	GT	0	.
-fake_ref	72	.	T	.	.	.	.	GT	0	.
-fake_ref	73	.	T	.	.	.	.	GT	0	.
-fake_ref	74	.	T	.	.	.	.	GT	0	.
+fake_ref	13	.	G	.	.	.	.	GT	0	.
+fake_ref	14	.	A	.	.	.	.	GT	0	.
+fake_ref	15	.	T	.	.	.	.	GT	0	.
+fake_ref	16	.	T	.	.	.	.	GT	0	.
+fake_ref	17	.	T	.	.	.	.	GT	0	.
+fake_ref	18	.	G	.	.	.	.	GT	0	.
+fake_ref	19	.	A	.	.	.	.	GT	0	.
+fake_ref	20	.	A	.	.	.	.	GT	0	.
+fake_ref	21	.	G	.	.	.	.	GT	0	.
+fake_ref	22	.	G	.	.	.	.	GT	0	.
+fake_ref	23	.	C	.	.	.	.	GT	0	.
 fake_ref	75	.	A	.	.	.	.	GT	.	.
 fake_ref	76	.	C	.	.	.	.	GT	.	.
 fake_ref	77	.	G	.	.	.	.	GT	.	.

@@ -37,6 +37,8 @@ use ahash::RandomState;
 pub struct CountMin {
     /// Table width (estimated number of unique k-mers)
     width: usize,
+    /// Number of bits to shift masked value to get table entry
+    width_shift: u32,
     /// Table height (number of hashes)
     height: usize,
     /// Hash generators
@@ -60,18 +62,17 @@ impl CountMin {
         // Consistent with consts used, but ensures a power of two
         let width_bits: usize = f64::floor(f64::log2(width as f64)) as usize;
         let width = 1 << (width_bits + 1);
-        let mask = width as u64 - 1;
-
-        // Reserve for these gets call by the vec! macro used in init
-        let hash_factory = Vec::new();
-        let counts = Vec::new();
+        // Use MSB rather than LSB
+        let width_shift = u64::BITS - width_bits as u32;
+        let mask = (width as u64 - 1) << width_shift;
 
         Self {
             width,
+            width_shift,
             height,
-            hash_factory,
+            hash_factory: Vec::new(),
             mask,
-            counts,
+            counts: Vec::new(),
             min_count,
         }
     }
@@ -102,7 +103,8 @@ impl CountMin {
         let mut count = 0;
         for hash_it in self.hash_factory.iter().enumerate() {
             let (row_idx, hash) = hash_it;
-            let table_idx = row_idx * self.width + ((hash.hash_one(kmer) & self.mask) as usize);
+            let table_idx = row_idx * self.width
+                + (((hash.hash_one(kmer) & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
             if row_idx == 0 {
                 count = self.counts[table_idx];

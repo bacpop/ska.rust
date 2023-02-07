@@ -36,6 +36,7 @@ use crate::ska_ref::RefSka;
 /// ```
 /// use ska::merge_ska_array::MergeSkaArray;
 /// use ska::io_utils::set_ostream;
+/// use ska::ska_ref::RefSka;
 ///
 /// // Load an array from file
 /// let mut ska_array = MergeSkaArray::load(&"tests/test_files_in/merge.skf").expect("Could not open array");
@@ -53,6 +54,10 @@ use crate::ska_ref::RefSka;
 ///
 /// // Delete a sample
 /// ska_array.delete_samples(&[&"test_1"]);
+///
+/// // Delete k-mers
+/// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc());
+/// ska_array.weed(&ska_weed);
 /// ```
 #[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray {
@@ -97,9 +102,6 @@ impl MergeSkaArray {
 
     /// Convert a dynamic [`MergeSkaDict`] to static array representation.
     pub fn new(dynamic: &MergeSkaDict) -> Self {
-        let k = dynamic.kmer_len();
-        let rc = dynamic.rc();
-        let names = dynamic.names().clone();
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
         let mut split_kmers: Vec<u64> = Vec::new();
         split_kmers.reserve(dynamic.ksize());
@@ -111,9 +113,9 @@ impl MergeSkaArray {
         }
         variants.mapv_inplace(|b| u8::max(b, b'-')); // turns zeros to missing
         Self {
-            k,
-            rc,
-            names,
+            k: dynamic.kmer_len(),
+            rc: dynamic.rc(),
+            names: dynamic.names().clone(),
             split_kmers,
             variants,
             variant_count,
@@ -267,9 +269,6 @@ impl MergeSkaArray {
     /// may be a multi-FASTA) generated with [`RefSka::new()`]
     ///
     /// Used with `ska weed`.
-    ///
-    /// # Examples
-    /// #TODO
     pub fn weed(&mut self, weed_ref: &RefSka) {
         let weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
 

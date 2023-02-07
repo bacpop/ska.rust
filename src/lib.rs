@@ -348,15 +348,15 @@ pub fn main() {
             let mut out_stream = set_ostream(output);
             match format {
                 FileType::Aln => {
-                    log::info!("Writing alignment");
+                    log::info!("Generating alignment with {} threads", *threads);
                     ska_ref
-                        .write_aln(&mut out_stream)
+                        .write_aln(&mut out_stream, *threads)
                         .expect("Failed to write output alignment");
                 }
                 FileType::Vcf => {
-                    log::info!("Writing VCF");
+                    log::info!("Generating VCF with {} threads", *threads);
                     ska_ref
-                        .write_vcf(&mut out_stream)
+                        .write_vcf(&mut out_stream, *threads)
                         .expect("Failed to write output VCF");
                 }
             }

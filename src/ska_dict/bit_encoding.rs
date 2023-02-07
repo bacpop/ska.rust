@@ -89,13 +89,17 @@ pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (St
 /// e.g. on construction or after skipping an N.
 #[inline(always)]
 pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
+    // This part reverses the bases by shuffling them using an on/off pattern
+    // of bits
     res = (res >> 2 & 0x3333333333333333) | (res & 0x3333333333333333) << 2;
     res = (res >> 4 & 0x0F0F0F0F0F0F0F0F) | (res & 0x0F0F0F0F0F0F0F0F) << 4;
     res = (res >> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) << 8;
     res = (res >> 16 & 0x0000FFFF0000FFFF) | (res & 0x0000FFFF0000FFFF) << 16;
     res = (res >> 32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
+    // This reverse complements
     res ^= 0xAAAAAAAAAAAAAAAA;
 
+    // Shifts so LSB is at the bottom
     res >> (2 * (32 - k_size))
 }
 

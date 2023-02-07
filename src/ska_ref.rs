@@ -23,10 +23,13 @@
 //! // Run mapping, output an alignment to stdout
 //! ref_kmers.map(&ska_dict);
 //! let mut out_stream = set_ostream(&None);
-//! ref_kmers.write_aln(&mut out_stream);
+//! ref_kmers.write_aln(&mut out_stream, threads);
 //! ```
 
+use std::io::Write;
 use std::str;
+
+use rayon::prelude::*;
 
 use noodles_vcf::{
     self as vcf,
@@ -41,9 +44,7 @@ use noodles_vcf::{
         reference_bases::Base,
         AlternateBases, Genotypes, Position,
     },
-    Record,
 };
-use std::io::Write;
 
 extern crate needletail;
 use ndarray::{s, Array2, ArrayView};
@@ -51,6 +52,11 @@ use needletail::{
     parse_fastx_file,
     parser::{write_fasta, Format},
 };
+
+pub mod aln_writer;
+use crate::ska_ref::aln_writer::AlnWriter;
+pub mod idx_check;
+use crate::ska_ref::idx_check::IdxCheck;
 
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::RC_IUPAC;
@@ -90,8 +96,6 @@ pub struct RefSka {
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
-    /// Total length of all input sequence
-    total_size: usize,
 
     /// Mapping information
 
@@ -122,51 +126,10 @@ fn gt_keys() -> Keys {
     "GT".parse().expect("Genotype format error")
 }
 
-/// Genotypes "." when no reference mapped to (of sample length)
-/// These can be used as genotypes in the record builder
-fn generate_missing_genotypes(n_samples: usize) -> Genotypes {
-    let missing_field = Field::new(Key::Genotype, Some(Value::String(".".to_string())));
-    let missing_genotype_vec = vec![
-        Genotype::try_from(vec![missing_field])
-            .expect("Could not construct genotypes");
-        n_samples
-    ];
-    Genotypes::new(gt_keys(), missing_genotype_vec)
-}
-
 impl RefSka {
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
-    }
-
-    /// An [`Iterator`] between start and end positions which generates records with the passed genotypes
-    ///
-    /// The result can then be used with a writer. So far, only over missing records.
-    ///
-    /// (I wrote it as an iterator to avoid passing the writer outside of the write function
-    /// some pretty new rust stuff here! ...lifetimes, move, iterator trait)
-    fn iter_missing_vcf_rows<'a>(
-        &'a self,
-        chrom: usize,
-        start: usize,
-        end: usize,
-        geno: &'a Genotypes,
-    ) -> impl Iterator<Item = Record> + 'a {
-        (start..end).map(move |missing_pos| {
-            let ref_allele = u8_to_base(self.seq[chrom][missing_pos]);
-            vcf::Record::builder()
-                .set_chromosome(
-                    self.chrom_names[chrom]
-                        .parse()
-                        .expect("Invalid chromosome name"),
-                )
-                .set_position(Position::from(missing_pos + 1))
-                .add_reference_base(ref_allele)
-                .set_genotypes(geno.clone())
-                .build()
-                .expect("Could not construct record")
-        })
     }
 
     /// Create a list of split k-mers from an input FASTA file.
@@ -189,7 +152,6 @@ impl RefSka {
         let mut split_kmer_pos = Vec::new();
         let mut seq = Vec::new();
         let mut chrom_names = Vec::new();
-        let mut total_size = 0;
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}",));
@@ -201,7 +163,6 @@ impl RefSka {
             }
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
-            total_size += seqrec.num_bases();
 
             let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
             if let Some(mut kmer_it) = kmer_opt {
@@ -232,18 +193,14 @@ impl RefSka {
             panic!("{filename} has no valid sequence");
         }
 
-        let mapped_variants = Array2::zeros((0, 0));
-        let mapped_pos = Vec::new();
-        let mapped_names = Vec::new();
         Self {
             k,
             seq,
-            total_size,
             chrom_names,
             split_kmer_pos,
-            mapped_pos,
-            mapped_variants,
-            mapped_names,
+            mapped_pos: Vec::new(),
+            mapped_variants: Array2::zeros((0, 0)),
+            mapped_names: Vec::new(),
         }
     }
 
@@ -293,25 +250,100 @@ impl RefSka {
         self.split_kmer_pos.iter().map(|k| k.kmer)
     }
 
-    /// Write mapped variants as a VCF, using [`noodles_vcf`].
-    ///
-    /// Rows are variants, columns are samples, so this is broadly equivalent
-    /// to writing out the mapped variant array and its metadata.
-    ///
-    /// Extra work is used to check for unmapped missing bases between split k-mer
-    /// matches.
-    ///
-    /// A basic VCF header is written out first.
-    ///
-    /// Variants are then written to the output buffer one at a time.
-    ///
-    /// # Panics
-    ///
-    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
-    pub fn write_vcf<W: Write>(&self, f: &mut W) -> Result<(), std::io::Error> {
+    // Calls the necessary parts of AlnWriter (in parallel) to produce all the
+    // pseudoalignments. The calling function either modifies these (VCF) or
+    // simply writes them out (ALN)
+    fn pseudoalignment(&self, threads: usize) -> Vec<AlnWriter> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
         }
+
+        let mut seq_writers = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+        seq_writers
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(idx, seq)| {
+                let sample_vars = self.mapped_variants.slice(s![.., idx]);
+                for ((mapped_chrom, mapped_pos), base) in
+                    self.mapped_pos.iter().zip(sample_vars.iter())
+                {
+                    if *base != b'-' {
+                        seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
+                    }
+                }
+                seq.finalise();
+            });
+        seq_writers
+    }
+
+    /// Write mapped variants as an aln/multi-FASTA file, using [`needletail`].
+    ///
+    /// Rows are samples, columns are variants, so this is broadly equivalent
+    /// to writing out the transpose of the mapped variant array.
+    ///
+    /// Extra work is used to check to write out flanking bases of the split
+    /// k-mer, and padding with any missing positions.
+    ///
+    /// This is done in memory, then samples are written to the output buffer
+    /// one at a time.
+    ///
+    /// # Panics
+    ///
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped.
+    pub fn write_aln<W: Write>(
+        &self,
+        f: &mut W,
+        threads: usize,
+    ) -> Result<(), needletail::errors::ParseError> {
+        if self.chrom_names.len() > 1 {
+            eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
+        }
+
+        let alignments = self.pseudoalignment(threads);
+        log::info!("Writing alignment to file");
+        for (sample_name, mut aligned_seq) in self.mapped_names.iter().zip(alignments) {
+            write_fasta(
+                sample_name.as_bytes(),
+                aligned_seq.get_seq(),
+                f,
+                needletail::parser::LineEnding::Unix,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Write mapped variants as a VCF, using [`noodles_vcf`].
+    ///
+    /// This uses [`RefSka::write_aln()`] and converts the output to a VCF:
+    /// - A basic VCF header is written out first.
+    /// - An alignment is created (in memory), which is then converted to a VCF
+    /// - Any ambiguous base is currently output as N, for simplicity of GT field.
+    ///
+    /// # Panics
+    ///
+    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped to
+    /// the reference.
+    pub fn write_vcf<W: Write>(&self, f: &mut W, threads: usize) -> Result<(), std::io::Error> {
+        if !self.is_mapped() {
+            panic!("No split k-mers mapped to reference");
+        }
+
+        // Get the pseudoalignment and store in array form
+        let alignments = self.pseudoalignment(threads);
+
+        log::info!("Converting to VCF");
+        let mut variants = Array2::zeros((0, alignments[0].total_size()));
+        for mut seq in alignments {
+            variants.push_row(ArrayView::from(seq.get_seq())).unwrap();
+        }
+        // Transpose the array
+        let var_t = variants.t();
+        let mut var_t_owned = Array2::zeros(var_t.raw_dim());
+        var_t_owned.assign(&var_t);
 
         // Write the VCF header
         let mut writer = vcf::Writer::new(f);
@@ -329,77 +361,45 @@ impl RefSka {
 
         // Write each record (column)
         let keys = gt_keys();
-        let missing_genotypes = generate_missing_genotypes(self.mapped_names.len());
-
-        // Note that a lot of the logic here is similar to write_aln below, which
-        // is a bit simpler to follow
-        let half_split_len = (self.k - 1) / 2;
-        let (mut next_pos, mut curr_chrom) = (0, 0);
-        for ((map_chrom, map_pos), bases) in self
-            .mapped_pos
-            .iter()
-            .zip(self.mapped_variants.outer_iter())
+        let idx_map = IdxCheck::new(&self.seq);
+        for (sample_variants, (map_chrom, map_pos)) in var_t_owned.outer_iter().zip(idx_map.iter())
         {
-            // Fill missing bases to the end of the last chromosome
-            if *map_chrom > curr_chrom {
-                for record in self.iter_missing_vcf_rows(
-                    curr_chrom,
-                    next_pos + half_split_len,
-                    self.seq[curr_chrom].len(),
-                    &missing_genotypes,
-                ) {
-                    writer.write_record(&record)?;
-                }
-                curr_chrom += 1;
-                next_pos = 0;
-            }
-            // Fill missing bases between k-mer matches
-            if *map_pos > next_pos {
-                for record in self.iter_missing_vcf_rows(
-                    *map_chrom,
-                    next_pos,
-                    *map_pos - half_split_len,
-                    &missing_genotypes,
-                ) {
-                    writer.write_record(&record)?;
-                }
-            }
-
-            let ref_base = self.seq[*map_chrom][*map_pos];
+            let ref_base = self.seq[map_chrom][map_pos];
             let ref_allele = u8_to_base(ref_base);
 
             let mut genotype_vec = Vec::new();
-            genotype_vec.reserve(bases.len());
+            genotype_vec.reserve(var_t_owned.ncols());
             let mut alt_bases: Vec<Base> = Vec::new();
-            for mapped_base in bases {
-                let mut gt = String::from("0");
-                if *mapped_base != ref_base {
-                    if *mapped_base == b'-' {
-                        gt = ".".to_string();
-                    } else {
-                        let alt_base = u8_to_base(*mapped_base);
-                        if !alt_bases.contains(&alt_base) {
-                            alt_bases.push(alt_base);
-                        }
-                        gt = (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1)
-                            .to_string();
+            let mut variant = false;
+            for mapped_base in sample_variants {
+                let gt = if *mapped_base == ref_base {
+                    String::from("0")
+                } else if *mapped_base == b'-' {
+                    variant = true;
+                    String::from(".")
+                } else {
+                    variant = true;
+                    let alt_base = u8_to_base(*mapped_base);
+                    if !alt_bases.contains(&alt_base) {
+                        alt_bases.push(alt_base);
                     }
-                }
+                    (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1).to_string()
+                };
                 let field = Field::new(Key::Genotype, Some(Value::String(gt)));
                 genotype_vec
                     .push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
             }
-            if !alt_bases.is_empty() {
+            if variant {
                 let genotypes = Genotypes::new(keys.clone(), genotype_vec);
                 let alt_alleles: Vec<Allele> =
                     alt_bases.iter().map(|a| Allele::Bases(vec![*a])).collect();
                 let record = vcf::Record::builder()
                     .set_chromosome(
-                        self.chrom_names[*map_chrom]
+                        self.chrom_names[map_chrom]
                             .parse()
                             .expect("Invalid chromosome name"),
                     )
-                    .set_position(Position::from(*map_pos + 1))
+                    .set_position(Position::from(map_pos + 1))
                     .add_reference_base(ref_allele)
                     .set_alternate_bases(AlternateBases::from(alt_alleles))
                     .set_genotypes(genotypes)
@@ -407,105 +407,6 @@ impl RefSka {
                     .expect("Could not construct record");
                 writer.write_record(&record)?;
             }
-            next_pos = *map_pos + 1;
-        }
-        // Fill any missing bases at the end of final contig
-        let final_chrom_id = self.chrom_names.len() - 1;
-        for record in self.iter_missing_vcf_rows(
-            final_chrom_id,
-            next_pos + half_split_len,
-            self.seq[final_chrom_id].len(),
-            &missing_genotypes,
-        ) {
-            writer.write_record(&record)?;
-        }
-        Ok(())
-    }
-
-    /// Write mapped variants as an aln/multi-FASTA file, using [`needletail`].
-    ///
-    /// Rows are samples, columns are variants, so this is broadly equivalent
-    /// to writing out the transpose of the mapped variant array.
-    ///
-    /// Extra work is used to check to write out flanking bases of the split
-    /// k-mer, and padding with any missing positions.
-    ///
-    /// Samples are written to the output buffer one at a time.
-    ///
-    /// # Panics
-    ///
-    /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped
-    pub fn write_aln<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
-        if !self.is_mapped() {
-            panic!("TNo split k-mers mapped to reference");
-        }
-        if self.chrom_names.len() > 1 {
-            eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
-        }
-        let half_split_len = (self.k - 1) / 2;
-        for (sample_idx, sample_name) in self.mapped_names.iter().enumerate() {
-            let sample_vars = self.mapped_variants.slice(s![.., sample_idx]);
-            let mut seq: Vec<u8> = Vec::new();
-            seq.reserve(self.total_size);
-
-            // if this proves tricky, it might be better to iterate through non-missing
-            // matches and paste each flanking end and middle base into the right place
-            // in the vec (and skip to next match where right end is beyond last paste)
-            // 	the alternative would be to:
-            //      - allocate all missing
-            //      - iterate through ref
-            //      - write the whole k-mer in when found (ref, base, ref)
-            //      - then skip over k in ref
-            // (even just modifying map to skip over k would work, but not a VCF)
-            let (mut next_pos, mut curr_chrom) = (0, 0);
-            for ((map_chrom, map_pos), base) in self.mapped_pos.iter().zip(sample_vars.iter()) {
-                // Move forward to next chromosome/contig
-                if *map_chrom > curr_chrom {
-                    seq.extend_from_slice(
-                        &self.seq[curr_chrom][next_pos..(next_pos + half_split_len)],
-                    );
-                    seq.extend(vec![
-                        b'-';
-                        self.seq[curr_chrom].len() - (next_pos + half_split_len) // This shouldn't overflow
-                    ]);
-                    curr_chrom += 1;
-                    next_pos = 0;
-                }
-                if *map_pos > next_pos {
-                    if *map_pos > next_pos + half_split_len {
-                        // Missing bases, then first flanking half of split k-mer
-                        // if no k-mers mapped over a large region
-                        seq.extend(vec![b'-'; *map_pos - next_pos - half_split_len]);
-                        seq.extend_from_slice(
-                            &self.seq[curr_chrom][(*map_pos - half_split_len)..*map_pos],
-                        );
-                    } else {
-                        // Short missing region, which can happen with fastq input
-                        // Reasonable to take bases from match
-                        seq.extend_from_slice(&self.seq[curr_chrom][next_pos..*map_pos]);
-                    }
-                }
-                next_pos = *map_pos + 1;
-                if *base == b'-' {
-                    // This is around a split k-mer match, so we can fill in the
-                    // flanking region with the reference
-                    seq.push(self.seq[curr_chrom][*map_pos]);
-                } else {
-                    seq.push(*base);
-                }
-            }
-            // Fill up to end of contig
-            seq.extend_from_slice(&self.seq[curr_chrom][next_pos..(next_pos + half_split_len)]);
-            seq.extend(vec![
-                b'-';
-                self.seq[curr_chrom].len() - (next_pos + half_split_len)
-            ]);
-            write_fasta(
-                sample_name.as_bytes(),
-                seq.as_slice(),
-                f,
-                needletail::parser::LineEnding::Unix,
-            )?;
         }
         Ok(())
     }

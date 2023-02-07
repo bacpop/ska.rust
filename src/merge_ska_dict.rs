@@ -37,14 +37,12 @@ impl MergeSkaDict {
     /// Create an empty merged dictionary, to be used with [`MergeSkaDict::merge()`]
     /// or [`MergeSkaDict::append()`].
     pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
-        let names = vec!["".to_string(); n_samples];
-        let split_kmers = HashMap::default();
         Self {
             k,
             rc,
             n_samples,
-            names,
-            split_kmers,
+            names: vec!["".to_string(); n_samples],
+            split_kmers: HashMap::default(),
         }
     }
 

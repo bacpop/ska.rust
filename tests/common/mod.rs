@@ -22,6 +22,12 @@ pub enum TestDir {
     Correct,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum FxType {
+    Fasta,
+    Fastq,
+}
+
 pub struct TestSetup {
     wd: TempDir,
 }
@@ -81,14 +87,14 @@ impl TestSetup {
         predicate_fn.eval(self.wd.child(name_out).path())
     }
 
-    pub fn create_rfile(&self, prefix: &str, fastq: bool) -> &str {
+    pub fn create_rfile(&self, prefix: &str, fx_type: FxType) -> &str {
         // Create an rfile in the tmp dir
         let mut rfile = LineWriter::new(
             File::create(format!("{}/{}", self.get_wd(), RFILE_NAME))
                 .expect("Could not write rfile"),
         );
-        match fastq {
-            true => {
+        match fx_type {
+            FxType::Fastq => {
                 writeln!(
                     rfile,
                     "{}",
@@ -112,7 +118,7 @@ impl TestSetup {
                 )
                 .unwrap();
             }
-            false => {
+            FxType::Fasta => {
                 writeln!(
                     rfile,
                     "{}",
@@ -177,4 +183,14 @@ pub fn var_hash(aln_string: &[u8]) -> HashSet<Vec<char>> {
     }
 
     return variant_pairs;
+}
+
+// Helper for comparing mapped alignments with different sample names
+pub fn cmp_map_aln(aln1: &[u8], aln2: &[u8]) {
+    let aln1_str = String::from_utf8(aln1.to_vec()).unwrap();
+    let aln2_str = String::from_utf8(aln2.to_vec()).unwrap();
+
+    for (line1, line2) in aln1_str.lines().zip(aln2_str.lines()).skip(1).step_by(2) {
+        assert_eq!(line1, line2);
+    }
 }
