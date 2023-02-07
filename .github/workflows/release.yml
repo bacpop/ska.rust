@@ -30,7 +30,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ matrix.toolchain }}
+            toolchain: ${{ matrix.config.toolchain }}
             override: true
 
       # NB see https://github.com/actions-rs/cargo if we ever want to try cross
