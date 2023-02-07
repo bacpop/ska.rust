@@ -1,5 +1,9 @@
 name: Rust codecov
 
+# NB actions-rs/grcov seems out of date
+# ideally want PR for ignore lines
+# see https://github.com/actions-rs/grcov/pull/90
+
 on:
   push:
     branches: [ "master" ]
