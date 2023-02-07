@@ -15,7 +15,7 @@ Choose from:
 
 1. Download a binary from the [releases](https://github.com/bacpop/ska.rust/releases).
 2. Use `cargo install ska` or `cargo add ska`.
-3. Use `conda install -c bioconda ska`.
+3. Use `conda install -c bioconda ska2` (note the two!).
 4. Build from source
 
 For 2) or 4) you must have the [rust toolchain](https://www.rust-lang.org/tools/install) installed.
