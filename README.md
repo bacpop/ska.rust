@@ -17,9 +17,16 @@ Choose from:
 
 For 2) or 4) you must have the [rust toolchain](https://www.rust-lang.org/tools/install) installed.
 
+### OS X users
+
 If you have an M1/M2 (arm64) Mac, we aren't currently automatically building binaries, so
 would recommend either option 2) or 4) for best performance.
 
+If you get a message saying the binary isn't signed by Apple and can't be run,
+use the following command to bypass this:
+```
+xattr -d "com.apple.quarantine" ./ska
+```
 ### Build from source
 
 1. Clone the repository with `git clone`.
