@@ -72,7 +72,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: Release ${{ github.ref_name }}
-          tag_name: v0.1.0  # remove before merge
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
