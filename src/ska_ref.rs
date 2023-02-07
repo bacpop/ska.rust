@@ -364,9 +364,9 @@ impl RefSka {
 
         // Write each record (column)
         let keys = gt_keys();
-        let mut idx_map = IdxCheck::new(&self.seq);
-        for (idx, sample_variants) in var_t_owned.outer_iter().enumerate() {
-            let (map_chrom, map_pos) = idx_map.idx_to_coor(idx);
+        let idx_map = IdxCheck::new(&self.seq);
+        for (sample_variants, (map_chrom, map_pos)) in var_t_owned.outer_iter().zip(idx_map.iter())
+        {
             let ref_base = self.seq[map_chrom][map_pos];
             let ref_allele = u8_to_base(ref_base);
 
