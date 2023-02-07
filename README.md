@@ -1,8 +1,10 @@
 # Split K-mer Analysis (version 2)
 
 <!-- badges: start -->
-![Crates.io](https://img.shields.io/crates/v/ska)
-[![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)<!-- badges: end -->
+[![Crates.io](https://img.shields.io/crates/v/ska)](https://crates.io/crates/ska)
+[![docs.rs](https://img.shields.io/docsrs/ska)](https://docs.rs/ska)
+[![Cargo Build & Test](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml/badge.svg)](https://github.com/bacpop/ska.rust/actions/workflows/ci.yml)
+<!-- badges: end -->
 
 ## Installation
 
