@@ -7,6 +7,7 @@
 /// Builds the contig change indices and keeps track of the current chromosome.
 #[derive(Debug)]
 pub struct IdxCheck {
+    /// The end coordinates (last base) of each chromosome
     end_coor: Vec<usize>,
 }
 
@@ -38,8 +39,11 @@ impl IdxCheck {
 ///
 /// Iterator as separate class so [`IdxCheck`] not modified during iteration
 pub struct IdxCheckIter<'a> {
+    /// Ref to end coordinates
     end_coor: &'a Vec<usize>,
+    /// Current chromosome
     current_chr: usize,
+    /// Current absolute position
     idx: usize,
 }
 

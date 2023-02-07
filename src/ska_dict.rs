@@ -140,17 +140,14 @@ impl SkaDict {
         if !(5..=31).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
-        // Default/empty structs
-        let name = name.to_string();
-        let split_kmers: HashMap<u64, u8> = HashMap::default();
-        let cm_filter = CountMin::empty(CM_WIDTH, CM_HEIGHT, min_count);
+
         let mut sk_dict = Self {
             k,
             rc,
             sample_idx,
-            name,
-            split_kmers,
-            cm_filter,
+            name: name.to_string(),
+            split_kmers: HashMap::default(),
+            cm_filter: CountMin::empty(CM_WIDTH, CM_HEIGHT, min_count),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so

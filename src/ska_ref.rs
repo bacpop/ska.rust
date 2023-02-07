@@ -193,17 +193,14 @@ impl RefSka {
             panic!("{filename} has no valid sequence");
         }
 
-        let mapped_variants = Array2::zeros((0, 0));
-        let mapped_pos = Vec::new();
-        let mapped_names = Vec::new();
         Self {
             k,
             seq,
             chrom_names,
             split_kmer_pos,
-            mapped_pos,
-            mapped_variants,
-            mapped_names,
+            mapped_pos: Vec::new(),
+            mapped_variants: Array2::zeros((0, 0)),
+            mapped_names: Vec::new(),
         }
     }
 

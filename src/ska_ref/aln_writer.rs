@@ -16,14 +16,24 @@
 /// each match.
 #[derive(Clone)]
 pub struct AlnWriter<'a> {
+    /// Next position where it is valid to write a match.
     next_pos: usize,
+    /// The current chromsome.
     curr_chrom: usize,
+    /// The latest position where a base has been mapped (may not have been written).
     last_mapped: usize,
+    /// The latest position in `seq_out` that has been written to.
     last_written: usize,
+    /// An offset which is added to convert chromosome positions to concatenated position.
     chrom_offset: usize,
+    /// The reference sequences.
     ref_seq: &'a Vec<Vec<u8>>,
+    /// The output alignment.
     seq_out: Vec<u8>,
+    /// The size of the flanking region for each split k-mer match.
     half_split_len: usize,
+    /// Whether the finalise function has been run, filling to the end of the
+    /// final contig.
     finalised: bool,
 }
 
@@ -31,22 +41,18 @@ impl<'a> AlnWriter<'a> {
     /// Create a new [`AlnWriter`] taking the reference sequence mapped against
     /// and the k-mer size used for the mapping
     pub fn new(ref_seq: &'a Vec<Vec<u8>>, k: usize) -> Self {
-        let (curr_chrom, last_mapped, last_written, chrom_offset) = (0, 0, 0, 0);
-        let finalised = false;
         let total_size = ref_seq.iter().map(|x| x.len()).sum();
-        let seq_out = vec![b'-'; total_size];
         let half_split_len = (k - 1) / 2;
-        let next_pos = half_split_len;
         Self {
-            next_pos,
-            curr_chrom,
-            last_mapped,
-            last_written,
-            chrom_offset,
+            next_pos: half_split_len,
+            curr_chrom: 0,
+            last_mapped: 0,
+            last_written: 0,
+            chrom_offset: 0,
             ref_seq,
-            seq_out,
+            seq_out: vec![b'-'; total_size],
             half_split_len,
-            finalised,
+            finalised: false,
         }
     }
 
@@ -129,16 +135,17 @@ impl<'a> AlnWriter<'a> {
     /// Fills to the end of the final contig
     /// Should only be called after the last call to [`AlnWriter::write_split_kmer()`].
     pub fn finalise(&mut self) {
-        self.fill_contig();
-        self.finalised = true;
+        if !self.finalised {
+            while self.curr_chrom < self.ref_seq.len() {
+                self.fill_contig();
+            }
+            self.finalised = true;
+        }
     }
 
     /// Retrieve the written sequence. Calls [`AlnWriter::finalise()`] if not already called.
     pub fn get_seq(&'a mut self) -> &'a [u8] {
-        if !self.finalised {
-            self.fill_contig();
-            self.finalised = true;
-        }
+        self.finalise();
         self.seq_out.as_slice()
     }
 }

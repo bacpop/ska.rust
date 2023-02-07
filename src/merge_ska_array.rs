@@ -102,9 +102,6 @@ impl MergeSkaArray {
 
     /// Convert a dynamic [`MergeSkaDict`] to static array representation.
     pub fn new(dynamic: &MergeSkaDict) -> Self {
-        let k = dynamic.kmer_len();
-        let rc = dynamic.rc();
-        let names = dynamic.names().clone();
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
         let mut split_kmers: Vec<u64> = Vec::new();
         split_kmers.reserve(dynamic.ksize());
@@ -116,9 +113,9 @@ impl MergeSkaArray {
         }
         variants.mapv_inplace(|b| u8::max(b, b'-')); // turns zeros to missing
         Self {
-            k,
-            rc,
-            names,
+            k: dynamic.kmer_len(),
+            rc: dynamic.rc(),
+            names: dynamic.names().clone(),
             split_kmers,
             variants,
             variant_count,

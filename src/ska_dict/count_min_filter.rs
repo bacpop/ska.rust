@@ -66,17 +66,13 @@ impl CountMin {
         let width_shift = u64::BITS - width_bits as u32;
         let mask = (width as u64 - 1) << width_shift;
 
-        // Reserve for these gets call by the vec! macro used in init
-        let hash_factory = Vec::new();
-        let counts = Vec::new();
-
         Self {
             width,
             width_shift,
             height,
-            hash_factory,
+            hash_factory: Vec::new(),
             mask,
-            counts,
+            counts: Vec::new(),
             min_count,
         }
     }

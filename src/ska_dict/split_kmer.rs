@@ -185,7 +185,7 @@ impl<'a> SplitKmer<'a> {
         rc: bool,
         min_qual: u8,
     ) -> Option<Self> {
-        let (mut index, rc_upper, rc_lower, rc_middle_base) = (0, 0, 0, 0);
+        let mut index = 0;
         let first_kmer = Self::build(&seq, seq_len, qual, k, &mut index, min_qual);
         if let Some((upper, lower, middle_base)) = first_kmer {
             let (lower_mask, upper_mask) = generate_masks(k);
@@ -201,9 +201,9 @@ impl<'a> SplitKmer<'a> {
                 lower,
                 middle_base,
                 rc,
-                rc_upper,
-                rc_lower,
-                rc_middle_base,
+                rc_upper: 0,
+                rc_lower: 0,
+                rc_middle_base: 0,
                 index,
             };
             if rc {
