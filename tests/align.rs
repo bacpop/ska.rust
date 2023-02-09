@@ -38,7 +38,7 @@ fn align_cli() {
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
         .arg("basic.aln")
-        .args(&["-v", "--threads", "2", "--const-sites", "--min-freq", "0"])
+        .args(&["-v", "--threads", "2", "--filter", "no-filter", "--min-freq", "0"])
         .assert()
         .success();
 

@@ -154,7 +154,8 @@ fn repeats() {
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("dup_ss.skf")
-        .arg("--remove-const-sites")
+        .arg("--filter")
+        .arg("no-const")
         .args(&["--min-freq", "1"])
         .assert()
         .success();

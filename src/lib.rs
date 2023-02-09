@@ -93,13 +93,13 @@
 //! in an arbitrary order. Two basic filters are available: `--min-freq` which
 //! sets the maximum number of missing sites; `--filter` which can be set to
 //! one of three options:
-//! * `NoFilter` -- no extra filtering
-//! * `NoConst` -- no constant sites
-//! * `NoAmbigOrConst` -- no constant sites, or sites where the only variable base is ambiguous
+//! * `no-filter` -- no extra filtering
+//! * `no-const` -- no constant sites
+//! * `no-ambig-or-const` -- no constant sites, or sites where the only variable base is ambiguous
 //!
-//! `NoFilter` may be useful for ascertainment bias correction in phylogenetic algorithms,
-//! but note the flanking split k-mers will never be included. `NoConst` is the default.
-//! `NoAmbigOrConst` can be used when you want to treat any ambiguity as an `N`.
+//! `no-filter` may be useful for ascertainment bias correction in phylogenetic algorithms,
+//! but note the flanking split k-mers will never be included. `no-const` is the default.
+//! `no-ambig-or-const` can be used when you want to treat any ambiguity as an `N`.
 //!
 //! With an `.skf` file from `ska build`, constant sites, and no missing variants:
 //! ```bash
@@ -237,6 +237,7 @@
 //! To use `ska align` in other rust code:
 //! ```rust
 //! use ska::io_utils::{load_array, set_ostream};
+//! use ska::cli::FilterType;
 //!
 //! // Load an .skf file
 //! let threads = 4;
@@ -246,8 +247,8 @@
 //! // Apply filters
 //! let min_count = 2;
 //! let update_kmers = false;
-//! let const_sites = false;
-//! ska_array.filter(min_count, const_sites, update_kmers);
+//! let filter = FilterType::NoConst;
+//! ska_array.filter(min_count, &filter, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);

@@ -39,6 +39,7 @@ use crate::cli::FilterType;
 /// use ska::merge_ska_array::MergeSkaArray;
 /// use ska::io_utils::set_ostream;
 /// use ska::ska_ref::RefSka;
+/// use ska::cli::FilterType;
 ///
 /// // Load an array from file
 /// let mut ska_array = MergeSkaArray::load(&"tests/test_files_in/merge.skf").expect("Could not open array");
@@ -48,10 +49,10 @@ use crate::cli::FilterType;
 /// ska_array.write_fasta(&mut alignment_file);
 ///
 /// // Remove constant sites and save
-/// let min_count = 1;          // no filtering by minor allele frequency
-/// let const_sites = false;    // remove sites with no minor allele
-/// let update_counts = true;   // keep counts updated, as saving
-/// ska_array.filter(min_count, const_sites, update_counts);
+/// let min_count = 1;                          // no filtering by minor allele frequency
+/// let filter = FilterType::NoAmbigOrConst;    // remove sites with no minor allele
+/// let update_counts = true;                   // keep counts updated, as saving
+/// ska_array.filter(min_count, &filter, update_counts);
 /// ska_array.save(&"no_const_sites.skf");
 ///
 /// // Delete a sample
