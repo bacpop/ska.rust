@@ -1,7 +1,7 @@
 //! Split k-mer analysis (version 2)  uses exact matching of split k-mer sequences to align closely related
 //! sequences, typically small haploid genomes such as bacteria and viruses.
 //!
-//! SKA can only align SNPs (or single base deletions) further than the k-mer length apart,
+//! SKA can only align SNPs further than the k-mer length apart,
 //! and does not use a gap penalty approach or give alignment scores.
 //! But the advantages are speed and flexibility, particularly the ability to
 //! run on a reference free manner on both assemblies and reads.
@@ -24,7 +24,7 @@
 //! unordered). Split k-mers can also be matched to those from a reference sequence
 //! to give an ordered pseudoalignment.
 //!
-//! Various optimisations are used to make this as fast as possible.For a more thorough comparison with version 1.0 of SKA, see the
+//! Various optimisations are used to make this as fast as possible. For a more thorough comparison with version 1.0 of SKA, see the
 //! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
 //!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
@@ -82,10 +82,15 @@
 //!
 //! Create an alignment from a `.skf` file or sequence files. Sites (columns) are
 //! in an arbitrary order. Two basic filters are available: `--min-freq` which
-//! sets the maximum number of missing sites; `--const-sites` which also writes
-//! out middle bases with no variation. The latter may be useful for ascertainment
-//! bias correction in phylogenetic algorithms, but note the flanking split k-mers
-//! will never be included.
+//! sets the maximum number of missing sites; `--filter` which can be set to
+//! one of three options:
+//! * `NoFilter` -- no extra filtering
+//! * `NoConst` -- no constant sites
+//! * `NoAmbigOrConst` -- no constant sites, or sites where the only variable base is ambiguous
+//!
+//! `NoFilter` may be useful for ascertainment bias correction in phylogenetic algorithms,
+//! but note the flanking split k-mers will never be included. `NoConst` is the default.
+//! `NoAmbigOrConst` can be used when you want to treat any ambiguity as an `N`.
 //!
 //! With an `.skf` file from `ska build`, constant sites, and no missing variants:
 //! ```bash
@@ -157,7 +162,7 @@
 //! You can do this by removing any constant sites (which are typically unused), and by hard-filtering
 //! by frequency (i.e. before writing output):
 //! ```bash
-//! ska weed --remove-const-sites --min-freq 0.9 all_samples.skf
+//! ska weed --filter NoConst --min-freq 0.9 all_samples.skf
 //! ```
 //!
 //! ## ska nk
@@ -305,7 +310,7 @@ pub fn main() {
             input,
             output,
             min_freq,
-            const_sites,
+            filter,
             threads,
         } => {
             let mut ska_array = load_array(input, *threads);
@@ -315,8 +320,10 @@ pub fn main() {
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
             let update_kmers = false;
-            log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
-            ska_array.filter(filter_threshold, *const_sites, update_kmers);
+            log::info!(
+                "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
+            );
+            ska_array.filter(filter_threshold, filter, update_kmers);
 
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
@@ -406,7 +413,7 @@ pub fn main() {
             skf_file,
             weed_file,
             min_freq,
-            remove_const_sites,
+            filter,
         } => {
             log::info!("Loading skf file");
             let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
@@ -424,13 +431,12 @@ pub fn main() {
             }
 
             let filter_threshold = f64::floor(ska_array.nsamples() as f64 * *min_freq) as usize;
-            let const_sites = !*remove_const_sites;
-            if filter_threshold > 0 || !const_sites {
+            if filter_threshold > 0 || *filter != FilterType::NoFilter {
                 log::info!(
-                    "Applying filters: threshold={filter_threshold} const_sites={const_sites}"
+                    "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
                 );
                 let update_kmers = true;
-                ska_array.filter(filter_threshold, const_sites, update_kmers);
+                ska_array.filter(filter_threshold, filter, update_kmers);
             }
 
             log::info!("Saving modified skf file");

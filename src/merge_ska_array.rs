@@ -25,8 +25,10 @@ use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{decode_kmer, generate_masks};
+use crate::ska_dict::bit_encoding::{decode_kmer, generate_masks, is_ambiguous};
 use crate::ska_ref::RefSka;
+
+use crate::cli::FilterType;
 
 /// Array representation of split k-mers from multiple samples.
 ///
@@ -218,7 +220,7 @@ impl MergeSkaArray {
     ///
     /// The default for `update_kmers` should be `true`, but it can be `false`
     /// if [`write_fasta()`] will be called immediately afterwards.
-    pub fn filter(&mut self, min_count: usize, const_sites: bool, update_kmers: bool) {
+    pub fn filter(&mut self, min_count: usize, filter: &FilterType, update_kmers: bool) {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
@@ -231,28 +233,45 @@ impl MergeSkaArray {
             .zip(self.split_kmers.iter())
         {
             let ((count, row), kmer) = count_it;
-            let mut keep_var = false;
             if *count >= min_count {
-                if !const_sites {
-                    let first_var = row[0];
-                    for var in row {
-                        if *var != first_var {
-                            keep_var = true;
-                            break;
+                let keep_var = match *filter {
+                    FilterType::NoFilter => true,
+                    FilterType::NoConst => {
+                        let first_var = row[0];
+                        let mut keep = false;
+                        for var in row {
+                            if *var != first_var {
+                                keep = true;
+                                break;
+                            }
                         }
+                        keep
+                    }
+                    FilterType::NoAmbigOrConst => {
+                        let mut keep = false;
+                        let mut first_var = None;
+                        for var in row {
+                            if !is_ambiguous(*var) {
+                                if first_var.is_none() {
+                                    first_var = Some(*var);
+                                } else if *var != first_var.unwrap() {
+                                    keep = true;
+                                    break;
+                                }
+                            }
+                        }
+                        keep
+                    }
+                };
+                if keep_var {
+                    filtered_variants.push_row(row).unwrap();
+                    filtered_counts.push(*count);
+                    if update_kmers {
+                        filtered_kmers.push(*kmer);
                     }
                 } else {
-                    keep_var = true;
+                    removed += 1;
                 }
-            }
-            if keep_var {
-                filtered_variants.push_row(row).unwrap();
-                filtered_counts.push(*count);
-                if update_kmers {
-                    filtered_kmers.push(*kmer);
-                }
-            } else {
-                removed += 1;
             }
         }
         self.variants = filtered_variants;
