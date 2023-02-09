@@ -101,6 +101,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.fa", TestDir::Input))
         .arg("--filter")
         .arg("no-filter")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
@@ -116,6 +117,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-const")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
@@ -130,6 +132,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-ambig-or-const")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
