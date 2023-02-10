@@ -27,8 +27,8 @@ use ahash::RandomState;
 /// cm_filter.init();
 ///
 /// // Use it
-/// let mut passed = cm_filter.filter(0 as u64); // false
-/// passed = cm_filter.filter(0 as u64);         // true
+/// let mut passed = cm_filter.filter(0 as u64, 0 as u8); // false
+/// passed = cm_filter.filter(0 as u64, 0 as u8);         // true
 ///
 /// // Reset for use with a new file
 /// cm_filter.reset();
@@ -97,14 +97,17 @@ impl CountMin {
         self.counts = vec![0; self.width * self.height];
     }
 
-    /// Add an observation of a k-mer to the filter, and return if it passed
+    /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter(&mut self, kmer: u64) -> bool {
+    pub fn filter(&mut self, kmer: u64, encoded_base: u8) -> bool {
+        // This is possible because of the k-mer size restriction, the top two
+        // bit are always zero
+        let kmer_and_base = kmer | ((encoded_base as u64) << 62);
         let mut count = 0;
         for hash_it in self.hash_factory.iter().enumerate() {
             let (row_idx, hash) = hash_it;
             let table_idx = row_idx * self.width
-                + (((hash.hash_one(kmer) & self.mask) >> self.width_shift) as usize);
+                + (((hash.hash_one(kmer_and_base) & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
             if row_idx == 0 {
                 count = self.counts[table_idx];
