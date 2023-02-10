@@ -38,7 +38,15 @@ fn align_cli() {
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
         .arg("basic.aln")
-        .args(&["-v", "--threads", "2", "--filter", "no-filter", "--min-freq", "0"])
+        .args(&[
+            "-v",
+            "--threads",
+            "2",
+            "--filter",
+            "no-filter",
+            "--min-freq",
+            "0",
+        ])
         .assert()
         .success();
 
@@ -121,7 +129,6 @@ fn filters() {
         .output()
         .unwrap()
         .stdout;
-
 
     let mut correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['S', 'G']]);
     assert_eq!(var_hash(&const_filt_align_out), correct_aln);

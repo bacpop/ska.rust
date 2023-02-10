@@ -40,14 +40,14 @@ jobs:
         run: |
           cargo install --path .
           cp $HOME/.cargo/bin/ska .
-          tar czvf ska-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz ska LICENSE NOTICE README.md
+          tar czvf ska-${{ github.ref_name }}-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz ska LICENSE NOTICE README.md
 
       - name: Upload package
         if: success()
         uses: actions/upload-artifact@v3
         with:
-          name: ska-${{ matrix.config.os }}-${{ matrix.config.toolchain }}
-          path: ska-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz
+          name: ska-${{ github.ref_name }}-${{ matrix.config.os }}-${{ matrix.config.toolchain }}
+          path: ska-${{ github.ref_name }}-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz
 
   create-release:
     runs-on: ubuntu-latest
@@ -64,8 +64,8 @@ jobs:
       - name: Organise files
         shell: bash
         run: |
-          cp build/ska-macOS-latest-stable/ska-macOS-latest-stable.tar.gz .
-          cp build/ska-ubuntu-latest-stable/ska-ubuntu-latest-stable.tar.gz .
+          cp build/ska-${{ github.ref_name }}-macOS-latest-stable/ska-${{ github.ref_name }}-macOS-latest-stable.tar.gz .
+          cp build/ska-${{ github.ref_name }}-ubuntu-latest-stable/ska-${{ github.ref_name }}-ubuntu-latest-stable.tar.gz .
 
       - name: Create release
         id: create_release
