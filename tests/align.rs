@@ -38,7 +38,7 @@ fn align_cli() {
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
         .arg("basic.aln")
-        .args(&["-v", "--threads", "2", "--const-sites", "--min-freq", "0"])
+        .args(&["-v", "--threads", "2", "--filter", "no-filter", "--min-freq", "0"])
         .assert()
         .success();
 
@@ -88,6 +88,57 @@ fn basic_align() {
 
     let correct_aln = HashSet::from([vec!['A', 'T'], vec!['C', 'T']]);
     assert_eq!(var_hash(&fasta_align_out), correct_aln);
+}
+
+#[test]
+fn filters() {
+    let sandbox = TestSetup::setup();
+
+    // With k=9 there is a repeated k-mer
+    let unfilt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.fa", TestDir::Input))
+        .arg("--filter")
+        .arg("no-filter")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let lengths = aln_length(&unfilt_align_out);
+    for length in lengths {
+        assert_eq!(39, length); // could also get 39 from ska nk
+    }
+
+    let const_filt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-const")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+
+    let mut correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['S', 'G']]);
+    assert_eq!(var_hash(&const_filt_align_out), correct_aln);
+
+    let no_ambig_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-ambig-or-const")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    correct_aln.remove(&vec!['S', 'G']);
+    assert_eq!(var_hash(&no_ambig_align_out), correct_aln);
 }
 
 #[test]

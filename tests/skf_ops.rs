@@ -111,7 +111,8 @@ fn weed() {
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("merge.skf")
-        .arg("--remove-const-sites")
+        .arg("--filter")
+        .arg("no-const")
         .args(&["--min-freq", "1"])
         .assert()
         .success();

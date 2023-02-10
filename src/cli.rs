@@ -1,4 +1,5 @@
 //! Command line interface, built using [`crate::clap` with `Derive`](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html)
+use std::fmt;
 
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
@@ -57,6 +58,28 @@ pub enum FileType {
     Vcf,
     /// FASTA alignment
     Aln,
+}
+
+/// Possible variant filters for align
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum FilterType {
+    /// Output all variants
+    NoFilter,
+    /// Filter constant bases
+    NoConst,
+    /// Filter constant bases, and any variants where the only variation is an ambiguous base
+    NoAmbigOrConst,
+}
+
+/// As text, for use in logging messages
+impl fmt::Display for FilterType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::NoFilter => writeln!(f, "No filtering"),
+            Self::NoConst => writeln!(f, "No constant sites"),
+            Self::NoAmbigOrConst => writeln!(f, "No constant sites or ambiguous bases"),
+        }
+    }
 }
 
 /// Options that apply to all subcommands
@@ -129,9 +152,9 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
 
-        /// Output constant middle base sites
-        #[arg(long, default_value_t = false)]
-        const_sites: bool,
+        /// Filter for constant middle base sites
+        #[arg(long, value_enum, default_value_t = FilterType::NoConst)]
+        filter: FilterType,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
@@ -196,9 +219,9 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
 
-        /// Remove constant middle base sites
-        #[arg(long, default_value_t = false)]
-        remove_const_sites: bool,
+        /// Filter for constant middle base sites
+        #[arg(long, value_enum, default_value_t = FilterType::NoFilter)]
+        filter: FilterType,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {
