@@ -1,0 +1,24 @@
+on:
+  pull_request:
+    branches:
+      - master
+
+# This runs on PRs so error can be seen before merging
+name: Version check
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+
+    name: Version check
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check version format and availability
+        run: ./scripts/version_check.sh
