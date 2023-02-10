@@ -57,7 +57,7 @@ impl SkaDict {
     /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
     /// only adds if passing through the countmin filter
     fn add_to_dict(&mut self, kmer: u64, base: u8, is_reads: bool) {
-        if !is_reads || self.cm_filter.filter(kmer) {
+        if !is_reads || self.cm_filter.filter(kmer, base) {
             self.split_kmers
                 .entry(kmer)
                 .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])

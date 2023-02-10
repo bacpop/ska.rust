@@ -194,3 +194,14 @@ pub fn cmp_map_aln(aln1: &[u8], aln2: &[u8]) {
         assert_eq!(line1, line2);
     }
 }
+
+// Helper for checking alignment length
+pub fn aln_length(aln1: &[u8]) -> Vec<usize> {
+    let aln1_str = String::from_utf8(aln1.to_vec()).unwrap();
+
+    let mut lengths = Vec::new();
+    for aln_line in aln1_str.lines().skip(1).step_by(2) {
+        lengths.push(aln_line.len());
+    }
+    lengths
+}

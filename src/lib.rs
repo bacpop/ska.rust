@@ -1,10 +1,11 @@
 //! Split k-mer analysis (version 2)  uses exact matching of split k-mer sequences to align closely related
 //! sequences, typically small haploid genomes such as bacteria and viruses.
 //!
-//! SKA can only align SNPs (or single base deletions) further than the k-mer length apart,
+//! SKA can only align SNPs further than the k-mer length apart,
 //! and does not use a gap penalty approach or give alignment scores.
 //! But the advantages are speed and flexibility, particularly the ability to
-//! run on a reference free manner on both assemblies and reads.
+//! run on a reference-free manner (i.e. including accessory genome variation)
+//! on both assemblies and reads.
 //!
 //! ## Details
 //!
@@ -24,7 +25,7 @@
 //! unordered). Split k-mers can also be matched to those from a reference sequence
 //! to give an ordered pseudoalignment.
 //!
-//! Various optimisations are used to make this as fast as possible.For a more thorough comparison with version 1.0 of SKA, see the
+//! Various optimisations are used to make this as fast as possible. For a more thorough comparison with version 1.0 of SKA, see the
 //! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
 //!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
@@ -33,16 +34,20 @@
 //!
 //! `.skf` files represent merged split k-mers from multiple sequence files. They
 //! are created with `ska build`. You can subsequently use `ska align` to write
-//! out an ordered alignment from these files, or `ska map` to write an alignment
+//! out an unordered alignment from these files, or `ska map` to write an alignment
 //! ordered versus a reference sequence.
 //!
-//! Both `ska align` and `ska map` can take input sequence directly to obtain output alignments
-//! in a single command and without saving an `.skf` file. This uses the default options
+//! Alternatively, both `ska align` and `ska map` can take input sequence directly to obtain output alignments
+//! in a single command and without saving an `.skf` file. NB: This uses the default options
 //! of `ska build`, so to change these you will need to run the alignment in two steps.
 //!
-//! Output from `ska align` and `ska map`is to STDOUT, so you can use a redirect `>` to save to a file or pipe `|`
+//! Output from `ska align` and `ska map` is to STDOUT, so you can use a redirect `>` to save to a file or pipe `|`
 //! to stream into another compatible program on STDIN. You can also add an output
 //! file prefix directly with `-o` (for `ska build` this is required).
+//!
+//! ## Common options
+//!
+//! Version can be viewed by running `ska -V`.
 //!
 //! Details and progress messages are written on STDERR. You can see more logging
 //! information by adding the verbose flag `-v`.
@@ -61,13 +66,14 @@
 //! ```bash
 //! ska build -o seqs -k 31 assemblies/seq1.fa assemblies/seq2.fa
 //! ```
-//! This will assume sample names of `seq1` and `seq2`. If you know the strand,
-//! for example with reference sequences or single stranded viruses, add `--single-strand`
+//! This will assume sample names of `seq1` and `seq2` –- the base path and with known fastx
+//! file extensions removed. If you know the strand,
+//! for example when exclusively using reference sequences or single stranded viruses, add `--single-strand`
 //! to ignore reverse complements.
 //!
-//! To use FASTQ files, specify sample names or more easily input a larger number of input files,
+//! To use FASTQ files, or specify sample names, or more easily input a larger number of input files,
 //! you can provide a tab separated file list via `-f` instead of listing files. For example
-//! with a file called `input_sequence.txt`:
+//! a file called `input_sequence.txt` to describe `sample_1` (an assembly) and `sample_2` (paired reads):
 //! ```text
 //! sample_1    assemblies/seq1.fa
 //! sample_2    reads/seq2_1.fastq.gz   reads/seq2_2.fastq.gz
@@ -76,20 +82,28 @@
 //! ```bash
 //! ska build -o seqs -f input_sequence.txt --min-count 20 --min-qual 30
 //! ```
-//! Here demonstrating changing the error filtering criteria with the FASTQ files.
+//! (here also demonstrating changing the error filtering criteria with the FASTQ files.)
+//!
+//! FASTQ files must be paired end. If you'd like to request more flexibility in
+//! this regard please contact us.
 //!
 //! ## ska align
 //!
-//! Create an alignment from a `.skf` file or sequence files. Sites (columns) are
+//! Creates an alignment from a `.skf` file or sequence files. Sites (columns) are
 //! in an arbitrary order. Two basic filters are available: `--min-freq` which
-//! sets the maximum number of missing sites; `--const-sites` which also writes
-//! out middle bases with no variation. The latter may be useful for ascertainment
-//! bias correction in phylogenetic algorithms, but note the flanking split k-mers
-//! will never be included.
+//! sets the maximum number of missing sites; `--filter` which can be set to
+//! one of three options:
+//! * `no-filter` -- no extra filtering
+//! * `no-const` -- no constant sites
+//! * `no-ambig-or-const` -- no constant sites, or sites where the only variable base is ambiguous
+//!
+//! `no-filter` may be useful for ascertainment bias correction in phylogenetic algorithms,
+//! but note the flanking split k-mers will never be included. `no-const` is the default.
+//! `no-ambig-or-const` can be used when you want to treat any ambiguity as an `N`.
 //!
 //! With an `.skf` file from `ska build`, constant sites, and no missing variants:
 //! ```bash
-//! ska align --min-freq 1 --const-sites -o seqs seqs.skf
+//! ska align --min-freq 1 --filter NoFilter -o seqs seqs.skf
 //! ```
 //!
 //! Another example: directly from FASTA files, with default `build` and `align` settings,
@@ -100,8 +114,8 @@
 //!
 //! ## ska map
 //!
-//! Create an alignment from a `.skf` file or sequence files` by mapping its
-//! split k-mers to split k-mer of a reference sequence. This produces pseudoalignment
+//! Create an alignment from a `.skf` file or sequence files by mapping its
+//! split k-mers to split k-mers of a linear reference sequence. This produces pseudoalignment
 //! with the same sites/columns as the reference sequence. Sites not mapped will
 //! be output as missing '-'.
 //!
@@ -120,7 +134,7 @@
 //!
 //! ## ska merge
 //!
-//! Use to combine multiple `.skf` files into one, for subsequent use in `align` or `map`.
+//! Use to combine multiple `.skf` files into one, typically for subsequent use in `align` or `map`.
 //! This may be particularly useful if `ska build` was run on multiple input files
 //! one at a time (for example in a job array).
 //!
@@ -150,14 +164,15 @@
 //! ska weed all_samples.skf MGEs.fa
 //! ```
 //!
-//! In addition, you can also use `ska weed` to filter split k-mers by middle base, which does
+//! In addition, you can also use `ska weed` to filter split k-mers by proportion of samples
+//! they appear in, and constant or amibguous middle cases, which does
 //! not require a list of split k-mers to be removed (but both can be used together, if you wish).
 //!
 //! For example, you may want to reduce the size of an `.skf` file for online use.
-//! You can do this by removing any constant sites (which are typically unused), and by hard-filtering
+//! You can do this by removing any constant sites or ambiguous-only s0tes (which are typically unused), and by hard-filtering
 //! by frequency (i.e. before writing output):
 //! ```bash
-//! ska weed --remove-const-sites --min-freq 0.9 all_samples.skf
+//! ska weed --filter NoAmbigOrConst --min-freq 0.9 all_samples.skf
 //! ```
 //!
 //! ## ska nk
@@ -186,6 +201,7 @@
 //!
 //! NB: Only one split k-mer is shown even if the reverse complement was used.
 //! These are not precisely canonical k-mers, as the encoding order `{A, C, T, G}` is used internally.
+//! But if you can't find a sequence in your input file, you will find its reverse complement.
 //!
 //! # API usage
 //!
@@ -221,6 +237,7 @@
 //! To use `ska align` in other rust code:
 //! ```rust
 //! use ska::io_utils::{load_array, set_ostream};
+//! use ska::cli::FilterType;
 //!
 //! // Load an .skf file
 //! let threads = 4;
@@ -230,8 +247,8 @@
 //! // Apply filters
 //! let min_count = 2;
 //! let update_kmers = false;
-//! let const_sites = false;
-//! ska_array.filter(min_count, const_sites, update_kmers);
+//! let filter = FilterType::NoConst;
+//! ska_array.filter(min_count, &filter, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);
@@ -305,7 +322,7 @@ pub fn main() {
             input,
             output,
             min_freq,
-            const_sites,
+            filter,
             threads,
         } => {
             let mut ska_array = load_array(input, *threads);
@@ -315,8 +332,10 @@ pub fn main() {
             // Apply filters
             let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
             let update_kmers = false;
-            log::info!("Applying filters: threshold={filter_threshold} const_sites={const_sites}");
-            ska_array.filter(filter_threshold, *const_sites, update_kmers);
+            log::info!(
+                "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
+            );
+            ska_array.filter(filter_threshold, filter, update_kmers);
 
             // Write out to file/stdout
             let mut out_stream = set_ostream(output);
@@ -406,7 +425,7 @@ pub fn main() {
             skf_file,
             weed_file,
             min_freq,
-            remove_const_sites,
+            filter,
         } => {
             log::info!("Loading skf file");
             let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
@@ -424,13 +443,12 @@ pub fn main() {
             }
 
             let filter_threshold = f64::floor(ska_array.nsamples() as f64 * *min_freq) as usize;
-            let const_sites = !*remove_const_sites;
-            if filter_threshold > 0 || !const_sites {
+            if filter_threshold > 0 || *filter != FilterType::NoFilter {
                 log::info!(
-                    "Applying filters: threshold={filter_threshold} const_sites={const_sites}"
+                    "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
                 );
                 let update_kmers = true;
-                ska_array.filter(filter_threshold, const_sites, update_kmers);
+                ska_array.filter(filter_threshold, filter, update_kmers);
             }
 
             log::info!("Saving modified skf file");

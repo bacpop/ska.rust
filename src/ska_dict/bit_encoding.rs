@@ -56,6 +56,13 @@ pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
+/// Checks for A, C, G, T with ASCII input
+#[inline(always)]
+pub fn is_ambiguous(mut base: u8) -> bool {
+    base &= 0x5F; // to upper
+    !matches!(base, b'A' | b'C' | b'G' | b'T')
+}
+
 /// Decodes an encoded and packed split k-mer (64-bits) into strings for upper
 /// and lower parts.
 pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (String, String) {
