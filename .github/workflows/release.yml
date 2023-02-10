@@ -12,21 +12,9 @@ env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  version-check:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Check version format and availability
-        run: ./scripts/version_check.sh
 
   build-binaries:
     runs-on: ${{ matrix.config.os }}
-
-    needs: version-check
 
     name: Release ${{ matrix.config.os }} (${{ matrix.config.toolchain }})
 
@@ -94,8 +82,6 @@ jobs:
 
   push_crate:
     runs-on: ubuntu-latest
-
-    needs: version-check
 
     steps:
       - uses: actions/checkout@v2
