@@ -1,5 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
+use hashbrown::HashSet;
+
 pub mod common;
 use crate::common::{var_hash, TestDir, TestSetup};
 
@@ -122,6 +124,30 @@ fn rev_comp() {
         .stdout;
 
     assert_eq!(var_hash(&ss_aln).is_empty(), true);
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("build_k33")
+        .arg("-k")
+        .arg("33")
+        .arg("--single-strand")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .assert()
+        .success();
+
+    let fasta_align_out_k33 = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("build_k33.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['T', 'A'], vec!['G', 'A']]);
+    assert_eq!(var_hash(&fasta_align_out_k33), correct_aln);
 }
 
 #[test]
