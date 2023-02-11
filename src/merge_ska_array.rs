@@ -25,7 +25,7 @@ use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, RevComp};
+use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, UInt};
 use crate::ska_ref::RefSka;
 
 use crate::cli::FilterType;
@@ -84,7 +84,7 @@ pub struct MergeSkaArray<IntT> {
 
 impl<IntT> MergeSkaArray<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     /// Update `variant_count` after changing `variants`.
     ///
@@ -130,7 +130,7 @@ where
             variants,
             variant_count,
             ska_version: env!("CARGO_PKG_VERSION").to_string(),
-            k_bits: IntT::n_bits()
+            k_bits: IntT::n_bits(),
         }
     }
 
@@ -383,7 +383,7 @@ where
 /// Used with `ska nk`
 impl<IntT> fmt::Display for MergeSkaArray<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -405,7 +405,7 @@ where
 /// Used with `ska nk --full-info`
 impl<IntT> fmt::Debug for MergeSkaArray<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = IntT::generate_masks(self.k);

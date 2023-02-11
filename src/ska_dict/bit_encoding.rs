@@ -55,8 +55,8 @@ pub fn is_ambiguous(mut base: u8) -> bool {
     !matches!(base, b'A' | b'C' | b'G' | b'T')
 }
 
-/// Trait to allow both u64 and u128
-pub trait RevComp<'a>:
+/// Trait to support both `u64` and `u128` representation of split k-mers
+pub trait UInt<'a>:
     PrimInt
     + Unsigned
     + std::fmt::Display
@@ -82,17 +82,22 @@ pub trait RevComp<'a>:
     fn rev_comp(self, k_size: usize) -> Self;
     /// Get the lowest (furthest right) base, encoded
     fn lsb_u8(self) -> u8;
+    /// Convert to u8 as primitive
     fn as_u8(self) -> u8;
     /// Generate bit masks which can be applied to the packed k-mer representation
     /// too extract the upper and lower parts of the split k-mer (as bits).
     fn generate_masks(k: usize) -> (Self, Self);
+    /// Add a base into the split k-mer, so it can be hashed together
     fn add_base(self, encoded_base: u8) -> Self;
+    /// Set to zero
     fn zero_init() -> Self;
+    /// Convert from u8, encoded bases 0-3
     fn from_encoded_base(encoded_base: u8) -> Self;
+    /// Number of bits in the representation
     fn n_bits() -> u32;
 }
 
-impl<'a> RevComp<'a> for u64 {
+impl<'a> UInt<'a> for u64 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> Self {
         // This part reverses the bases by shuffling them using an on/off pattern
@@ -148,7 +153,7 @@ impl<'a> RevComp<'a> for u64 {
     }
 }
 
-impl<'a> RevComp<'a> for u128 {
+impl<'a> UInt<'a> for u128 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> u128 {
         // This part reverses the bases by shuffling them using an on/off pattern
@@ -220,7 +225,7 @@ pub fn decode_kmer<IntT>(
     lower_mask: IntT,
 ) -> (String, String)
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     let half_k: usize = (k - 1) / 2;
     let mut upper_bits = (kmer & upper_mask) >> (half_k * 2);
@@ -361,7 +366,7 @@ pub const IUPAC: [u8; 1024] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]; //240-255
 
-// IUPAC RevComp
+// IUPAC UInt
 // A -> T
 // C -> G
 // G -> C

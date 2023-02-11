@@ -12,7 +12,7 @@ use regex::Regex;
 
 use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
-use crate::ska_dict::bit_encoding::RevComp;
+use crate::ska_dict::bit_encoding::UInt;
 
 use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND};
 
@@ -50,7 +50,7 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
 /// If multiple files are given, they are assumed to be FASTA and
 /// [build_and_merge](`crate::merge_ska_dict::build_and_merge`) is used to
 /// create a merged dictionary, which is then converted to a merged array.
-pub fn load_array<IntT: for<'a> RevComp<'a>>(
+pub fn load_array<IntT: for<'a> UInt<'a>>(
     input: &[String],
     threads: usize,
 ) -> Result<MergeSkaArray<IntT>, Box<dyn Error>> {

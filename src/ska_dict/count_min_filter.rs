@@ -9,7 +9,7 @@
 
 use ahash::RandomState;
 
-use super::bit_encoding::RevComp;
+use super::bit_encoding::UInt;
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
@@ -101,7 +101,7 @@ impl CountMin {
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter<IntT: for<'a> RevComp<'a>>(&mut self, kmer: IntT, encoded_base: u8) -> bool {
+    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: IntT, encoded_base: u8) -> bool {
         // This is possible because of the k-mer size restriction, the top two
         // bit are always zero
         let kmer_and_base = kmer.add_base(encoded_base);

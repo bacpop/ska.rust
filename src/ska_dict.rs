@@ -24,7 +24,7 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::{decode_base, RevComp, IUPAC};
+use crate::ska_dict::bit_encoding::{decode_base, UInt, IUPAC};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
@@ -55,7 +55,7 @@ pub struct SkaDict<IntT> {
 
 impl<IntT> SkaDict<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
     /// only adds if passing through the countmin filter

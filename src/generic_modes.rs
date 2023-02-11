@@ -1,11 +1,19 @@
+//! Main control of most CLI functions, generic over `u64` and `u128`.
+//!
+//! Includes functions for `ska align`, `ska map`, `ska merge`, `ska delete`,
+//! and `ska weed`. These are needed as when loading an skf file we don't know
+//! what the int type used is, so we want to then dispatch the sucessfully loaded
+//! file to a generic function.
+
 use crate::cli::{FileType, FilterType};
 use crate::io_utils::set_ostream;
-use crate::merge_ska_dict::MergeSkaDict;
 use crate::merge_ska_array::MergeSkaArray;
-use crate::ska_dict::bit_encoding::RevComp;
+use crate::merge_ska_dict::MergeSkaDict;
+use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_ref::RefSka;
 
-pub fn align<IntT: for<'a> RevComp<'a>>(
+/// Filters alignment, and prints it out
+pub fn align<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     output: &Option<String>,
     filter: &FilterType,
@@ -28,7 +36,11 @@ pub fn align<IntT: for<'a> RevComp<'a>>(
         .expect("Couldn't write output fasta");
 }
 
-pub fn map<IntT: for<'a> RevComp<'a>>(
+/// Code for `ska map`
+///
+/// Convert array to dictionary representation, runs map against a reference,
+/// prints out in requested format.
+pub fn map<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     ska_ref: &mut RefSka<IntT>,
     output: &Option<String>,
@@ -58,7 +70,11 @@ pub fn map<IntT: for<'a> RevComp<'a>>(
     }
 }
 
-pub fn merge<IntT: for<'a> RevComp<'a>>(
+/// Merge multiple skf files. Need to give the first file separately to define
+/// the integer type.
+///
+/// Subsequent files are most easily passed as a slice with `[1..]`
+pub fn merge<IntT: for<'a> UInt<'a>>(
     first_array: &mut MergeSkaArray<IntT>,
     skf_files: &[String],
     output: &str,
@@ -79,7 +95,8 @@ pub fn merge<IntT: for<'a> RevComp<'a>>(
         .expect("Failed to save output file");
 }
 
-pub fn delete<IntT: for<'a> RevComp<'a>>(
+/// Delete files with passed names in the given array
+pub fn delete<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     delete_names: &[&str],
     out_file: &str,
@@ -93,7 +110,8 @@ pub fn delete<IntT: for<'a> RevComp<'a>>(
         .expect("Could not save modified array");
 }
 
-pub fn weed<IntT: for<'a> RevComp<'a>>(
+/// Remove k-mers, and optionally apply filters to an array
+pub fn weed<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     weed_file: &Option<String>,
     min_freq: f64,
@@ -125,7 +143,8 @@ pub fn weed<IntT: for<'a> RevComp<'a>>(
         .expect("Failed to save output file");
 }
 
-pub fn save_skf<IntT: for<'a> RevComp<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file: &str) {
+/// Covnvert a dictionary representation to an array and save to file
+pub fn save_skf<IntT: for<'a> UInt<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file: &str) {
     log::info!("Converting to array representation and saving");
     let ska_array = MergeSkaArray::new(ska_dict);
     ska_array

@@ -315,27 +315,15 @@ pub fn main() {
             let rc = !*single_strand;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict = build_and_merge::<u64>(
-                    &input_files,
-                    *k,
-                    rc,
-                    *min_count,
-                    *min_qual,
-                    *threads,
-                );
+                let merged_dict =
+                    build_and_merge::<u64>(&input_files, *k, rc, *min_count, *min_qual, *threads);
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict = build_and_merge::<u128>(
-                    &input_files,
-                    *k,
-                    rc,
-                    *min_count,
-                    *min_qual,
-                    *threads,
-                );
+                let merged_dict =
+                    build_and_merge::<u128>(&input_files, *k, rc, *min_count, *min_qual, *threads);
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
@@ -357,7 +345,7 @@ pub fn main() {
                 log::debug!("{ska_array}");
                 align(&mut ska_array, output, filter, *min_freq);
             } else {
-                panic!("Could not read input file(s): {:?}", input);
+                panic!("Could not read input file(s): {input:?}");
             }
         }
         Commands::Map {
@@ -387,7 +375,7 @@ pub fn main() {
                     RefSka::<u128>::new(ska_array.kmer_len(), reference, ska_array.rc());
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {
-                panic!("Could not read input file(s): {:?}", input);
+                panic!("Could not read input file(s): {input:?}");
             }
         }
         Commands::Merge { skf_files, output } => {
@@ -412,9 +400,9 @@ pub fn main() {
             let input_files = get_input_list(file_list, names);
             let input_names: Vec<&str> = input_files.iter().map(|t| &*t.0).collect();
             log::info!("Loading skf file");
-            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 delete(&mut ska_array, &input_names, skf_file);
-            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 delete(&mut ska_array, &input_names, skf_file);
             } else {
                 panic!("Could not read input file: {skf_file}");
@@ -427,10 +415,10 @@ pub fn main() {
             filter,
         } => {
             log::info!("Loading skf file");
-            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
-                weed(&mut ska_array, weed_file, *min_freq, filter, &skf_file);
-            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
-                weed(&mut ska_array, weed_file, *min_freq, filter, &skf_file);
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
+                weed(&mut ska_array, weed_file, *min_freq, filter, skf_file);
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
+                weed(&mut ska_array, weed_file, *min_freq, filter, skf_file);
             } else {
                 panic!("Could not read input file: {skf_file}");
             }
@@ -439,13 +427,13 @@ pub fn main() {
             skf_file,
             full_info,
         } => {
-            if let Ok(ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
+            if let Ok(ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 println!("{ska_array}");
                 if *full_info {
                     log::info!("Printing full info");
                     println!("{ska_array:?}");
                 }
-            } else if let Ok(ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
+            } else if let Ok(ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 println!("{ska_array}");
                 if *full_info {
                     log::info!("Printing full info");

@@ -52,7 +52,7 @@ pub struct SplitKmer<'a, IntT> {
     rc_middle_base: u8,
 }
 
-impl<'a, IntT: for<'b> RevComp<'b>> SplitKmer<'a, IntT> {
+impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     /// Quality score is at least minimum.
     #[inline(always)]
     fn valid_qual(idx: usize, qual: Option<&'a [u8]>, min_qual: u8) -> bool {
@@ -157,7 +157,8 @@ impl<'a, IntT: for<'b> RevComp<'b>> SplitKmer<'a, IntT> {
                 & self.upper_mask;
             self.middle_base = (self.lower >> (2 * (half_k - 1))).as_u8();
             let new_base = encode_base(base);
-            self.lower = ((self.lower << 2) | (IntT::from_encoded_base(new_base))) & self.lower_mask;
+            self.lower =
+                ((self.lower << 2) | (IntT::from_encoded_base(new_base))) & self.lower_mask;
             if self.rc {
                 self.rc_lower = (self.rc_lower >> 2
                     | ((IntT::from_encoded_base(self.rc_middle_base)) << (2 * (half_k - 1))))

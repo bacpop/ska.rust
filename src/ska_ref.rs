@@ -61,7 +61,7 @@ pub mod idx_check;
 use crate::ska_ref::idx_check::IdxCheck;
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{RevComp, RC_IUPAC};
+use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
@@ -88,7 +88,7 @@ pub struct RefKmer<IntT> {
 /// bases and positions will also be populated.
 pub struct RefSka<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     /// k-mer size
     k: usize,
@@ -133,7 +133,7 @@ fn gt_keys() -> Keys {
 
 impl<IntT> RefSka<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {

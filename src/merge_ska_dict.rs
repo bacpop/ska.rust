@@ -14,7 +14,7 @@ use hashbrown::HashMap;
 use indicatif::{ParallelProgressIterator, ProgressIterator};
 use rayon::prelude::*;
 
-use crate::ska_dict::bit_encoding::RevComp;
+use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
 /// Tuple for name and fasta or paired fastq input
@@ -36,7 +36,7 @@ pub struct MergeSkaDict<IntT> {
 
 impl<IntT> MergeSkaDict<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     /// Create an empty merged dictionary, to be used with [`MergeSkaDict::merge()`]
     /// or [`MergeSkaDict::append()`].
@@ -229,7 +229,7 @@ fn multi_append<IntT>(
     rc: bool,
 ) -> MergeSkaDict<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
     for ska_dict in &mut input_dicts.iter() {
@@ -250,7 +250,7 @@ fn parallel_append<IntT>(
     rc: bool,
 ) -> MergeSkaDict<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     let (bottom, top) = dict_list.split_at_mut(dict_list.len() / 2);
     if depth == 1 {
@@ -302,7 +302,7 @@ pub fn build_and_merge<IntT>(
     threads: usize,
 ) -> MergeSkaDict<IntT>
 where
-    IntT: for<'a> RevComp<'a>,
+    IntT: for<'a> UInt<'a>,
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
