@@ -64,8 +64,7 @@ use crate::ska_dict::split_kmer::SplitKmer;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
 #[derive(Debug, Clone)]
-pub struct RefKmer<IntT>
-{
+pub struct RefKmer<IntT> {
     /// Encoded split k-mer
     pub kmer: IntT,
     /// Middle base

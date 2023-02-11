@@ -278,8 +278,8 @@ use crate::ska_ref::RefSka;
 pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
 
-pub mod align;
-use crate::align::align;
+pub mod generic_modes;
+use crate::generic_modes::*;
 
 pub mod cli;
 use crate::cli::*;
@@ -377,32 +377,26 @@ pub fn main() {
             threads,
         } => {
             log::info!("Loading skf as dictionary");
-            let ska_dict = load_array(input, *threads).to_dict();
-
-            log::info!(
-                "Making skf of reference k={} rc={}",
-                ska_dict.kmer_len(),
-                ska_dict.rc()
-            );
-            let mut ska_ref = RefSka::new(ska_dict.kmer_len(), reference, ska_dict.rc());
-
-            log::info!("Mapping");
-            ska_ref.map(&ska_dict);
-
-            let mut out_stream = set_ostream(output);
-            match format {
-                FileType::Aln => {
-                    log::info!("Generating alignment with {} threads", *threads);
-                    ska_ref
-                        .write_aln(&mut out_stream, *threads)
-                        .expect("Failed to write output alignment");
-                }
-                FileType::Vcf => {
-                    log::info!("Generating VCF with {} threads", *threads);
-                    ska_ref
-                        .write_vcf(&mut out_stream, *threads)
-                        .expect("Failed to write output VCF");
-                }
+            if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
+                log::info!(
+                    "Making skf of reference k={} rc={}",
+                    ska_array.kmer_len(),
+                    ska_array.rc()
+                );
+                let mut ska_ref =
+                    RefSka::<u64>::new(ska_array.kmer_len(), reference, ska_array.rc());
+                map(&mut ska_array, &mut ska_ref, output, format, *threads);
+            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
+                log::info!(
+                    "Making skf of reference k={} rc={}",
+                    ska_array.kmer_len(),
+                    ska_array.rc()
+                );
+                let mut ska_ref =
+                    RefSka::<u128>::new(ska_array.kmer_len(), reference, ska_array.rc());
+                map(&mut ska_array, &mut ska_ref, output, format, *threads);
+            } else {
+                panic!("Could not read input file(s): {:?}", input);
             }
         }
         Commands::Merge { skf_files, output } => {
@@ -411,40 +405,29 @@ pub fn main() {
             }
 
             log::info!("Loading first alignment");
-            let first_array =
-                MergeSkaArray::load(&skf_files[0]).expect("Failed to load input file");
-            let mut merged_dict = first_array.to_dict();
-
-            for (file_idx, skf_in) in skf_files.iter().enumerate().skip(1) {
-                log::info!("Merging alignment {}", format!("{}", file_idx + 1));
-                let next_array = MergeSkaArray::load(skf_in).expect("Failed to load input file");
-                merged_dict.extend(&mut next_array.to_dict());
+            if let Ok(mut first_array) = MergeSkaArray::<u64>::load(&skf_files[0]) {
+                merge(&mut first_array, &skf_files[1..], output);
+            } else if let Ok(mut first_array) = MergeSkaArray::<u128>::load(&skf_files[0]) {
+                merge(&mut first_array, &skf_files[1..], output);
+            } else {
+                panic!("Could not read input file: {}", skf_files[0]);
             }
-
-            log::info!("Converting and saving merged alignment");
-            let merged_array = MergeSkaArray::new(&merged_dict);
-            merged_array
-                .save(format!("{output}.skf").as_str())
-                .expect("Failed to save output file");
         }
         Commands::Delete {
             skf_file,
             file_list,
             names,
         } => {
-            log::info!("Loading skf file");
-            let mut ska_array =
-                MergeSkaArray::load(skf_file).expect("Could not load input skf file");
             let input_files = get_input_list(file_list, names);
-
-            log::info!("Deleting samples");
             let input_names: Vec<&str> = input_files.iter().map(|t| &*t.0).collect();
-            ska_array.delete_samples(&input_names);
-
-            log::info!("Saving modified skf file");
-            ska_array
-                .save(skf_file)
-                .expect("Could not save modified array");
+            log::info!("Loading skf file");
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
+                delete(&mut ska_array, &input_names, skf_file);
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
+                delete(&mut ska_array, &input_names, skf_file);
+            } else {
+                panic!("Could not read input file: {skf_file}");
+            }
         }
         Commands::Weed {
             skf_file,
@@ -453,45 +436,32 @@ pub fn main() {
             filter,
         } => {
             log::info!("Loading skf file");
-            let mut ska_array = MergeSkaArray::load(skf_file.as_str()).unwrap();
-
-            if let Some(weed_fasta) = weed_file {
-                log::info!(
-                    "Making skf of weed file k={} rc={}",
-                    ska_array.kmer_len(),
-                    ska_array.rc()
-                );
-                let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc());
-
-                log::info!("Removing weed k-mers");
-                ska_array.weed(&ska_weed);
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
+                weed(&mut ska_array, weed_file, *min_freq, filter, &skf_file);
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
+                weed(&mut ska_array, weed_file, *min_freq, filter, &skf_file);
+            } else {
+                panic!("Could not read input file: {skf_file}");
             }
-
-            let filter_threshold = f64::floor(ska_array.nsamples() as f64 * *min_freq) as usize;
-            if filter_threshold > 0 || *filter != FilterType::NoFilter {
-                log::info!(
-                    "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
-                );
-                let update_kmers = true;
-                ska_array.filter(filter_threshold, filter, update_kmers);
-            }
-
-            log::info!("Saving modified skf file");
-            ska_array
-                .save(skf_file.as_str())
-                .expect("Failed to save output file");
         }
         Commands::Nk {
             skf_file,
             full_info,
         } => {
-            log::info!("Printing basic info");
-            let ska_array = MergeSkaArray::load(skf_file).unwrap();
-            println!("{ska_array}");
-
-            if *full_info {
-                log::info!("Printing full info");
-                println!("{ska_array:?}");
+            if let Ok(ska_array) = MergeSkaArray::<u64>::load(&skf_file) {
+                println!("{ska_array}");
+                if *full_info {
+                    log::info!("Printing full info");
+                    println!("{ska_array:?}");
+                }
+            } else if let Ok(ska_array) = MergeSkaArray::<u128>::load(&skf_file) {
+                println!("{ska_array}");
+                if *full_info {
+                    log::info!("Printing full info");
+                    println!("{ska_array:?}");
+                }
+            } else {
+                panic!("Could not read input file: {skf_file}");
             }
         }
     }

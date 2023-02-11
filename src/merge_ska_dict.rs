@@ -21,8 +21,7 @@ use crate::ska_dict::SkaDict;
 pub type InputFastx = (String, String, Option<String>);
 
 /// Merged dictionary with names, and middle bases in [`Vec<u8>`] in the same order.
-pub struct MergeSkaDict<IntT>
-{
+pub struct MergeSkaDict<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse complement split k-mers were used

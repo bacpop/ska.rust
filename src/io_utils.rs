@@ -53,8 +53,7 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
 pub fn load_array<IntT: for<'a> RevComp<'a>>(
     input: &[String],
     threads: usize,
-) -> Result<MergeSkaArray<IntT>, Box<dyn Error>>
-{
+) -> Result<MergeSkaArray<IntT>, Box<dyn Error>> {
     // Obtain a merged ska array
     if input.len() == 1 {
         log::info!("Single file as input, trying to load as skf");

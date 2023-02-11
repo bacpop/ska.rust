@@ -38,8 +38,7 @@ const CM_HEIGHT: usize = 4;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
-pub struct SkaDict<IntT>
-{
+pub struct SkaDict<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse-complement was counted

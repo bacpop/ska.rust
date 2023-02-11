@@ -63,8 +63,7 @@ use crate::cli::FilterType;
 /// ska_array.weed(&ska_weed);
 /// ```
 #[derive(Serialize, Deserialize)]
-pub struct MergeSkaArray<IntT>
-{
+pub struct MergeSkaArray<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse complement split k-mers were used
@@ -77,6 +76,8 @@ pub struct MergeSkaArray<IntT>
     variants: Array2<u8>,
     /// Count of non-missing bases for each split k-mer
     variant_count: Vec<usize>,
+    /// SKA version
+    ska_version: String,
 }
 
 impl<IntT> MergeSkaArray<IntT>
@@ -126,6 +127,7 @@ where
             split_kmers,
             variants,
             variant_count,
+            ska_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 
@@ -383,7 +385,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "k={}\nrc={}\n{} k-mers\n{} samples\n",
+            "ska_version={}\nk={}\nrc={}\n{} k-mers\n{} samples\n",
+            self.ska_version,
             self.kmer_len(),
             self.rc(),
             self.ksize(),
