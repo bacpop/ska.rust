@@ -78,6 +78,8 @@ pub struct MergeSkaArray<IntT> {
     variant_count: Vec<usize>,
     /// SKA version
     ska_version: String,
+    /// k-mer bits
+    k_bits: u32,
 }
 
 impl<IntT> MergeSkaArray<IntT>
@@ -128,6 +130,7 @@ where
             variants,
             variant_count,
             ska_version: env!("CARGO_PKG_VERSION").to_string(),
+            k_bits: IntT::n_bits()
         }
     }
 
@@ -385,9 +388,10 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "ska_version={}\nk={}\nrc={}\n{} k-mers\n{} samples\n",
+            "ska_version={}\nk={}\nk_bits={}\nrc={}\n{} k-mers\n{} samples\n",
             self.ska_version,
             self.kmer_len(),
+            self.k_bits,
             self.rc(),
             self.ksize(),
             self.nsamples()

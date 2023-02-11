@@ -267,7 +267,6 @@
 //!
 
 #![warn(missing_docs)]
-use std::cmp::min;
 use std::time::Instant;
 
 pub mod merge_ska_dict;
@@ -459,9 +458,7 @@ pub fn main() {
     let end = Instant::now();
 
     eprintln!("SKA done in {}s", end.duration_since(start).as_secs());
-    eprintln!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
-    eprintln!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
-    eprintln!("⬛⬜⬛⬜⬛⬜⬛⬜⬛⬜");
-    eprintln!("⬜⬛⬜⬛⬜⬛⬜⬛⬜⬛");
+    eprintln!("⬛⬜⬛⬜⬛⬜⬛");
+    eprintln!("⬜⬛⬜⬛⬜⬛⬜");
     log::info!("Complete");
 }

@@ -59,6 +59,8 @@ pub fn is_ambiguous(mut base: u8) -> bool {
 pub trait RevComp<'a>:
     PrimInt
     + Unsigned
+    + std::fmt::Display
+    + std::fmt::Debug
     + std::marker::Send
     + std::marker::Sync
     + std::hash::Hash
@@ -87,6 +89,7 @@ pub trait RevComp<'a>:
     fn add_base(self, encoded_base: u8) -> Self;
     fn zero_init() -> Self;
     fn from_encoded_base(encoded_base: u8) -> Self;
+    fn n_bits() -> u32;
 }
 
 impl<'a> RevComp<'a> for u64 {
@@ -130,13 +133,18 @@ impl<'a> RevComp<'a> for u64 {
     }
 
     #[inline(always)]
-    fn zero_init() -> u64 {
+    fn zero_init() -> Self {
         0
     }
 
     #[inline(always)]
-    fn from_encoded_base(encoded_base: u8) -> u64 {
-        encoded_base as u64
+    fn from_encoded_base(encoded_base: u8) -> Self {
+        encoded_base as Self
+    }
+
+    #[inline(always)]
+    fn n_bits() -> u32 {
+        Self::BITS
     }
 }
 
@@ -188,13 +196,18 @@ impl<'a> RevComp<'a> for u128 {
     }
 
     #[inline(always)]
-    fn zero_init() -> u128 {
+    fn zero_init() -> Self {
         0
     }
 
     #[inline(always)]
-    fn from_encoded_base(encoded_base: u8) -> u128 {
-        encoded_base as u128
+    fn from_encoded_base(encoded_base: u8) -> Self {
+        encoded_base as Self
+    }
+
+    #[inline(always)]
+    fn n_bits() -> u32 {
+        Self::BITS
     }
 }
 

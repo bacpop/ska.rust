@@ -29,7 +29,7 @@ fn map_aln() {
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
         .args(&["-v", "--threads", "2"])
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_aln.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_aln.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -37,7 +37,7 @@ fn map_aln() {
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_aln_k9.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_aln_k9.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -45,7 +45,7 @@ fn map_aln() {
         .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_aln_two_chrom.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_aln_two_chrom.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -54,7 +54,7 @@ fn map_aln() {
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("indel_test.fa", TestDir::Input))
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_aln_indels.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_aln_indels.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -94,7 +94,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -105,7 +105,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_vcf_indels.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_vcf_indels.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn map_rev_comp() {
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg("ss_map.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_ss.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_ss.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -173,5 +173,5 @@ fn map_rev_comp() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_vcf_ss.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_vcf_ss.stdout", TestDir::Correct));
 }

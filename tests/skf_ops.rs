@@ -104,7 +104,7 @@ fn weed() {
         .arg("align")
         .arg("merge.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("weed_align.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("weed_align.stdout", TestDir::Correct));
 
     // With const sites/filter and nk full info
     Command::new(cargo_bin("ska"))

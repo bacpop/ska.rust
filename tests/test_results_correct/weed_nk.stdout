@@ -1,4 +1,6 @@
+ska_version=[..]
 k=17
+k_bits=64
 rc=true
 1 k-mers
 2 samples

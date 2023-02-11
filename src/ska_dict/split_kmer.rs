@@ -157,7 +157,7 @@ impl<'a, IntT: for<'b> RevComp<'b>> SplitKmer<'a, IntT> {
                 & self.upper_mask;
             self.middle_base = (self.lower >> (2 * (half_k - 1))).as_u8();
             let new_base = encode_base(base);
-            self.lower = (self.lower << 2) | (IntT::from_encoded_base(new_base)) & self.lower_mask;
+            self.lower = ((self.lower << 2) | (IntT::from_encoded_base(new_base))) & self.lower_mask;
             if self.rc {
                 self.rc_lower = (self.rc_lower >> 2
                     | ((IntT::from_encoded_base(self.rc_middle_base)) << (2 * (half_k - 1))))
@@ -222,12 +222,12 @@ impl<'a, IntT: for<'b> RevComp<'b>> SplitKmer<'a, IntT> {
     pub fn get_curr_kmer(&self) -> (IntT, u8, bool) {
         let split_kmer = self.upper | self.lower;
         // Some of the most useful prints for debugging left as comments here
-        // let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
-        // println!("{} {}", upper, lower);
+        //let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
+        //println!("{} {} {}", upper, lower, self.middle_base);
         if self.rc {
             let rc_split_kmer = self.rc_upper | self.rc_lower;
-            // let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
-            // println!("{} {}", upper_rc, lower_rc);
+            //let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
+            //println!("{} {} {}", upper_rc, lower_rc, self.rc_middle_base);
             if split_kmer > rc_split_kmer {
                 return (rc_split_kmer, self.rc_middle_base, true);
             }

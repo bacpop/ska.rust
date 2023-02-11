@@ -23,7 +23,7 @@ fn align_n() {
         .arg("align")
         .arg("N_test.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("align_N.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("align_N.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn map_n() {
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg("N_test.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_N.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_N.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn repeats() {
         .arg("align")
         .arg("dup_ss.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("dup_ss.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("dup_ss.stdout", TestDir::Correct));
 
     // Also tests this is just a single variant
     Command::new(cargo_bin("ska"))
@@ -187,5 +187,5 @@ fn repeats() {
         .arg("align")
         .arg("dup_rc.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
 }
