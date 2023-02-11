@@ -127,7 +127,7 @@ where
     /// # Panics
     ///
     /// Panics if:
-    /// - k-mer length is invalid (<5, >31 or even)
+    /// - k-mer length is invalid (<5, >63 or even)
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
@@ -140,7 +140,7 @@ where
         min_count: u16,
         min_qual: u8,
     ) -> Self {
-        if !(5..=31).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
 

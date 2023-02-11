@@ -144,14 +144,14 @@ where
     /// their indexes maintained).
     ///
     /// # Panics
-    /// If an invalid k-mer length (<5, >31 or even) is used.
+    /// If an invalid k-mer length (<5, >63 or even) is used.
     ///
     /// Or if input file is invalid:
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
-        if !(5..=31).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
 

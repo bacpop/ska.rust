@@ -19,8 +19,8 @@ fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
         .parse()
         .map_err(|_| format!("`{s}` isn't a valid k-mer"))?;
-    if !(5..=31).contains(&k) || k % 2 == 0 {
-        Err("K-mer must an odd number between 5 and 31 (inclusive)".to_string())
+    if !(5..=63).contains(&k) || k % 2 == 0 {
+        Err("K-mer must an odd number between 5 and 63 (inclusive)".to_string())
     } else {
         Ok(k)
     }
