@@ -287,7 +287,7 @@ where
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge(&input_files, 17, true, 0, 0, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, 1);
 /// ```
 ///
 /// # Panics

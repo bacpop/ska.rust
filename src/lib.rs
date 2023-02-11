@@ -225,8 +225,9 @@
 //! let min_count = 1;
 //! let min_qual = 0;
 //! let threads = 2;
+//! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge(&input_files, k, rc, min_count, min_qual, threads);
+//!     build_and_merge::<u64>(&input_files, k, rc, min_count, min_qual, threads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -243,7 +244,7 @@
 //! // Load an .skf file
 //! let threads = 4;
 //! let input = vec!["tests/test_files_in/merge.skf".to_string()];
-//! let mut ska_array = load_array(&input, threads);
+//! let mut ska_array = load_array::<u64>(&input, threads).expect("Could not open input as u64");
 //!
 //! // Apply filters
 //! let min_count = 2;

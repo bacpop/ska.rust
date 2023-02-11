@@ -42,7 +42,7 @@ use crate::cli::FilterType;
 /// use ska::cli::FilterType;
 ///
 /// // Load an array from file
-/// let mut ska_array = MergeSkaArray::load(&"tests/test_files_in/merge.skf").expect("Could not open array");
+/// let mut ska_array = MergeSkaArray::<u64>::load(&"tests/test_files_in/merge.skf").expect("Could not open array");
 ///
 /// // Write alignment as FASTA on stdout
 /// let mut alignment_file = set_ostream(&None);

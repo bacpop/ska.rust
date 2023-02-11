@@ -15,7 +15,9 @@
 //!
 //! // Load a saved array from build, convert to dict representation
 //! let threads = 1;
-//! let ska_dict = load_array(&["tests/test_files_in/merge.skf".to_string()], threads).to_dict();
+//! // If you don't know whether u64 or u128, try one and handle the error
+//! // see lib.rs for examples
+//! let ska_dict = load_array::<u64>(&["tests/test_files_in/merge.skf".to_string()], threads).unwrap().to_dict();
 //!
 //! // Index a reference sequence
 //! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc());
