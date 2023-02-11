@@ -64,8 +64,6 @@ use crate::cli::FilterType;
 /// ```
 #[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray<IntT>
-where
-    IntT: RevComp
 {
     /// K-mer size
     k: usize,
@@ -83,7 +81,7 @@ where
 
 impl<IntT> MergeSkaArray<IntT>
 where
-    IntT: RevComp
+    IntT: for<'a> RevComp<'a>,
 {
     /// Update `variant_count` after changing `variants`.
     ///
@@ -380,7 +378,7 @@ where
 /// Used with `ska nk`
 impl<IntT> fmt::Display for MergeSkaArray<IntT>
 where
-    IntT: RevComp
+    IntT: for<'a> RevComp<'a>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -400,7 +398,7 @@ where
 /// Used with `ska nk --full-info`
 impl<IntT> fmt::Debug for MergeSkaArray<IntT>
 where
-    IntT: RevComp
+    IntT: for<'a> RevComp<'a>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (lower_mask, upper_mask) = IntT::generate_masks(self.k);

@@ -19,7 +19,7 @@ use std::cmp::Ordering;
 /// Holds reference to input sequence, current encoded k-mer, and other
 /// information (k-mer size, masks etc.)
 #[derive(Debug)]
-pub struct SplitKmer<'a, IntT: RevComp> {
+pub struct SplitKmer<'a, IntT> {
     /// K-mer size
     k: usize,
     /// Mask to extract upper k-mer
@@ -52,7 +52,7 @@ pub struct SplitKmer<'a, IntT: RevComp> {
     rc_middle_base: u8,
 }
 
-impl<'a, IntT: RevComp> SplitKmer<'a, IntT> {
+impl<'a, IntT: for<'b> RevComp<'b>> SplitKmer<'a, IntT> {
     /// Quality score is at least minimum.
     #[inline(always)]
     fn valid_qual(idx: usize, qual: Option<&'a [u8]>, min_qual: u8) -> bool {
@@ -152,8 +152,9 @@ impl<'a, IntT: RevComp> SplitKmer<'a, IntT> {
             }
         } else {
             let half_k: usize = (self.k - 1) / 2;
-            self.upper =
-                (self.upper << 2 | (IntT::from_encoded_base(self.middle_base) << (half_k * 2))) & self.upper_mask;
+            self.upper = (self.upper << 2
+                | (IntT::from_encoded_base(self.middle_base) << (half_k * 2)))
+                & self.upper_mask;
             self.middle_base = (self.lower >> (2 * (half_k - 1))).as_u8();
             let new_base = encode_base(base);
             self.lower = (self.lower << 2) | (IntT::from_encoded_base(new_base)) & self.lower_mask;

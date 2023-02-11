@@ -266,6 +266,7 @@
 //!
 
 #![warn(missing_docs)]
+use std::cmp::min;
 use std::time::Instant;
 
 pub mod merge_ska_dict;
@@ -276,6 +277,9 @@ pub mod ska_ref;
 use crate::ska_ref::RefSka;
 pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
+
+pub mod align;
+use crate::align::align;
 
 pub mod cli;
 use crate::cli::*;
@@ -309,8 +313,16 @@ pub fn main() {
             // Build, merge
             let rc = !*single_strand;
             if *k <= 31 {
-                let merged_dict: MergeSkaDict<u64> =
-                    build_and_merge::<u64>(&input_files, *k, rc, *min_count, *min_qual, *threads);
+                log::info!("k={}: using 64-bit representation", *k);
+                type IntSize = u64;
+                let merged_dict = build_and_merge::<IntSize>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    *threads,
+                );
 
                 // Save
                 log::info!("Converting to array representation and saving");
@@ -318,7 +330,25 @@ pub fn main() {
                 ska_array
                     .save(format!("{output}.skf").as_str())
                     .expect("Failed to save output file");
-                }
+            } else {
+                log::info!("k={}: using 128-bit representation", *k);
+                type IntSize = u128;
+                let merged_dict = build_and_merge::<IntSize>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    *threads,
+                );
+
+                // Save
+                log::info!("Converting to array representation and saving");
+                let ska_array = MergeSkaArray::new(&merged_dict);
+                ska_array
+                    .save(format!("{output}.skf").as_str())
+                    .expect("Failed to save output file");
+            }
         }
         Commands::Align {
             input,
@@ -327,24 +357,17 @@ pub fn main() {
             filter,
             threads,
         } => {
-            let mut ska_array = load_array(input, *threads);
-            // In debug mode (cannot be set from CLI, give details)
-            log::debug!("{ska_array}");
-
-            // Apply filters
-            let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * *min_freq) as usize;
-            let update_kmers = false;
-            log::info!(
-                "Applying filters: threshold={filter_threshold} constant_site_filter={filter}"
-            );
-            ska_array.filter(filter_threshold, filter, update_kmers);
-
-            // Write out to file/stdout
-            let mut out_stream = set_ostream(output);
-            log::info!("Writing alignment");
-            ska_array
-                .write_fasta(&mut out_stream)
-                .expect("Couldn't write output fasta");
+            if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                align(&mut ska_array, output, filter, *min_freq);
+            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                align(&mut ska_array, output, filter, *min_freq);
+            } else {
+                panic!("Could not read input file(s): {:?}", input);
+            }
         }
         Commands::Map {
             reference,

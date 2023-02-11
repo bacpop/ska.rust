@@ -3,6 +3,7 @@
 //! The functions are used by a few different subcommands to set correct
 //! args to build structs, given the command line input
 
+use std::error::Error;
 use std::fs::File;
 use std::io::{stdout, BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
@@ -49,14 +50,15 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
 /// If multiple files are given, they are assumed to be FASTA and
 /// [build_and_merge](`crate::merge_ska_dict::build_and_merge`) is used to
 /// create a merged dictionary, which is then converted to a merged array.
-pub fn load_array<IntT>(input: &[String], threads: usize) -> MergeSkaArray<IntT>
-where
-    IntT: std::hash::Hash + std::cmp::Eq + RevComp
+pub fn load_array<IntT: for<'a> RevComp<'a>>(
+    input: &[String],
+    threads: usize,
+) -> Result<MergeSkaArray<IntT>, Box<dyn Error>>
 {
     // Obtain a merged ska array
     if input.len() == 1 {
         log::info!("Single file as input, trying to load as skf");
-        MergeSkaArray::load(input[0].as_str()).unwrap()
+        MergeSkaArray::load(input[0].as_str())
     } else {
         log::info!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
@@ -68,7 +70,7 @@ where
             DEFAULT_MINQUAL,
             threads,
         );
-        MergeSkaArray::new(&merged_dict)
+        Ok(MergeSkaArray::new(&merged_dict))
     }
 }
 

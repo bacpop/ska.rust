@@ -56,8 +56,19 @@ pub fn is_ambiguous(mut base: u8) -> bool {
 }
 
 /// Trait to allow both u64 and u128
-pub trait RevComp:
-    PrimInt + Unsigned + std::marker::Send + std::marker::Sync + std::hash::Hash + serde::Serialize + std::ops::Shl<usize, Output = Self> + std::ops::BitAnd + std::ops::ShrAssign<i32> + std::ops::ShlAssign<i32> + std::ops::BitOrAssign
+pub trait RevComp<'a>:
+    PrimInt
+    + Unsigned
+    + std::marker::Send
+    + std::marker::Sync
+    + std::hash::Hash
+    + serde::Serialize
+    + std::ops::Shl<usize, Output = Self>
+    + std::ops::BitAnd
+    + std::ops::ShrAssign<i32>
+    + std::ops::ShlAssign<i32>
+    + std::ops::BitOrAssign
+    + serde::Deserialize<'a>
 {
     /// Reverse complement of an encoded and packed split k-mer (64-bits).
     ///
@@ -78,7 +89,7 @@ pub trait RevComp:
     fn from_encoded_base(encoded_base: u8) -> Self;
 }
 
-impl RevComp for u64 {
+impl<'a> RevComp<'a> for u64 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> Self {
         // This part reverses the bases by shuffling them using an on/off pattern
@@ -106,8 +117,7 @@ impl RevComp for u64 {
     }
 
     #[inline(always)]
-    fn generate_masks(k: usize) -> (Self, Self)
-    {
+    fn generate_masks(k: usize) -> (Self, Self) {
         let half_size: usize = (k - 1) / 2;
         let lower_mask: Self = (1 << (half_size * 2)) - 1;
         let upper_mask: Self = lower_mask << (half_size * 2);
@@ -130,17 +140,23 @@ impl RevComp for u64 {
     }
 }
 
-impl RevComp for u128 {
+impl<'a> RevComp<'a> for u128 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> u128 {
         // This part reverses the bases by shuffling them using an on/off pattern
         // of bits
-        self = (self >> 2 & 0x33333333333333333333333333333333) | (self & 0x33333333333333333333333333333333) << 2;
-        self = (self >> 4 & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F) | (self & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F) << 4;
-        self = (self >> 8 & 0x00FF00FF00FF00FF00FF00FF00FF00FF) | (self & 0x00FF00FF00FF00FF00FF00FF00FF00FF) << 8;
-        self = (self >> 16 & 0x0000FFFF0000FFFF0000FFFF0000FFFF) | (self & 0x0000FFFF0000FFFF0000FFFF0000FFFF) << 16;
-        self = (self >> 32 & 0x00000000FFFFFFFF00000000FFFFFFFF) | (self & 0x00000000FFFFFFFF00000000FFFFFFFF) << 32;
-        self = (self >> 64 & 0x0000000000000000FFFFFFFFFFFFFFFF) | (self & 0x0000000000000000FFFFFFFFFFFFFFFF) << 64;
+        self = (self >> 2 & 0x33333333333333333333333333333333)
+            | (self & 0x33333333333333333333333333333333) << 2;
+        self = (self >> 4 & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F)
+            | (self & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F) << 4;
+        self = (self >> 8 & 0x00FF00FF00FF00FF00FF00FF00FF00FF)
+            | (self & 0x00FF00FF00FF00FF00FF00FF00FF00FF) << 8;
+        self = (self >> 16 & 0x0000FFFF0000FFFF0000FFFF0000FFFF)
+            | (self & 0x0000FFFF0000FFFF0000FFFF0000FFFF) << 16;
+        self = (self >> 32 & 0x00000000FFFFFFFF00000000FFFFFFFF)
+            | (self & 0x00000000FFFFFFFF00000000FFFFFFFF) << 32;
+        self = (self >> 64 & 0x0000000000000000FFFFFFFFFFFFFFFF)
+            | (self & 0x0000000000000000FFFFFFFFFFFFFFFF) << 64;
         // This reverse complements
         self ^= 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;
 
@@ -159,8 +175,7 @@ impl RevComp for u128 {
     }
 
     #[inline(always)]
-    fn generate_masks(k: usize) -> (Self, Self)
-    {
+    fn generate_masks(k: usize) -> (Self, Self) {
         let half_size: usize = (k - 1) / 2;
         let lower_mask: Self = (1 << (half_size * 2)) - 1;
         let upper_mask: Self = lower_mask << (half_size * 2);
@@ -185,11 +200,15 @@ impl RevComp for u128 {
 
 /// Decodes an encoded and packed split k-mer (64-bits) into strings for upper
 /// and lower parts.
-pub fn decode_kmer<IntT>(k: usize, kmer: IntT, upper_mask: IntT, lower_mask: IntT)
- -> (String, String)
+pub fn decode_kmer<IntT>(
+    k: usize,
+    kmer: IntT,
+    upper_mask: IntT,
+    lower_mask: IntT,
+) -> (String, String)
 where
-    IntT: RevComp
- {
+    IntT: for<'a> RevComp<'a>,
+{
     let half_k: usize = (k - 1) / 2;
     let mut upper_bits = (kmer & upper_mask) >> (half_k * 2);
     let mut upper_kmer = String::with_capacity(half_k);

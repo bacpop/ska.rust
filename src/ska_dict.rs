@@ -24,7 +24,7 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::{decode_base, IUPAC, RevComp};
+use crate::ska_dict::bit_encoding::{decode_base, RevComp, IUPAC};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
@@ -39,8 +39,6 @@ const CM_HEIGHT: usize = 4;
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
 pub struct SkaDict<IntT>
-where
-    IntT: RevComp
 {
     /// K-mer size
     k: usize,
@@ -58,7 +56,7 @@ where
 
 impl<IntT> SkaDict<IntT>
 where
-    IntT: RevComp
+    IntT: for<'a> RevComp<'a>,
 {
     /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
     /// only adds if passing through the countmin filter
