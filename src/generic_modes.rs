@@ -1,5 +1,6 @@
 use crate::cli::{FileType, FilterType};
 use crate::io_utils::set_ostream;
+use crate::merge_ska_dict::MergeSkaDict;
 use crate::merge_ska_array::MergeSkaArray;
 use crate::ska_dict::bit_encoding::RevComp;
 use crate::ska_ref::RefSka;
@@ -119,6 +120,14 @@ pub fn weed<IntT: for<'a> RevComp<'a>>(
     }
 
     log::info!("Saving modified skf file");
+    ska_array
+        .save(out_file)
+        .expect("Failed to save output file");
+}
+
+pub fn save_skf<IntT: for<'a> RevComp<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file: &str) {
+    log::info!("Converting to array representation and saving");
+    let ska_array = MergeSkaArray::new(ska_dict);
     ska_array
         .save(out_file)
         .expect("Failed to save output file");

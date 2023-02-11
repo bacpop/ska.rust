@@ -315,8 +315,7 @@ pub fn main() {
             let rc = !*single_strand;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                type IntSize = u64;
-                let merged_dict = build_and_merge::<IntSize>(
+                let merged_dict = build_and_merge::<u64>(
                     &input_files,
                     *k,
                     rc,
@@ -326,15 +325,10 @@ pub fn main() {
                 );
 
                 // Save
-                log::info!("Converting to array representation and saving");
-                let ska_array = MergeSkaArray::new(&merged_dict);
-                ska_array
-                    .save(format!("{output}.skf").as_str())
-                    .expect("Failed to save output file");
+                save_skf(&merged_dict, format!("{output}.skf").as_str());
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                type IntSize = u128;
-                let merged_dict = build_and_merge::<IntSize>(
+                let merged_dict = build_and_merge::<u128>(
                     &input_files,
                     *k,
                     rc,
@@ -344,11 +338,7 @@ pub fn main() {
                 );
 
                 // Save
-                log::info!("Converting to array representation and saving");
-                let ska_array = MergeSkaArray::new(&merged_dict);
-                ska_array
-                    .save(format!("{output}.skf").as_str())
-                    .expect("Failed to save output file");
+                save_skf(&merged_dict, format!("{output}.skf").as_str());
             }
         }
         Commands::Align {
