@@ -308,15 +308,17 @@ pub fn main() {
 
             // Build, merge
             let rc = !*single_strand;
-            let merged_dict =
-                build_and_merge(&input_files, *k, rc, *min_count, *min_qual, *threads);
+            if *k <= 31 {
+                let merged_dict: MergeSkaDict<u64> =
+                    build_and_merge::<u64>(&input_files, *k, rc, *min_count, *min_qual, *threads);
 
-            // Save
-            log::info!("Converting to array representation and saving");
-            let ska_array = MergeSkaArray::new(&merged_dict);
-            ska_array
-                .save(format!("{output}.skf").as_str())
-                .expect("Failed to save output file");
+                // Save
+                log::info!("Converting to array representation and saving");
+                let ska_array = MergeSkaArray::new(&merged_dict);
+                ska_array
+                    .save(format!("{output}.skf").as_str())
+                    .expect("Failed to save output file");
+                }
         }
         Commands::Align {
             input,

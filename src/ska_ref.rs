@@ -59,14 +59,17 @@ pub mod idx_check;
 use crate::ska_ref::idx_check::IdxCheck;
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::RC_IUPAC;
+use crate::ska_dict::bit_encoding::{RC_IUPAC, RevComp};
 use crate::ska_dict::split_kmer::SplitKmer;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
 #[derive(Debug, Clone)]
-pub struct RefKmer {
+pub struct RefKmer<IntT>
+where
+    IntT: RevComp
+{
     /// Encoded split k-mer
-    pub kmer: u64,
+    pub kmer: IntT,
     /// Middle base
     pub base: u8,
     /// Position in the chromosome
@@ -84,11 +87,14 @@ pub struct RefKmer {
 ///
 /// After running [`RefSka::map()`] against a [`MergeSkaDict`] mapped middle
 /// bases and positions will also be populated.
-pub struct RefSka {
+pub struct RefSka<IntT>
+where
+    IntT: RevComp
+{
     /// k-mer size
     k: usize,
     /// Concatenated list of split k-mers
-    split_kmer_pos: Vec<RefKmer>,
+    split_kmer_pos: Vec<RefKmer<IntT>>,
 
     /// Input sequence
 
@@ -126,7 +132,10 @@ fn gt_keys() -> Keys {
     "GT".parse().expect("Genotype format error")
 }
 
-impl RefSka {
+impl<IntT> RefSka<IntT>
+where
+    IntT: RevComp
+{
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -213,7 +222,7 @@ impl RefSka {
     /// # Panics
     ///
     /// If k-mer sizes are incompatible
-    pub fn map(&mut self, ska_dict: &MergeSkaDict) {
+    pub fn map(&mut self, ska_dict: &MergeSkaDict<IntT>) {
         if self.k != ska_dict.kmer_len() {
             panic!(
                 "K-mer sizes do not match ref:{} skf:{}",
@@ -246,7 +255,7 @@ impl RefSka {
     }
 
     /// An [`Iterator`] over the reference's split-kmers.
-    pub fn kmer_iter(&self) -> impl Iterator<Item = u64> + '_ {
+    pub fn kmer_iter(&self) -> impl Iterator<Item = IntT> + '_ {
         self.split_kmer_pos.iter().map(|k| k.kmer)
     }
 

@@ -24,7 +24,7 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
+use crate::ska_dict::bit_encoding::{decode_base, IUPAC, RevComp};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
@@ -38,7 +38,10 @@ const CM_HEIGHT: usize = 4;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
-pub struct SkaDict {
+pub struct SkaDict<IntT>
+where
+    IntT: RevComp
+{
     /// K-mer size
     k: usize,
     /// Whether reverse-complement was counted
@@ -48,15 +51,18 @@ pub struct SkaDict {
     /// Sample name
     name: String,
     /// Split k-mer dictionary split-k:middle-base
-    split_kmers: HashMap<u64, u8>,
+    split_kmers: HashMap<IntT, u8>,
     /// A countmin filter for counting from fastq files
     cm_filter: CountMin,
 }
 
-impl SkaDict {
+impl<IntT> SkaDict<IntT>
+where
+    IntT: RevComp
+{
     /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
     /// only adds if passing through the countmin filter
-    fn add_to_dict(&mut self, kmer: u64, base: u8, is_reads: bool) {
+    fn add_to_dict(&mut self, kmer: IntT, base: u8, is_reads: bool) {
         if !is_reads || self.cm_filter.filter(kmer, base) {
             self.split_kmers
                 .entry(kmer)
@@ -196,7 +202,7 @@ impl SkaDict {
     }
 
     /// Split k-mer dictonary
-    pub fn kmers(&self) -> &HashMap<u64, u8> {
+    pub fn kmers(&self) -> &HashMap<IntT, u8> {
         &self.split_kmers
     }
 

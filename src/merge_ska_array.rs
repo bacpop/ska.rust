@@ -25,7 +25,7 @@ use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{decode_kmer, generate_masks, is_ambiguous};
+use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, RevComp};
 use crate::ska_ref::RefSka;
 
 use crate::cli::FilterType;
@@ -63,7 +63,10 @@ use crate::cli::FilterType;
 /// ska_array.weed(&ska_weed);
 /// ```
 #[derive(Serialize, Deserialize)]
-pub struct MergeSkaArray {
+pub struct MergeSkaArray<IntT>
+where
+    IntT: RevComp
+{
     /// K-mer size
     k: usize,
     /// Whether reverse complement split k-mers were used
@@ -71,14 +74,17 @@ pub struct MergeSkaArray {
     /// Sample names
     names: Vec<String>,
     /// List of split k-mers
-    split_kmers: Vec<u64>,
+    split_kmers: Vec<IntT>,
     /// Array of middle bases, rows same order as split k-mers, columns same order as names
     variants: Array2<u8>,
     /// Count of non-missing bases for each split k-mer
     variant_count: Vec<usize>,
 }
 
-impl MergeSkaArray {
+impl<IntT> MergeSkaArray<IntT>
+where
+    IntT: RevComp
+{
     /// Update `variant_count` after changing `variants`.
     ///
     /// Recalculates counts, and removes any totally empty rows.
@@ -104,9 +110,9 @@ impl MergeSkaArray {
     }
 
     /// Convert a dynamic [`MergeSkaDict`] to static array representation.
-    pub fn new(dynamic: &MergeSkaDict) -> Self {
+    pub fn new(dynamic: &MergeSkaDict<IntT>) -> Self {
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
-        let mut split_kmers: Vec<u64> = Vec::new();
+        let mut split_kmers: Vec<IntT> = Vec::new();
         split_kmers.reserve(dynamic.ksize());
         let mut variant_count: Vec<usize> = Vec::new();
         for (kmer, bases) in dynamic.kmer_dict() {
@@ -146,10 +152,10 @@ impl MergeSkaArray {
     /// Convert to a dictionary representation [`MergeSkaDict`].
     ///
     /// Necessary if adding more samples.
-    pub fn to_dict(&self) -> MergeSkaDict {
+    pub fn to_dict(&self) -> MergeSkaDict<IntT> {
         let n_samples = self.names.len();
         let mut names = self.names.clone();
-        let mut split_kmers: HashMap<u64, Vec<u8>> = HashMap::new();
+        let mut split_kmers: HashMap<IntT, Vec<u8>> = HashMap::new();
         split_kmers.reserve(self.variants.nrows());
         for row_it in self.variants.outer_iter().zip(self.split_kmers.iter()) {
             let (row_vec, kmer) = row_it;
@@ -289,8 +295,8 @@ impl MergeSkaArray {
     /// may be a multi-FASTA) generated with [`RefSka::new()`]
     ///
     /// Used with `ska weed`.
-    pub fn weed(&mut self, weed_ref: &RefSka) {
-        let weed_kmers: HashSet<u64> = HashSet::from_iter(weed_ref.kmer_iter());
+    pub fn weed(&mut self, weed_ref: &RefSka<IntT>) {
+        let weed_kmers: HashSet<IntT> = HashSet::from_iter(weed_ref.kmer_iter());
 
         let mut removed = 0;
         let mut new_sk = Vec::new();
@@ -372,7 +378,10 @@ impl MergeSkaArray {
 /// k-mer length, reverse complement, number of split k-mers, number of samples
 ///
 /// Used with `ska nk`
-impl fmt::Display for MergeSkaArray {
+impl<IntT> fmt::Display for MergeSkaArray<IntT>
+where
+    IntT: RevComp
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -389,9 +398,12 @@ impl fmt::Display for MergeSkaArray {
 /// Writes all decoded split k-mers and middle bases.
 ///
 /// Used with `ska nk --full-info`
-impl fmt::Debug for MergeSkaArray {
+impl<IntT> fmt::Debug for MergeSkaArray<IntT>
+where
+    IntT: RevComp
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (lower_mask, upper_mask) = generate_masks(self.k);
+        let (lower_mask, upper_mask) = IntT::generate_masks(self.k);
         self.split_kmers
             .iter()
             .zip(self.variants.outer_iter())
