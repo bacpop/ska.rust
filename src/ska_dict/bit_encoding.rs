@@ -19,6 +19,8 @@
 //!
 //! There are also lookup tables to support ambiguity using IUPAC codes.
 
+use std::hash::{Hasher, BuildHasher};
+use ahash::{AHasher, RandomState};
 use num_traits::{PrimInt, Unsigned};
 
 /// Table from bits 0-3 to ASCII (use [`decode_base()`] not this table).
@@ -95,6 +97,8 @@ pub trait UInt<'a>:
     fn from_encoded_base(encoded_base: u8) -> Self;
     /// Number of bits in the representation
     fn n_bits() -> u32;
+    /// Generate a `u64` hash
+    fn hash_val(self, hash_fn: &RandomState) -> u64;
 }
 
 impl<'a> UInt<'a> for u64 {
@@ -150,6 +154,13 @@ impl<'a> UInt<'a> for u64 {
     #[inline(always)]
     fn n_bits() -> u32 {
         Self::BITS
+    }
+
+    #[inline(always)]
+    fn hash_val(self, hash_fn: &RandomState) -> u64 {
+        let mut hasher = hash_fn.build_hasher();
+        hasher.write_u64(self);
+        hasher.finish()
     }
 }
 
@@ -213,6 +224,13 @@ impl<'a> UInt<'a> for u128 {
     #[inline(always)]
     fn n_bits() -> u32 {
         Self::BITS
+    }
+
+    #[inline(always)]
+    fn hash_val(self, hash_fn: &RandomState) -> u64 {
+        let mut hasher = hash_fn.build_hasher();
+        hasher.write_u128(self);
+        hasher.finish()
     }
 }
 
