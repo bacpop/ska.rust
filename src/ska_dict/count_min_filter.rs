@@ -7,9 +7,8 @@
 //! See <https://en.wikipedia.org/wiki/Count-min_sketch> for more
 //! details on this data structure.
 
-use ahash::RandomState;
-
 use super::bit_encoding::UInt;
+use super::split_kmer::SplitKmer;
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
@@ -43,8 +42,6 @@ pub struct CountMin {
     width_shift: u32,
     /// Table height (number of hashes)
     height: usize,
-    /// Hash generators
-    hash_factory: Vec<RandomState>,
     /// Mask to convert hash into table column
     mask: u64,
     /// Table of counts
@@ -72,7 +69,6 @@ impl CountMin {
             width,
             width_shift,
             height,
-            hash_factory: Vec::new(),
             mask,
             counts: Vec::new(),
             min_count,
@@ -84,10 +80,6 @@ impl CountMin {
     /// Allocates memory and sets hash functions.
     pub fn init(&mut self) {
         if self.counts.is_empty() {
-            self.hash_factory = (0..self.height)
-                .into_iter()
-                .map(|_| RandomState::new())
-                .collect();
             self.counts = vec![0; self.width * self.height];
         }
     }
@@ -104,13 +96,12 @@ impl CountMin {
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: IntT, encoded_base: u8) -> bool {
+    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> bool {
         // This is possible because of the k-mer size restriction, the top two
         // bit are always zero
-        let kmer_and_base = kmer.add_base(encoded_base);
         let mut count = 0;
-        for (row_idx, hasher) in self.hash_factory.iter().enumerate() {
-            let hash_val = kmer_and_base.hash_val(hasher);
+        for row_idx in 0..self.height {
+            let hash_val = kmer.get_hash(row_idx);
             let table_idx =
                 row_idx * self.width + (((hash_val & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);

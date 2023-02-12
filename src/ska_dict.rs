@@ -29,6 +29,8 @@ use crate::ska_dict::bit_encoding::{decode_base, UInt, IUPAC};
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
 
+pub mod nthash;
+
 /// Default countmin filter width (expected number of unique k-mers)
 ///
 /// 2^27 =~ 130M
@@ -57,15 +59,12 @@ impl<IntT> SkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
-    /// only adds if passing through the countmin filter
-    fn add_to_dict(&mut self, kmer: IntT, base: u8, is_reads: bool) {
-        if !is_reads || self.cm_filter.filter(kmer, base) {
-            self.split_kmers
-                .entry(kmer)
-                .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])
-                .or_insert(decode_base(base));
-        }
+    /// Adds a split-kmer and middle base to dictionary.
+    fn add_to_dict(&mut self, kmer: IntT, base: u8) {
+        self.split_kmers
+            .entry(kmer)
+            .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])
+            .or_insert(decode_base(base));
     }
 
     /// Iterates through all the k-mers from an input fastx file and adds them
@@ -82,12 +81,17 @@ where
                 self.k,
                 self.rc,
                 min_qual,
+                is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
-                let (kmer, base, _rc) = kmer_it.get_curr_kmer();
-                self.add_to_dict(kmer, base, is_reads);
+                if !is_reads && self.cm_filter.filter(&kmer_it) {
+                    let (kmer, base, _rc) = kmer_it.get_curr_kmer();
+                    self.add_to_dict(kmer, base);
+                }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
-                    self.add_to_dict(kmer, base, is_reads);
+                    if !is_reads && self.cm_filter.filter(&kmer_it) {
+                        self.add_to_dict(kmer, base);
+                    }
                 }
             }
         }

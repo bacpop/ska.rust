@@ -89,8 +89,6 @@ pub trait UInt<'a>:
     /// Generate bit masks which can be applied to the packed k-mer representation
     /// too extract the upper and lower parts of the split k-mer (as bits).
     fn generate_masks(k: usize) -> (Self, Self);
-    /// Add a base into the split k-mer, so it can be hashed together
-    fn add_base(self, encoded_base: u8) -> Self;
     /// Set to zero
     fn zero_init() -> Self;
     /// Convert from u8, encoded bases 0-3
@@ -134,11 +132,6 @@ impl<'a> UInt<'a> for u64 {
         let lower_mask: Self = (1 << (half_size * 2)) - 1;
         let upper_mask: Self = lower_mask << (half_size * 2);
         (lower_mask, upper_mask)
-    }
-
-    #[inline(always)]
-    fn add_base(self, encoded_base: u8) -> Self {
-        self | (encoded_base as u64) << (u64::BITS - 2)
     }
 
     #[inline(always)]
@@ -204,11 +197,6 @@ impl<'a> UInt<'a> for u128 {
         let lower_mask: Self = (1 << (half_size * 2)) - 1;
         let upper_mask: Self = lower_mask << (half_size * 2);
         (lower_mask, upper_mask)
-    }
-
-    #[inline(always)]
-    fn add_base(self, encoded_base: u8) -> Self {
-        self | (encoded_base as u128) << (u128::BITS - 2)
     }
 
     #[inline(always)]
