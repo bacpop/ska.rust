@@ -73,6 +73,7 @@ fn build_and_align() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("basic_build.skf")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
@@ -94,6 +95,7 @@ fn long_kmers() {
         .arg("33")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-v")
         .assert()
         .success();
 
@@ -101,6 +103,7 @@ fn long_kmers() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("build_k33.skf")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
@@ -113,6 +116,7 @@ fn long_kmers() {
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("build_k33.skf")
+        .arg("-v")
         .assert()
         .stdout_matches_path(sandbox.file_string("k33.stdout", TestDir::Correct));
 
@@ -123,6 +127,7 @@ fn long_kmers() {
         .arg("build_k33")
         .arg("-k")
         .arg("65")
+        .arg("-v")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .assert()

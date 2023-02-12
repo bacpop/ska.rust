@@ -128,6 +128,7 @@ fn count_check_long() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k63_c1.skf")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
@@ -152,6 +153,7 @@ fn count_check_long() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k63_c3.skf")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;

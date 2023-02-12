@@ -124,4 +124,37 @@ fn weed() {
         .arg("--full-info")
         .assert()
         .stdout_matches_path(sandbox.file_string("weed_nk.stdout", TestDir::Correct));
+
+    // With longer k-mers
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("build_k41")
+        .arg("-k")
+        .arg("41")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("weed")
+        .arg("build_k41.skf")
+        .arg("--filter")
+        .arg("no-ambig-or-const")
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("build_k41.skf")
+        .arg("--full-info")
+        .arg("-v")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("weed_nk_k41.stdout", TestDir::Correct));
 }
