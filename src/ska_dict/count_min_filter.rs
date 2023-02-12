@@ -7,8 +7,7 @@
 //! See <https://en.wikipedia.org/wiki/Count-min_sketch> for more
 //! details on this data structure.
 
-use std::hash::BuildHasher;
-use ahash::{AHasher, RandomState};
+use ahash::RandomState;
 
 use super::bit_encoding::UInt;
 
@@ -85,9 +84,10 @@ impl CountMin {
     /// Allocates memory and sets hash functions.
     pub fn init(&mut self) {
         if self.counts.is_empty() {
-            self.hash_factory = (0..self.height).into_iter().map(|_| {
-                RandomState::new()
-            }).collect();
+            self.hash_factory = (0..self.height)
+                .into_iter()
+                .map(|_| RandomState::new())
+                .collect();
             self.counts = vec![0; self.width * self.height];
         }
     }
@@ -111,8 +111,8 @@ impl CountMin {
         let mut count = 0;
         for (row_idx, hasher) in self.hash_factory.iter().enumerate() {
             let hash_val = kmer_and_base.hash_val(hasher);
-            let table_idx = row_idx * self.width
-                + (((hash_val & self.mask) >> self.width_shift) as usize);
+            let table_idx =
+                row_idx * self.width + (((hash_val & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
             if row_idx == 0 {
                 count = self.counts[table_idx];

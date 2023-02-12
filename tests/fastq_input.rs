@@ -106,6 +106,60 @@ fn count_check() {
     assert_eq!(var_hash(&fastq_align_c3_out), correct_aln);
 }
 
+// Case with errors in middle base, countmin should use both split k-mer
+// and base to filter
+#[test]
+fn count_check_long() {
+    let sandbox = TestSetup::setup();
+    let rfile_name = sandbox.create_rfile(&"test_long", FxType::Fastq);
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads_k63_c1")
+        .args(&["--min-count", "1", "-v", "-k", "63"])
+        .assert()
+        .success();
+
+    let fastq_align_c1_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads_k63_c1.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['G', 'M']]);
+    assert_eq!(var_hash(&fastq_align_c1_out), correct_aln);
+
+    // In sample two there are three split k-mers supporting T, one supporting A
+    // So above see a W, here the A gets filtered and we just see a T
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads_k63_c3")
+        .args(&["--min-count", "3", "-v", "-k", "63"])
+        .assert()
+        .success();
+
+    let fastq_align_c3_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads_k63_c3.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['G', 'A']]);
+    assert_eq!(var_hash(&fastq_align_c3_out), correct_aln);
+}
+
 // Uses perfect reads with the same fasta input as merge.skf
 #[test]
 fn map_fastq() {

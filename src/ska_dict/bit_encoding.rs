@@ -19,9 +19,9 @@
 //!
 //! There are also lookup tables to support ambiguity using IUPAC codes.
 
-use std::hash::{Hasher, BuildHasher};
-use ahash::{AHasher, RandomState};
+use ahash::RandomState;
 use num_traits::{PrimInt, Unsigned};
+use std::hash::{BuildHasher, Hasher};
 
 /// Table from bits 0-3 to ASCII (use [`decode_base()`] not this table).
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
