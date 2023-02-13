@@ -1,6 +1,6 @@
 [package]
 name = "ska"
-version = "0.1.2"
+version = "0.2.0"
 authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
@@ -43,6 +43,7 @@ num_cpus = "1.0"
 hashbrown = "0.12"
 ahash = "0.8.2"
 ndarray = { version = "0.15.6", features = ["serde"] }
+num-traits = "0.2.15"
 # testing
 snapbox = "0.4.3"
 predicates = "2.1.5"

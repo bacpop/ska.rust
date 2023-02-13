@@ -73,12 +73,65 @@ fn build_and_align() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("basic_build.skf")
+        .arg("-v")
         .output()
         .unwrap()
         .stdout;
 
     let correct_aln = HashSet::from([vec!['A', 'T'], vec!['C', 'T']]);
     assert_eq!(var_hash(&fasta_align_out), correct_aln);
+}
+
+#[test]
+fn long_kmers() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("build_k33")
+        .arg("-k")
+        .arg("33")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-v")
+        .assert()
+        .success();
+
+    let fasta_align_out_k33 = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("build_k33.skf")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['C', 'T'], vec!['T', 'A']]);
+    assert_eq!(var_hash(&fasta_align_out_k33), correct_aln);
+
+    // Check 128 bits used
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("build_k33.skf")
+        .arg("-v")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("k33.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("build_k33")
+        .arg("-k")
+        .arg("65")
+        .arg("-v")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .assert()
+        .failure();
 }
 
 #[test]

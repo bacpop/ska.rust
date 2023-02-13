@@ -19,18 +19,12 @@
 //!
 //! There are also lookup tables to support ambiguity using IUPAC codes.
 
+use ahash::RandomState;
+use num_traits::{PrimInt, Unsigned};
+use std::hash::{BuildHasher, Hasher};
+
 /// Table from bits 0-3 to ASCII (use [`decode_base()`] not this table).
 const LETTER_CODE: [u8; 4] = [b'A', b'C', b'T', b'G'];
-
-/// Generate bit masks which can be applied to the packed k-mer representation
-/// too extract the upper and lower parts of the split k-mer (as bits).
-#[inline(always)]
-pub fn generate_masks(k: usize) -> (u64, u64) {
-    let half_size: usize = (k - 1) / 2;
-    let lower_mask = (1 << (half_size * 2)) - 1;
-    let upper_mask = lower_mask << (half_size * 2);
-    (lower_mask, upper_mask)
-}
 
 /// Encode an ASCII char to bits 0-3.
 #[inline(always)]
@@ -63,14 +57,187 @@ pub fn is_ambiguous(mut base: u8) -> bool {
     !matches!(base, b'A' | b'C' | b'G' | b'T')
 }
 
+/// Trait to support both `u64` and `u128` representation of split k-mers
+pub trait UInt<'a>:
+    PrimInt
+    + Unsigned
+    + std::fmt::Display
+    + std::fmt::Debug
+    + std::marker::Send
+    + std::marker::Sync
+    + std::hash::Hash
+    + serde::Serialize
+    + std::ops::Shl<usize, Output = Self>
+    + std::ops::BitAnd
+    + std::ops::ShrAssign<i32>
+    + std::ops::ShlAssign<i32>
+    + std::ops::BitOrAssign
+    + serde::Deserialize<'a>
+{
+    /// Reverse complement of an encoded and packed split k-mer (64-bits).
+    ///
+    /// Neat trick from <https://www.biostars.org/p/113640/>.
+    ///
+    /// In the [`crate::ska_dict::split_kmer::SplitKmer`] class reverse complement is given by a rolling
+    /// method, but this is used when an entire split k-mer needs to be built
+    /// e.g. on construction or after skipping an N.
+    fn rev_comp(self, k_size: usize) -> Self;
+    /// Get the lowest (furthest right) base, encoded
+    fn lsb_u8(self) -> u8;
+    /// Convert to u8 as primitive
+    fn as_u8(self) -> u8;
+    /// Generate bit masks which can be applied to the packed k-mer representation
+    /// too extract the upper and lower parts of the split k-mer (as bits).
+    fn generate_masks(k: usize) -> (Self, Self);
+    /// Set to zero
+    fn zero_init() -> Self;
+    /// Convert from u8, encoded bases 0-3
+    fn from_encoded_base(encoded_base: u8) -> Self;
+    /// Number of bits in the representation
+    fn n_bits() -> u32;
+    /// Generate a `u64` hash
+    fn hash_val(self, hash_fn: &RandomState) -> u64;
+}
+
+impl<'a> UInt<'a> for u64 {
+    #[inline(always)]
+    fn rev_comp(mut self, k_size: usize) -> Self {
+        // This part reverses the bases by shuffling them using an on/off pattern
+        // of bits
+        self = (self >> 2 & 0x3333333333333333) | (self & 0x3333333333333333) << 2;
+        self = (self >> 4 & 0x0F0F0F0F0F0F0F0F) | (self & 0x0F0F0F0F0F0F0F0F) << 4;
+        self = (self >> 8 & 0x00FF00FF00FF00FF) | (self & 0x00FF00FF00FF00FF) << 8;
+        self = (self >> 16 & 0x0000FFFF0000FFFF) | (self & 0x0000FFFF0000FFFF) << 16;
+        self = (self >> 32 & 0x00000000FFFFFFFF) | (self & 0x00000000FFFFFFFF) << 32;
+        // This reverse complements
+        self ^= 0xAAAAAAAAAAAAAAAA;
+
+        // Shifts so LSB is at the bottom
+        self >> (2 * (32 - k_size))
+    }
+
+    #[inline(always)]
+    fn lsb_u8(self) -> u8 {
+        (self & 0x3) as u8
+    }
+
+    #[inline(always)]
+    fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    #[inline(always)]
+    fn generate_masks(k: usize) -> (Self, Self) {
+        let half_size: usize = (k - 1) / 2;
+        let lower_mask: Self = (1 << (half_size * 2)) - 1;
+        let upper_mask: Self = lower_mask << (half_size * 2);
+        (lower_mask, upper_mask)
+    }
+
+    #[inline(always)]
+    fn zero_init() -> Self {
+        0
+    }
+
+    #[inline(always)]
+    fn from_encoded_base(encoded_base: u8) -> Self {
+        encoded_base as Self
+    }
+
+    #[inline(always)]
+    fn n_bits() -> u32 {
+        Self::BITS
+    }
+
+    #[inline(always)]
+    fn hash_val(self, hash_fn: &RandomState) -> u64 {
+        let mut hasher = hash_fn.build_hasher();
+        hasher.write_u64(self);
+        hasher.finish()
+    }
+}
+
+impl<'a> UInt<'a> for u128 {
+    #[inline(always)]
+    fn rev_comp(mut self, k_size: usize) -> u128 {
+        // This part reverses the bases by shuffling them using an on/off pattern
+        // of bits
+        self = (self >> 2 & 0x33333333333333333333333333333333)
+            | (self & 0x33333333333333333333333333333333) << 2;
+        self = (self >> 4 & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F)
+            | (self & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F) << 4;
+        self = (self >> 8 & 0x00FF00FF00FF00FF00FF00FF00FF00FF)
+            | (self & 0x00FF00FF00FF00FF00FF00FF00FF00FF) << 8;
+        self = (self >> 16 & 0x0000FFFF0000FFFF0000FFFF0000FFFF)
+            | (self & 0x0000FFFF0000FFFF0000FFFF0000FFFF) << 16;
+        self = (self >> 32 & 0x00000000FFFFFFFF00000000FFFFFFFF)
+            | (self & 0x00000000FFFFFFFF00000000FFFFFFFF) << 32;
+        self = (self >> 64 & 0x0000000000000000FFFFFFFFFFFFFFFF)
+            | (self & 0x0000000000000000FFFFFFFFFFFFFFFF) << 64;
+        // This reverse complements
+        self ^= 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;
+
+        // Shifts so LSB is at the bottom
+        self >> (2 * (64 - k_size))
+    }
+
+    #[inline(always)]
+    fn lsb_u8(self) -> u8 {
+        (self & 0x3) as u8
+    }
+
+    #[inline(always)]
+    fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    #[inline(always)]
+    fn generate_masks(k: usize) -> (Self, Self) {
+        let half_size: usize = (k - 1) / 2;
+        let lower_mask: Self = (1 << (half_size * 2)) - 1;
+        let upper_mask: Self = lower_mask << (half_size * 2);
+        (lower_mask, upper_mask)
+    }
+
+    #[inline(always)]
+    fn zero_init() -> Self {
+        0
+    }
+
+    #[inline(always)]
+    fn from_encoded_base(encoded_base: u8) -> Self {
+        encoded_base as Self
+    }
+
+    #[inline(always)]
+    fn n_bits() -> u32 {
+        Self::BITS
+    }
+
+    #[inline(always)]
+    fn hash_val(self, hash_fn: &RandomState) -> u64 {
+        let mut hasher = hash_fn.build_hasher();
+        hasher.write_u128(self);
+        hasher.finish()
+    }
+}
+
 /// Decodes an encoded and packed split k-mer (64-bits) into strings for upper
 /// and lower parts.
-pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (String, String) {
+pub fn decode_kmer<IntT>(
+    k: usize,
+    kmer: IntT,
+    upper_mask: IntT,
+    lower_mask: IntT,
+) -> (String, String)
+where
+    IntT: for<'a> UInt<'a>,
+{
     let half_k: usize = (k - 1) / 2;
     let mut upper_bits = (kmer & upper_mask) >> (half_k * 2);
     let mut upper_kmer = String::with_capacity(half_k);
     for _idx in 0..half_k {
-        let base = decode_base((upper_bits & 0x3) as u8);
+        let base = decode_base(upper_bits.lsb_u8());
         upper_kmer.push(base as char);
         upper_bits >>= 2;
     }
@@ -79,35 +246,12 @@ pub fn decode_kmer(k: usize, kmer: u64, upper_mask: u64, lower_mask: u64) -> (St
     let mut lower_bits = kmer & lower_mask;
     let mut lower_kmer = String::with_capacity(half_k);
     for _idx in 0..half_k {
-        let base = decode_base((lower_bits & 0x3) as u8);
+        let base = decode_base(lower_bits.lsb_u8());
         lower_kmer.push(base as char);
         lower_bits >>= 2;
     }
     lower_kmer = lower_kmer.chars().rev().collect::<String>();
     (upper_kmer, lower_kmer)
-}
-
-/// Reverse complement of an encoded and packed split k-mer (64-bits).
-///
-/// Neat trick from <https://www.biostars.org/p/113640/>.
-///
-/// In the [`crate::ska_dict::split_kmer::SplitKmer`] class reverse complement is given by a rolling
-/// method, but this is used when an entire split k-mer needs to be built
-/// e.g. on construction or after skipping an N.
-#[inline(always)]
-pub fn revcomp64_v2(mut res: u64, k_size: usize) -> u64 {
-    // This part reverses the bases by shuffling them using an on/off pattern
-    // of bits
-    res = (res >> 2 & 0x3333333333333333) | (res & 0x3333333333333333) << 2;
-    res = (res >> 4 & 0x0F0F0F0F0F0F0F0F) | (res & 0x0F0F0F0F0F0F0F0F) << 4;
-    res = (res >> 8 & 0x00FF00FF00FF00FF) | (res & 0x00FF00FF00FF00FF) << 8;
-    res = (res >> 16 & 0x0000FFFF0000FFFF) | (res & 0x0000FFFF0000FFFF) << 16;
-    res = (res >> 32 & 0x00000000FFFFFFFF) | (res & 0x00000000FFFFFFFF) << 32;
-    // This reverse complements
-    res ^= 0xAAAAAAAAAAAAAAAA;
-
-    // Shifts so LSB is at the bottom
-    res >> (2 * (32 - k_size))
 }
 
 // A 	Adenine
@@ -228,7 +372,7 @@ pub const IUPAC: [u8; 1024] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]; //240-255
 
-// IUPAC RevComp
+// IUPAC UInt
 // A -> T
 // C -> G
 // G -> C

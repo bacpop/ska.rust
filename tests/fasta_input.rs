@@ -1,5 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
+use hashbrown::HashSet;
+
 pub mod common;
 use crate::common::{var_hash, TestDir, TestSetup};
 
@@ -23,7 +25,7 @@ fn align_n() {
         .arg("align")
         .arg("N_test.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("align_N.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("align_N.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -49,7 +51,7 @@ fn map_n() {
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg("N_test.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_N.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("map_N.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -122,6 +124,30 @@ fn rev_comp() {
         .stdout;
 
     assert_eq!(var_hash(&ss_aln).is_empty(), true);
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-o")
+        .arg("build_k33")
+        .arg("-k")
+        .arg("33")
+        .arg("--single-strand")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .assert()
+        .success();
+
+    let fasta_align_out_k33 = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("build_k33.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['T', 'A'], vec!['G', 'A']]);
+    assert_eq!(var_hash(&fasta_align_out_k33), correct_aln);
 }
 
 #[test]
@@ -147,7 +173,7 @@ fn repeats() {
         .arg("align")
         .arg("dup_ss.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("dup_ss.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("dup_ss.stdout", TestDir::Correct));
 
     // Also tests this is just a single variant
     Command::new(cargo_bin("ska"))
@@ -187,5 +213,5 @@ fn repeats() {
         .arg("align")
         .arg("dup_rc.skf")
         .assert()
-        .stdout_matches_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
 }

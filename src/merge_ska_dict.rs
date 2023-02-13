@@ -14,13 +14,14 @@ use hashbrown::HashMap;
 use indicatif::{ParallelProgressIterator, ProgressIterator};
 use rayon::prelude::*;
 
+use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
 /// Tuple for name and fasta or paired fastq input
 pub type InputFastx = (String, String, Option<String>);
 
 /// Merged dictionary with names, and middle bases in [`Vec<u8>`] in the same order.
-pub struct MergeSkaDict {
+pub struct MergeSkaDict<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse complement split k-mers were used
@@ -30,10 +31,13 @@ pub struct MergeSkaDict {
     /// Sample names (some may be empty)
     names: Vec<String>,
     /// Dictionary of split k-mers, and middle base vectors
-    split_kmers: HashMap<u64, Vec<u8>>,
+    split_kmers: HashMap<IntT, Vec<u8>>,
 }
 
-impl MergeSkaDict {
+impl<IntT> MergeSkaDict<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     /// Create an empty merged dictionary, to be used with [`MergeSkaDict::merge()`]
     /// or [`MergeSkaDict::append()`].
     pub fn new(k: usize, n_samples: usize, rc: bool) -> Self {
@@ -52,7 +56,7 @@ impl MergeSkaDict {
     pub fn build_from_array<'a>(
         &'a mut self,
         names: &'a mut Vec<String>,
-        split_kmers: &mut HashMap<u64, Vec<u8>>,
+        split_kmers: &mut HashMap<IntT, Vec<u8>>,
     ) {
         swap(names, &mut self.names);
         swap(split_kmers, &mut self.split_kmers);
@@ -66,7 +70,7 @@ impl MergeSkaDict {
     /// # Panics
     ///
     /// If k-mer length or reverse complement do not match
-    pub fn append(&mut self, other: &SkaDict) {
+    pub fn append(&mut self, other: &SkaDict<IntT>) {
         if other.kmer_len() != self.k {
             panic!(
                 "K-mer lengths do not match: {} {}",
@@ -108,7 +112,7 @@ impl MergeSkaDict {
     /// # Panics
     ///
     /// If k-mer length or reverse complement do not match
-    pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
+    pub fn merge<'a>(&'a mut self, other: &'a mut MergeSkaDict<IntT>) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
         }
@@ -149,7 +153,7 @@ impl MergeSkaDict {
     /// # Panics
     ///
     /// If k-mer length or reverse complement do not match
-    pub fn extend<'a>(&'a mut self, other: &'a mut MergeSkaDict) {
+    pub fn extend<'a>(&'a mut self, other: &'a mut MergeSkaDict<IntT>) {
         if other.k != self.k {
             panic!("K-mer lengths do not match: {} {}", other.k, self.k);
         }
@@ -200,7 +204,7 @@ impl MergeSkaDict {
     }
 
     /// Split k-mer dictionary
-    pub fn kmer_dict(&self) -> &HashMap<u64, Vec<u8>> {
+    pub fn kmer_dict(&self) -> &HashMap<IntT, Vec<u8>> {
         &self.split_kmers
     }
 
@@ -218,12 +222,15 @@ impl MergeSkaDict {
 // Functions to created merged dicts from files
 
 /// Serial `MergeSkaDict::append()` into a [`MergeSkaDict`]
-fn multi_append(
-    input_dicts: &mut [SkaDict],
+fn multi_append<IntT>(
+    input_dicts: &mut [SkaDict<IntT>],
     total_size: usize,
     k: usize,
     rc: bool,
-) -> MergeSkaDict {
+) -> MergeSkaDict<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
     for ska_dict in &mut input_dicts.iter() {
         merged_dict.append(ska_dict);
@@ -235,13 +242,16 @@ fn multi_append(
 ///
 /// Depth sets number of splits into two
 /// i.e. depth 1 splits in 2, depth 2 splits in 4
-fn parallel_append(
+fn parallel_append<IntT>(
     depth: usize,
-    dict_list: &mut [SkaDict],
+    dict_list: &mut [SkaDict<IntT>],
     total_size: usize,
     k: usize,
     rc: bool,
-) -> MergeSkaDict {
+) -> MergeSkaDict<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     let (bottom, top) = dict_list.split_at_mut(dict_list.len() / 2);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
@@ -277,23 +287,26 @@ fn parallel_append(
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge(&input_files, 17, true, 0, 0, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, 1);
 /// ```
 ///
 /// # Panics
 ///
 /// If any input files are invalid
-pub fn build_and_merge(
+pub fn build_and_merge<IntT>(
     input_files: &[InputFastx],
     k: usize,
     rc: bool,
     min_count: u16,
     min_qual: u8,
     threads: usize,
-) -> MergeSkaDict {
+) -> MergeSkaDict<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     // Build indexes
     log::info!("Building skf dicts from sequence input");
-    let mut ska_dicts: Vec<SkaDict> = Vec::new();
+    let mut ska_dicts: Vec<SkaDict<IntT>> = Vec::new();
     ska_dicts.reserve(input_files.len());
     if threads > 1 {
         rayon::ThreadPoolBuilder::new()

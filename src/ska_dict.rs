@@ -24,21 +24,23 @@ pub mod split_kmer;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
-use crate::ska_dict::bit_encoding::{decode_base, IUPAC};
+use crate::ska_dict::bit_encoding::{decode_base, UInt, IUPAC};
 
 pub mod count_min_filter;
 use crate::ska_dict::count_min_filter::CountMin;
+
+pub mod nthash;
 
 /// Default countmin filter width (expected number of unique k-mers)
 ///
 /// 2^27 =~ 130M
 const CM_WIDTH: usize = 1 << 27;
 /// Default number of countmin hashes/table height (controls false positive rate)
-const CM_HEIGHT: usize = 4;
+const CM_HEIGHT: usize = 3;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
-pub struct SkaDict {
+pub struct SkaDict<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse-complement was counted
@@ -48,21 +50,21 @@ pub struct SkaDict {
     /// Sample name
     name: String,
     /// Split k-mer dictionary split-k:middle-base
-    split_kmers: HashMap<u64, u8>,
+    split_kmers: HashMap<IntT, u8>,
     /// A countmin filter for counting from fastq files
     cm_filter: CountMin,
 }
 
-impl SkaDict {
-    /// Adds a split-kmer and middle base to dictionary. If `is_reads` then
-    /// only adds if passing through the countmin filter
-    fn add_to_dict(&mut self, kmer: u64, base: u8, is_reads: bool) {
-        if !is_reads || self.cm_filter.filter(kmer, base) {
-            self.split_kmers
-                .entry(kmer)
-                .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])
-                .or_insert(decode_base(base));
-        }
+impl<IntT> SkaDict<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
+    /// Adds a split-kmer and middle base to dictionary.
+    fn add_to_dict(&mut self, kmer: IntT, base: u8) {
+        self.split_kmers
+            .entry(kmer)
+            .and_modify(|b| *b = IUPAC[base as usize * 256 + *b as usize])
+            .or_insert(decode_base(base));
     }
 
     /// Iterates through all the k-mers from an input fastx file and adds them
@@ -79,12 +81,17 @@ impl SkaDict {
                 self.k,
                 self.rc,
                 min_qual,
+                is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
-                let (kmer, base, _rc) = kmer_it.get_curr_kmer();
-                self.add_to_dict(kmer, base, is_reads);
+                if !is_reads || self.cm_filter.filter(&kmer_it) {
+                    let (kmer, base, _rc) = kmer_it.get_curr_kmer();
+                    self.add_to_dict(kmer, base);
+                }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
-                    self.add_to_dict(kmer, base, is_reads);
+                    if !is_reads || self.cm_filter.filter(&kmer_it) {
+                        self.add_to_dict(kmer, base);
+                    }
                 }
             }
         }
@@ -103,7 +110,7 @@ impl SkaDict {
     ///
     /// let k = 31;
     /// let sample_idx = 0;
-    /// let ska_dict = SkaDict::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, 0, 0);
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, 0, 0);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
@@ -115,7 +122,7 @@ impl SkaDict {
     /// let min_qual = 20;
     /// let k = 9;
     /// let sample_idx = 0;
-    /// let ska_dict = SkaDict::new(k, sample_idx,
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
     ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
     ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
     ///                             "sample1", true, min_count, min_qual);
@@ -124,7 +131,7 @@ impl SkaDict {
     /// # Panics
     ///
     /// Panics if:
-    /// - k-mer length is invalid (<5, >31 or even)
+    /// - k-mer length is invalid (<5, >63 or even)
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
@@ -137,7 +144,7 @@ impl SkaDict {
         min_count: u16,
         min_qual: u8,
     ) -> Self {
-        if !(5..=31).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
 
@@ -196,7 +203,7 @@ impl SkaDict {
     }
 
     /// Split k-mer dictonary
-    pub fn kmers(&self) -> &HashMap<u64, u8> {
+    pub fn kmers(&self) -> &HashMap<IntT, u8> {
         &self.split_kmers
     }
 

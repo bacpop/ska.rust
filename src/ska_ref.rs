@@ -15,7 +15,9 @@
 //!
 //! // Load a saved array from build, convert to dict representation
 //! let threads = 1;
-//! let ska_dict = load_array(&["tests/test_files_in/merge.skf".to_string()], threads).to_dict();
+//! // If you don't know whether u64 or u128, try one and handle the error
+//! // see lib.rs for examples
+//! let ska_dict = load_array::<u64>(&["tests/test_files_in/merge.skf".to_string()], threads).unwrap().to_dict();
 //!
 //! // Index a reference sequence
 //! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc());
@@ -59,14 +61,14 @@ pub mod idx_check;
 use crate::ska_ref::idx_check::IdxCheck;
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::RC_IUPAC;
+use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
 #[derive(Debug, Clone)]
-pub struct RefKmer {
+pub struct RefKmer<IntT> {
     /// Encoded split k-mer
-    pub kmer: u64,
+    pub kmer: IntT,
     /// Middle base
     pub base: u8,
     /// Position in the chromosome
@@ -84,11 +86,14 @@ pub struct RefKmer {
 ///
 /// After running [`RefSka::map()`] against a [`MergeSkaDict`] mapped middle
 /// bases and positions will also be populated.
-pub struct RefSka {
+pub struct RefSka<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     /// k-mer size
     k: usize,
     /// Concatenated list of split k-mers
-    split_kmer_pos: Vec<RefKmer>,
+    split_kmer_pos: Vec<RefKmer<IntT>>,
 
     /// Input sequence
 
@@ -126,7 +131,10 @@ fn gt_keys() -> Keys {
     "GT".parse().expect("Genotype format error")
 }
 
-impl RefSka {
+impl<IntT> RefSka<IntT>
+where
+    IntT: for<'a> UInt<'a>,
+{
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -138,14 +146,14 @@ impl RefSka {
     /// their indexes maintained).
     ///
     /// # Panics
-    /// If an invalid k-mer length (<5, >31 or even) is used.
+    /// If an invalid k-mer length (<5, >63 or even) is used.
     ///
     /// Or if input file is invalid:
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
     pub fn new(k: usize, filename: &str, rc: bool) -> Self {
-        if !(5..=31).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
 
@@ -164,7 +172,7 @@ impl RefSka {
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
 
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0, false);
             if let Some(mut kmer_it) = kmer_opt {
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
                 let mut pos = kmer_it.get_middle_pos();
@@ -213,7 +221,7 @@ impl RefSka {
     /// # Panics
     ///
     /// If k-mer sizes are incompatible
-    pub fn map(&mut self, ska_dict: &MergeSkaDict) {
+    pub fn map(&mut self, ska_dict: &MergeSkaDict<IntT>) {
         if self.k != ska_dict.kmer_len() {
             panic!(
                 "K-mer sizes do not match ref:{} skf:{}",
@@ -246,7 +254,7 @@ impl RefSka {
     }
 
     /// An [`Iterator`] over the reference's split-kmers.
-    pub fn kmer_iter(&self) -> impl Iterator<Item = u64> + '_ {
+    pub fn kmer_iter(&self) -> impl Iterator<Item = IntT> + '_ {
         self.split_kmer_pos.iter().map(|k| k.kmer)
     }
 
