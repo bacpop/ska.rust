@@ -36,7 +36,7 @@ pub mod nthash;
 /// 2^27 =~ 130M
 const CM_WIDTH: usize = 1 << 27;
 /// Default number of countmin hashes/table height (controls false positive rate)
-const CM_HEIGHT: usize = 4;
+const CM_HEIGHT: usize = 3;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
@@ -84,12 +84,12 @@ where
                 is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
-                if !is_reads && self.cm_filter.filter(&kmer_it) {
+                if !is_reads || self.cm_filter.filter(&kmer_it) {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     self.add_to_dict(kmer, base);
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
-                    if !is_reads && self.cm_filter.filter(&kmer_it) {
+                    if !is_reads || self.cm_filter.filter(&kmer_it) {
                         self.add_to_dict(kmer, base);
                     }
                 }

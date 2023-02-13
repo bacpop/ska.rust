@@ -14,26 +14,6 @@ use super::split_kmer::SplitKmer;
 /// whether they have passed a count threshold.
 ///
 /// Table can be reset to avoid reallocation for every sample.
-///
-/// # Examples
-///
-/// ```
-/// use ska::ska_dict::count_min_filter::CountMin;
-///
-/// // Create the filter
-/// let width: usize = 1 << 26;
-/// let height = 6;
-/// let min_count = 2;
-/// let mut cm_filter = CountMin::empty(width, height, min_count);
-/// cm_filter.init();
-///
-/// // Use it
-/// let mut passed = cm_filter.filter(0 as u64, 0 as u8); // false
-/// passed = cm_filter.filter(0 as u64, 0 as u8);         // true
-///
-/// // Reset for use with a new file
-/// cm_filter.reset();
-/// ```
 #[derive(Debug, Clone)]
 pub struct CountMin {
     /// Table width (estimated number of unique k-mers)
@@ -105,12 +85,14 @@ impl CountMin {
             let table_idx =
                 row_idx * self.width + (((hash_val & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
+            //println!("hash:{hash_val} table_idx:{table_idx}");
             if row_idx == 0 {
                 count = self.counts[table_idx];
             } else {
                 count = u16::min(count, self.counts[table_idx]);
             }
         }
+        //println!("{} {count}", kmer.get_curr_kmer().0);
         count >= self.min_count
     }
 }

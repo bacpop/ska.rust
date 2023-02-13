@@ -120,6 +120,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             }
         }
 
+        // For reads, start an rolling hash
         let hash_gen = if is_reads {
             Some(NtHashIterator::new(&seq[*idx..(*idx + k)], k, rc))
         } else {
@@ -169,11 +170,14 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         } else {
             let half_k: usize = (self.k - 1) / 2;
             let new_base = encode_base(base);
+
+            // Update the hash, if needed (i.e. if reads)
             if let Some(ref mut roll_hash) = self.hash_gen {
-                let old_base = self.upper >> ((self.k - 1) * 2);
+                let old_base = self.upper >> ((self.k - 2) * 2);
                 roll_hash.roll_fwd(old_base.as_u8(), new_base);
             }
 
+            // Update the k-mer
             self.upper = (self.upper << 2
                 | (IntT::from_encoded_base(self.middle_base) << (half_k * 2)))
                 & self.upper_mask;
@@ -259,6 +263,13 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         (split_kmer, self.middle_base, false)
     }
 
+    /// Get a `u64` hash of the current k-mer using [`NtHashIterator`]
+    ///
+    /// Can get alternative hashes for a countmin table by giving an index
+    ///
+    /// # Panics
+    ///
+    /// If called after creating with `is_reads = false`
     pub fn get_hash(&self, hash_idx: usize) -> u64 {
         if hash_idx == 0 {
             self.hash_gen
