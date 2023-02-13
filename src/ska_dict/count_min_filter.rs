@@ -12,8 +12,6 @@ use super::split_kmer::SplitKmer;
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
-///
-/// Table can be reset to avoid reallocation for every sample.
 #[derive(Debug, Clone)]
 pub struct CountMin {
     /// Table width (estimated number of unique k-mers)
@@ -62,16 +60,6 @@ impl CountMin {
         if self.counts.is_empty() {
             self.counts = vec![0; self.width * self.height];
         }
-    }
-
-    /// Check if [`CountMin::init()`] has been called and table is ready for use
-    pub fn is_init(&self) -> bool {
-        !self.counts.is_empty()
-    }
-
-    /// Reset all counts to zero
-    pub fn reset(&mut self) {
-        self.counts = vec![0; self.width * self.height];
     }
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
