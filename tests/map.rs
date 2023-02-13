@@ -58,6 +58,31 @@ fn map_aln() {
 }
 
 #[test]
+fn map_u128() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
+        .args(&["-v", "--threads", "2"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_aln_k41.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
+        .args(&["-v", "--threads", "2"])
+        .arg("-f")
+        .arg("vcf")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_vcf_k41.stdout", TestDir::Correct));
+}
+
+#[test]
 fn map_vcf() {
     let sandbox = TestSetup::setup();
 
