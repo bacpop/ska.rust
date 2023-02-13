@@ -10,9 +10,11 @@
 //! (This could be made into a rust iterator, but I didn't do this when I wrote
 //! it as I didn't know how yet.)
 
-use crate::ska_dict::bit_encoding::*;
 use std::borrow::Cow;
 use std::cmp::Ordering;
+
+use super::bit_encoding::*;
+use super::nthash::NtHashIterator;
 
 /// Struct to generate all split k-mers from an input sequence
 ///
@@ -50,6 +52,8 @@ pub struct SplitKmer<'a, IntT> {
     rc_lower: IntT,
     /// Current middle base, reverse complemented
     rc_middle_base: u8,
+    /// Hash generator for reads
+    hash_gen: Option<NtHashIterator>,
 }
 
 impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
@@ -57,7 +61,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     #[inline(always)]
     fn valid_qual(idx: usize, qual: Option<&'a [u8]>, min_qual: u8) -> bool {
         match qual {
-            Some(qual_seq) => qual_seq[idx] - 33 > min_qual, // ASCII encoding starts from b'!' = 33
+            Some(qual_seq) => (qual_seq[idx] - 33) > min_qual, // ASCII encoding starts from b'!' = 33
             None => true,
         }
     }
@@ -66,6 +70,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     ///
     /// Called when initialised, or after skipping unknown bases. Returns
     /// [`None`] if the end of the input has been reached.
+    #[allow(clippy::too_many_arguments)]
     fn build(
         seq: &[u8],
         seq_len: usize,
@@ -73,7 +78,9 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         k: usize,
         idx: &mut usize,
         min_qual: u8,
-    ) -> Option<(IntT, IntT, u8)> {
+        is_reads: bool,
+        rc: bool,
+    ) -> Option<(IntT, IntT, u8, Option<NtHashIterator>)> {
         if *idx + k >= seq_len {
             return None;
         }
@@ -112,8 +119,16 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 i = 0;
             }
         }
+
+        // For reads, start an rolling hash
+        let hash_gen = if is_reads {
+            Some(NtHashIterator::new(&seq[*idx..(*idx + k)], k, rc))
+        } else {
+            None
+        };
+
         *idx += k - 1;
-        Some((upper, lower, middle_base))
+        Some((upper, lower, middle_base, hash_gen))
     }
 
     /// Update the stored reverse complement using the stored split-k and middle base
@@ -142,9 +157,11 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 self.k,
                 &mut self.index,
                 self.min_qual,
+                self.hash_gen.is_some(),
+                self.rc,
             );
             if let Some(kmer_tuple) = new_kmer {
-                (self.upper, self.lower, self.middle_base) = kmer_tuple;
+                (self.upper, self.lower, self.middle_base, self.hash_gen) = kmer_tuple;
                 if self.rc {
                     self.update_rc();
                 }
@@ -152,11 +169,19 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             }
         } else {
             let half_k: usize = (self.k - 1) / 2;
+            let new_base = encode_base(base);
+
+            // Update the hash, if needed (i.e. if reads)
+            if let Some(ref mut roll_hash) = self.hash_gen {
+                let old_base = self.upper >> ((self.k - 2) * 2);
+                roll_hash.roll_fwd(old_base.as_u8(), new_base);
+            }
+
+            // Update the k-mer
             self.upper = (self.upper << 2
                 | (IntT::from_encoded_base(self.middle_base) << (half_k * 2)))
                 & self.upper_mask;
             self.middle_base = (self.lower >> (2 * (half_k - 1))).as_u8();
-            let new_base = encode_base(base);
             self.lower =
                 ((self.lower << 2) | (IntT::from_encoded_base(new_base))) & self.lower_mask;
             if self.rc {
@@ -186,10 +211,11 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         k: usize,
         rc: bool,
         min_qual: u8,
+        is_reads: bool,
     ) -> Option<Self> {
         let mut index = 0;
-        let first_kmer = Self::build(&seq, seq_len, qual, k, &mut index, min_qual);
-        if let Some((upper, lower, middle_base)) = first_kmer {
+        let first_kmer = Self::build(&seq, seq_len, qual, k, &mut index, min_qual, is_reads, rc);
+        if let Some((upper, lower, middle_base, hash_gen)) = first_kmer {
             let (lower_mask, upper_mask) = IntT::generate_masks(k);
             let mut split_kmer = Self {
                 k,
@@ -207,6 +233,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 rc_lower: IntT::zero_init(),
                 rc_middle_base: 0,
                 index,
+                hash_gen,
             };
             if rc {
                 split_kmer.update_rc();
@@ -234,6 +261,27 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             }
         }
         (split_kmer, self.middle_base, false)
+    }
+
+    /// Get a `u64` hash of the current k-mer using [`NtHashIterator`]
+    ///
+    /// Can get alternative hashes for a countmin table by giving an index
+    ///
+    /// # Panics
+    ///
+    /// If called after creating with `is_reads = false`
+    pub fn get_hash(&self, hash_idx: usize) -> u64 {
+        if hash_idx == 0 {
+            self.hash_gen
+                .as_ref()
+                .expect("Trying to get unitialised hash")
+                .curr_hash()
+        } else {
+            self.hash_gen
+                .as_ref()
+                .expect("Trying to get unitialised hash")
+                .extra_hash(hash_idx)
+        }
     }
 
     /// Get the next split k-mer in the sequence

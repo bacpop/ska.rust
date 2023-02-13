@@ -7,34 +7,13 @@
 //! See <https://en.wikipedia.org/wiki/Count-min_sketch> for more
 //! details on this data structure.
 
-use ahash::RandomState;
-
 use super::bit_encoding::UInt;
+use super::split_kmer::SplitKmer;
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
 ///
 /// Table can be reset to avoid reallocation for every sample.
-///
-/// # Examples
-///
-/// ```
-/// use ska::ska_dict::count_min_filter::CountMin;
-///
-/// // Create the filter
-/// let width: usize = 1 << 26;
-/// let height = 6;
-/// let min_count = 2;
-/// let mut cm_filter = CountMin::empty(width, height, min_count);
-/// cm_filter.init();
-///
-/// // Use it
-/// let mut passed = cm_filter.filter(0 as u64, 0 as u8); // false
-/// passed = cm_filter.filter(0 as u64, 0 as u8);         // true
-///
-/// // Reset for use with a new file
-/// cm_filter.reset();
-/// ```
 #[derive(Debug, Clone)]
 pub struct CountMin {
     /// Table width (estimated number of unique k-mers)
@@ -43,8 +22,6 @@ pub struct CountMin {
     width_shift: u32,
     /// Table height (number of hashes)
     height: usize,
-    /// Hash generators
-    hash_factory: Vec<RandomState>,
     /// Mask to convert hash into table column
     mask: u64,
     /// Table of counts
@@ -72,7 +49,6 @@ impl CountMin {
             width,
             width_shift,
             height,
-            hash_factory: Vec::new(),
             mask,
             counts: Vec::new(),
             min_count,
@@ -84,10 +60,6 @@ impl CountMin {
     /// Allocates memory and sets hash functions.
     pub fn init(&mut self) {
         if self.counts.is_empty() {
-            self.hash_factory = (0..self.height)
-                .into_iter()
-                .map(|_| RandomState::new())
-                .collect();
             self.counts = vec![0; self.width * self.height];
         }
     }
@@ -104,13 +76,12 @@ impl CountMin {
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: IntT, encoded_base: u8) -> bool {
+    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> bool {
         // This is possible because of the k-mer size restriction, the top two
         // bit are always zero
-        let kmer_and_base = kmer.add_base(encoded_base);
         let mut count = 0;
-        for (row_idx, hasher) in self.hash_factory.iter().enumerate() {
-            let hash_val = kmer_and_base.hash_val(hasher);
+        for row_idx in 0..self.height {
+            let hash_val = kmer.get_hash(row_idx);
             let table_idx =
                 row_idx * self.width + (((hash_val & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);

@@ -172,7 +172,7 @@ where
             chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
             split_kmer_pos.reserve(seqrec.num_bases());
 
-            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0);
+            let kmer_opt = SplitKmer::new(seqrec.seq(), seqrec.num_bases(), None, k, rc, 0, false);
             if let Some(mut kmer_it) = kmer_opt {
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();
                 let mut pos = kmer_it.get_middle_pos();
