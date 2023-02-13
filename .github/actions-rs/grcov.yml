@@ -3,7 +3,9 @@ ignore-not-existing: true
 llvm: true
 output-type: lcov
 output-file: ./lcov.info
-excl-br-line: .+cov:excl-line
-excl-line: .+cov:excl-line
-excl-start: cov:excl-start
-excl-stop: cov:excl-stop
+excl-br-line: covskip
+excl-br-start: covskipsec
+excl-br-stop: covskipsecend
+excl-line: covskip
+excl-start: covskipsec
+excl-stop: covskipsecend
