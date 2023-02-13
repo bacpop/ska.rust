@@ -85,14 +85,12 @@ impl CountMin {
             let table_idx =
                 row_idx * self.width + (((hash_val & self.mask) >> self.width_shift) as usize);
             self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
-            //println!("hash:{hash_val} table_idx:{table_idx}");
             if row_idx == 0 {
                 count = self.counts[table_idx];
             } else {
                 count = u16::min(count, self.counts[table_idx]);
             }
         }
-        //println!("{} {count}", kmer.get_curr_kmer().0);
         count >= self.min_count
     }
 }
