@@ -3,3 +3,7 @@ ignore-not-existing: true
 llvm: true
 output-type: lcov
 output-file: ./lcov.info
+excl-br-line: "#\[(derive(.*)\]"
+excl-line: "cov:excl-line"
+excl-start: "cov:excl-start"
+excl-stop: "cov:excl-stop"

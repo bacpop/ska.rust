@@ -89,11 +89,11 @@ impl fmt::Display for FilterType {
 pub struct Args {
     #[doc(hidden)]
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Commands, // cov:excl-line
 
     /// Show progress messages
     #[arg(short, long, global = true)]
-    pub verbose: bool,
+    pub verbose: bool, // cov:excl-line
 }
 
 /// Subcommands and their specific options
