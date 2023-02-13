@@ -83,20 +83,18 @@ impl fmt::Display for FilterType {
 }
 
 /// Options that apply to all subcommands
-// covskipsec
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 pub struct Args {
     #[doc(hidden)]
     #[command(subcommand)]
-    pub command: Commands, // covskip
+    pub command: Commands,
 
     /// Show progress messages
     #[arg(short, long, global = true)]
-    pub verbose: bool, // covskip
+    pub verbose: bool,
 }
-// covskipsecend
 
 /// Subcommands and their specific options
 #[derive(Subcommand)]
