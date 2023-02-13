@@ -160,6 +160,33 @@ fn count_check_long() {
 
     let correct_aln = HashSet::from([vec!['G', 'A']]);
     assert_eq!(var_hash(&fastq_align_c3_out), correct_aln);
+
+    // Now ignoring the rc
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads_k63_c3_ss")
+        .arg("--single-strand")
+        .args(&["--min-count", "2", "-v", "-k", "63"])
+        .assert()
+        .success();
+
+    let fastq_align_c3_out_ss = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads_k63_c3_ss.skf")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(
+        var_hash(&fastq_align_c3_out),
+        var_hash(&fastq_align_c3_out_ss)
+    );
 }
 
 // Uses perfect reads with the same fasta input as merge.skf
