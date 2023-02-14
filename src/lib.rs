@@ -58,7 +58,7 @@
 //! K-mer size must be odd, greater than 5, and a maximum of 63. Smaller k-mers
 //! are more sensitive and can find closer positions, but are less specific so
 //! may lead to more repeated split k-mers and ambiguous bases. Using k <= 31 uses
-//! 64-bit integers and may be faster than 31 < k <= 63.
+//! 64-bit integers and may be faster than 31 < k <= 63, which uses 128-bits.
 //!
 //! This is typically the most computationally intensive step of `ska`, and
 //! multiple `--threads` can be used to split the work over multiple CPU cores.
