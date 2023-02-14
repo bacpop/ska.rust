@@ -71,12 +71,11 @@ footprint than the original.
 
 ## Planned features
 
-- Support up to k=63
 - Add support for amiguity in VCF output
 
 ## Things you can no longer do
 
-- Use k > 31 (shouldn't be necessary).
+- Use k > 63 (shouldn't be necessary? Let us know if you need this and why).
 - `ska annotate` (use bedtools).
 - `ska compare`, `ska humanise`, `ska info` or `ska summary` (use `ska nk --full-info`).
 - `ska distance` and `ska unique` (use [pp-sketchlib](https://github.com/bacpop/pp-sketchlib)).
