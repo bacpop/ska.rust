@@ -77,9 +77,9 @@ pub enum FilterType {
 impl fmt::Display for FilterType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Self::NoFilter => writeln!(f, "No filtering"),
-            Self::NoConst => writeln!(f, "No constant sites"),
-            Self::NoAmbigOrConst => writeln!(f, "No constant sites or ambiguous bases"),
+            Self::NoFilter => write!(f, "No filtering"),
+            Self::NoConst => write!(f, "No constant sites"),
+            Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
         }
     }
 }
@@ -98,9 +98,9 @@ pub enum QualFilter {
 impl fmt::Display for QualFilter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Self::NoFilter => writeln!(f, "No quality filtering"),
-            Self::VarFilter => writeln!(f, "Middle base quality filtering"),
-            Self::StrictFilter => writeln!(f, "Whole k-mer quality filtering"),
+            Self::NoFilter => write!(f, "No quality filtering"),
+            Self::VarFilter => write!(f, "Middle base quality filtering"),
+            Self::StrictFilter => write!(f, "Whole k-mer quality filtering"),
         }
     }
 }

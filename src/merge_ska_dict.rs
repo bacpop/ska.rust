@@ -281,6 +281,7 @@ where
 /// # Examples
 /// ```
 /// use ska::merge_ska_dict::{InputFastx, build_and_merge};
+/// use ska::cli::QualFilter;
 ///
 /// let input_files: [InputFastx; 2] = [("test1".to_string(),
 ///                                      "tests/test_files_in/test_1.fa".to_string(),
@@ -288,7 +289,7 @@ where
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, &QualFilter::NoFilter, 1);
 /// ```
 ///
 /// # Panics

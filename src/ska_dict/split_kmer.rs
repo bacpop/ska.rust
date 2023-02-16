@@ -96,8 +96,8 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         let mut i = 0;
         while i < k {
             if valid_base(seq[i + *idx])
-                && (*qual_filter == QualFilter::StrictFilter
-                    && Self::valid_qual(i + *idx, qual, min_qual))
+                && (*qual_filter != QualFilter::StrictFilter
+                    || Self::valid_qual(i + *idx, qual, min_qual))
             {
                 // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
