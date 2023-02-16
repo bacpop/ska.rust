@@ -14,6 +14,7 @@ use hashbrown::HashMap;
 use indicatif::{ParallelProgressIterator, ProgressIterator};
 use rayon::prelude::*;
 
+use crate::cli::QualFilter;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
@@ -299,6 +300,7 @@ pub fn build_and_merge<IntT>(
     rc: bool,
     min_count: u16,
     min_qual: u8,
+    qual_filter: &QualFilter,
     threads: usize,
 ) -> MergeSkaDict<IntT>
 where
@@ -306,6 +308,10 @@ where
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
+    log::info!(
+        "Read quality filtering criteria: minimum quality {min_qual}/'{}'; filter: {qual_filter}",
+        (min_qual + 33) as char
+    );
     let mut ska_dicts: Vec<SkaDict<IntT>> = Vec::new();
     ska_dicts.reserve(input_files.len());
     if threads > 1 {
@@ -325,6 +331,7 @@ where
                     name,
                     rc,
                     min_count,
+                    qual_filter,
                     min_qual,
                 )
             })
@@ -339,6 +346,7 @@ where
                 name,
                 rc,
                 min_count,
+                qual_filter,
                 min_qual,
             ))
         }

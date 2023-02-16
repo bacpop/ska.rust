@@ -13,6 +13,8 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use crate::cli::QualFilter;
+
 use super::bit_encoding::*;
 use super::nthash::NtHashIterator;
 
@@ -34,6 +36,8 @@ pub struct SplitKmer<'a, IntT> {
     seq_len: usize,
     /// Reference to sequence quality scores
     qual: Option<&'a [u8]>,
+    /// How to filter on quality scores
+    qual_filter: QualFilter,
     /// Minimum quality score to allow in a split k-mers
     min_qual: u8,
     /// Current index in input sequence
@@ -77,6 +81,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         qual: Option<&'a [u8]>,
         k: usize,
         idx: &mut usize,
+        qual_filter: &QualFilter,
         min_qual: u8,
         is_reads: bool,
         rc: bool,
@@ -90,7 +95,10 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         let middle_idx = (k + 1) / 2 - 1;
         let mut i = 0;
         while i < k {
-            if valid_base(seq[i + *idx]) && Self::valid_qual(i + *idx, qual, min_qual) {
+            if valid_base(seq[i + *idx])
+                && (*qual_filter == QualFilter::StrictFilter
+                    && Self::valid_qual(i + *idx, qual, min_qual))
+            {
                 // Checks for N or n
                 let next_base = encode_base(seq[i + *idx]);
                 match i.cmp(&middle_idx) {
@@ -149,13 +157,17 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             return success;
         }
         let base = self.seq[self.index];
-        if !valid_base(base) || !Self::valid_qual(self.index, self.qual, self.min_qual) {
+        if !valid_base(base)
+            || (self.qual_filter == QualFilter::StrictFilter
+                && !Self::valid_qual(self.index, self.qual, self.min_qual))
+        {
             let new_kmer = Self::build(
                 &self.seq,
                 self.seq_len,
                 self.qual,
                 self.k,
                 &mut self.index,
+                &self.qual_filter,
                 self.min_qual,
                 self.hash_gen.is_some(),
                 self.rc,
@@ -204,6 +216,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     ///
     /// Returns [`None`] if no valid split k-mers found in input (e.g. too short,
     /// no sequence, too many Ns).
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         seq: Cow<'a, [u8]>,
         seq_len: usize,
@@ -211,10 +224,21 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         k: usize,
         rc: bool,
         min_qual: u8,
+        qual_filter: QualFilter,
         is_reads: bool,
     ) -> Option<Self> {
         let mut index = 0;
-        let first_kmer = Self::build(&seq, seq_len, qual, k, &mut index, min_qual, is_reads, rc);
+        let first_kmer = Self::build(
+            &seq,
+            seq_len,
+            qual,
+            k,
+            &mut index,
+            &qual_filter,
+            min_qual,
+            is_reads,
+            rc,
+        );
         if let Some((upper, lower, middle_base, hash_gen)) = first_kmer {
             let (lower_mask, upper_mask) = IntT::generate_masks(k);
             let mut split_kmer = Self {
@@ -224,6 +248,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 seq_len,
                 seq,
                 qual,
+                qual_filter,
                 min_qual,
                 upper,
                 lower,
@@ -300,5 +325,19 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     pub fn get_middle_pos(&self) -> usize {
         let middle_idx = (self.k + 1) / 2 - 1;
         self.index - middle_idx
+    }
+
+    /// Returns true if the middle base passes the provided quality filtering criteria
+    pub fn middle_base_qual(&self) -> bool {
+        if self.qual.is_some() {
+            match self.qual_filter {
+                QualFilter::VarFilter | QualFilter::StrictFilter => {
+                    Self::valid_qual(self.get_middle_pos(), self.qual, self.min_qual)
+                }
+                QualFilter::NoFilter => true,
+            }
+        } else {
+            true
+        }
     }
 }

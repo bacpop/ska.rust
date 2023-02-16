@@ -306,6 +306,7 @@ pub fn main() {
             single_strand,
             min_count,
             min_qual,
+            qual_filter,
             threads,
         } => {
             // Read input
@@ -315,15 +316,29 @@ pub fn main() {
             let rc = !*single_strand;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u64>(&input_files, *k, rc, *min_count, *min_qual, *threads);
+                let merged_dict = build_and_merge::<u64>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    qual_filter,
+                    *threads,
+                );
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u128>(&input_files, *k, rc, *min_count, *min_qual, *threads);
+                let merged_dict = build_and_merge::<u128>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    qual_filter,
+                    *threads,
+                );
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());

@@ -13,6 +13,8 @@ pub const DEFAULT_STRAND: bool = false;
 pub const DEFAULT_MINCOUNT: u16 = 10;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
+/// Default quality filtering criteria
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::VarFilter;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -82,6 +84,27 @@ impl fmt::Display for FilterType {
     }
 }
 
+/// Possible quality score filters when building with reads
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum QualFilter {
+    /// Ignore quality scores in reads
+    NoFilter,
+    /// Filter middle bases below quality threshold
+    VarFilter,
+    /// Filter entire k-mer when any base below quality threshold
+    StrictFilter,
+}
+
+impl fmt::Display for QualFilter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::NoFilter => writeln!(f, "No quality filtering"),
+            Self::VarFilter => writeln!(f, "Middle base quality filtering"),
+            Self::StrictFilter => writeln!(f, "Whole k-mer quality filtering"),
+        }
+    }
+}
+
 /// Options that apply to all subcommands
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -133,6 +156,10 @@ pub enum Commands {
         /// Minimum k-mer count (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
         min_qual: u8,
+
+        /// Quality filtering criteria (with reads)
+        #[arg(long, value_enum, default_value_t = QualFilter::VarFilter)]
+        qual_filter: QualFilter,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

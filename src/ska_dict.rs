@@ -21,6 +21,7 @@ use hashbrown::HashMap;
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
+use crate::cli::QualFilter;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
@@ -69,7 +70,13 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, min_qual: u8) {
+    fn add_file_kmers(
+        &mut self,
+        filename: &str,
+        is_reads: bool,
+        qual_filter: &QualFilter,
+        min_qual: u8,
+    ) {
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
         while let Some(record) = reader.next() {
@@ -81,15 +88,17 @@ where
                 self.k,
                 self.rc,
                 min_qual,
+                *qual_filter,
                 is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
-                if !is_reads || self.cm_filter.filter(&kmer_it) {
+                if !is_reads || (kmer_it.middle_base_qual() && self.cm_filter.filter(&kmer_it)) {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     self.add_to_dict(kmer, base);
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
-                    if !is_reads || self.cm_filter.filter(&kmer_it) {
+                    if !is_reads || (kmer_it.middle_base_qual() && self.cm_filter.filter(&kmer_it))
+                    {
                         self.add_to_dict(kmer, base);
                     }
                 }
@@ -135,6 +144,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
         sample_idx: usize,
@@ -142,6 +152,7 @@ where
         name: &str,
         rc: bool,
         min_count: u16,
+        qual_filter: &QualFilter,
         min_qual: u8,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
@@ -171,9 +182,9 @@ where
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(files.0, is_reads, min_qual);
+        sk_dict.add_file_kmers(files.0, is_reads, qual_filter, min_qual);
         if let Some(second_filename) = files.1 {
-            sk_dict.add_file_kmers(second_filename, is_reads, min_qual);
+            sk_dict.add_file_kmers(second_filename, is_reads, qual_filter, min_qual);
         }
 
         if sk_dict.ksize() == 0 {
