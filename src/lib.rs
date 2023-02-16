@@ -90,9 +90,9 @@
 //! to be included. This is an effective way of filtering sequencing errors if set
 //! to at least three, but higher may be appropriate for higher coverage data. A countmin
 //! filter is used for memory efficiency.
-//! - `--qual-filter`. `no-filter` do not filter based on quality scores.
-//! `var-filter` (default) filter k-mers where the middle base is below the minimum quality.
-//! `strict-filter` filter k-mers where any base is below the minimum quality.
+//! - `--qual-filter`. `none` do not filter based on quality scores.
+//! `middle` (default) filter k-mers where the middle base is below the minimum quality.
+//! `strict` filter k-mers where any base is below the minimum quality.
 //! - `--min-qual`. Specify a minimum PHRED score to use in the filter.
 //!
 //! FASTQ files must be paired end. If you'd like to request more flexibility in

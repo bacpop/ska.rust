@@ -96,7 +96,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         let mut i = 0;
         while i < k {
             if valid_base(seq[i + *idx])
-                && (*qual_filter != QualFilter::StrictFilter
+                && (*qual_filter != QualFilter::Strict
                     || Self::valid_qual(i + *idx, qual, min_qual))
             {
                 // Checks for N or n
@@ -158,7 +158,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         }
         let base = self.seq[self.index];
         if !valid_base(base)
-            || (self.qual_filter == QualFilter::StrictFilter
+            || (self.qual_filter == QualFilter::Strict
                 && !Self::valid_qual(self.index, self.qual, self.min_qual))
         {
             let new_kmer = Self::build(
@@ -331,7 +331,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     pub fn middle_base_qual(&self) -> bool {
         if self.qual.is_some() {
             match self.qual_filter {
-                QualFilter::VarFilter | QualFilter::StrictFilter => {
+                QualFilter::Middle | QualFilter::Strict => {
                     Self::valid_qual(self.get_middle_pos(), self.qual, self.min_qual)
                 }
                 QualFilter::NoFilter => true,

@@ -14,7 +14,7 @@ pub const DEFAULT_MINCOUNT: u16 = 10;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
-pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::VarFilter;
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -90,17 +90,17 @@ pub enum QualFilter {
     /// Ignore quality scores in reads
     NoFilter,
     /// Filter middle bases below quality threshold
-    VarFilter,
+    Middle,
     /// Filter entire k-mer when any base below quality threshold
-    StrictFilter,
+    Strict,
 }
 
 impl fmt::Display for QualFilter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Self::NoFilter => write!(f, "No quality filtering"),
-            Self::VarFilter => write!(f, "Middle base quality filtering"),
-            Self::StrictFilter => write!(f, "Whole k-mer quality filtering"),
+            Self::Middle => write!(f, "Middle base quality filtering"),
+            Self::Strict => write!(f, "Whole k-mer quality filtering"),
         }
     }
 }
@@ -158,7 +158,7 @@ pub enum Commands {
         min_qual: u8,
 
         /// Quality filtering criteria (with reads)
-        #[arg(long, value_enum, default_value_t = QualFilter::VarFilter)]
+        #[arg(long, value_enum, default_value_t = QualFilter::Middle)]
         qual_filter: QualFilter,
 
         /// Number of CPU threads

@@ -131,7 +131,7 @@ where
     ///
     /// let min_count = 2;
     /// let min_qual = 20;
-    /// let qual_filter = QualFilter::VarFilter;
+    /// let qual_filter = QualFilter::Middle;
     /// let k = 9;
     /// let sample_idx = 0;
     /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
