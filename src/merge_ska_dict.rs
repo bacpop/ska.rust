@@ -14,6 +14,7 @@ use hashbrown::HashMap;
 use indicatif::{ParallelProgressIterator, ProgressIterator};
 use rayon::prelude::*;
 
+use crate::cli::QualFilter;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
@@ -280,6 +281,7 @@ where
 /// # Examples
 /// ```
 /// use ska::merge_ska_dict::{InputFastx, build_and_merge};
+/// use ska::cli::QualFilter;
 ///
 /// let input_files: [InputFastx; 2] = [("test1".to_string(),
 ///                                      "tests/test_files_in/test_1.fa".to_string(),
@@ -287,7 +289,7 @@ where
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, &QualFilter::NoFilter, 1);
 /// ```
 ///
 /// # Panics
@@ -299,6 +301,7 @@ pub fn build_and_merge<IntT>(
     rc: bool,
     min_count: u16,
     min_qual: u8,
+    qual_filter: &QualFilter,
     threads: usize,
 ) -> MergeSkaDict<IntT>
 where
@@ -306,6 +309,10 @@ where
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
+    log::info!(
+        "Read quality filtering criteria: minimum quality {min_qual}/'{}'; filter: {qual_filter}",
+        (min_qual + 33) as char
+    );
     let mut ska_dicts: Vec<SkaDict<IntT>> = Vec::new();
     ska_dicts.reserve(input_files.len());
     if threads > 1 {
@@ -325,6 +332,7 @@ where
                     name,
                     rc,
                     min_count,
+                    qual_filter,
                     min_qual,
                 )
             })
@@ -339,6 +347,7 @@ where
                 name,
                 rc,
                 min_count,
+                qual_filter,
                 min_qual,
             ))
         }

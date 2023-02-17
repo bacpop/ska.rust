@@ -72,6 +72,8 @@
 //! for example when exclusively using reference sequences or single stranded viruses, add `--single-strand`
 //! to ignore reverse complements.
 //!
+//! ### Read files
+//!
 //! To use FASTQ files, or specify sample names, or more easily input a larger number of input files,
 //! you can provide a tab separated file list via `-f` instead of listing files. For example
 //! a file called `input_sequence.txt` to describe `sample_1` (an assembly) and `sample_2` (paired reads):
@@ -81,9 +83,17 @@
 //! ```
 //! You'd run:
 //! ```bash
-//! ska build -o seqs -f input_sequence.txt --min-count 20 --min-qual 30
+//! ska build -o seqs -f input_sequence.txt
 //! ```
-//! (here also demonstrating changing the error filtering criteria with the FASTQ files.)
+//! Options for filtering/error correction are:
+//! - `--min-count`. Specify a minimum number of appearances a k-mer must have
+//! to be included. This is an effective way of filtering sequencing errors if set
+//! to at least three, but higher may be appropriate for higher coverage data. A countmin
+//! filter is used for memory efficiency.
+//! - `--qual-filter`. `none` do not filter based on quality scores.
+//! `middle` (default) filter k-mers where the middle base is below the minimum quality.
+//! `strict` filter k-mers where any base is below the minimum quality.
+//! - `--min-qual`. Specify a minimum PHRED score to use in the filter.
 //!
 //! FASTQ files must be paired end. If you'd like to request more flexibility in
 //! this regard please contact us.
@@ -212,6 +222,7 @@
 //! ```rust
 //! use ska::merge_ska_dict::{InputFastx, build_and_merge};
 //! use ska::merge_ska_array::MergeSkaArray;
+//! use ska::cli::QualFilter;
 //!
 //! // Build, merge
 //! let input_files: [InputFastx; 2] = [("test1".to_string(),
@@ -225,9 +236,10 @@
 //! let min_count = 1;
 //! let min_qual = 0;
 //! let threads = 2;
+//! let qual_filter = QualFilter::NoFilter;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, min_count, min_qual, threads);
+//!     build_and_merge::<u64>(&input_files, k, rc, min_count, min_qual, &qual_filter, threads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -306,6 +318,7 @@ pub fn main() {
             single_strand,
             min_count,
             min_qual,
+            qual_filter,
             threads,
         } => {
             // Read input
@@ -315,15 +328,29 @@ pub fn main() {
             let rc = !*single_strand;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u64>(&input_files, *k, rc, *min_count, *min_qual, *threads);
+                let merged_dict = build_and_merge::<u64>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    qual_filter,
+                    *threads,
+                );
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u128>(&input_files, *k, rc, *min_count, *min_qual, *threads);
+                let merged_dict = build_and_merge::<u128>(
+                    &input_files,
+                    *k,
+                    rc,
+                    *min_count,
+                    *min_qual,
+                    qual_filter,
+                    *threads,
+                );
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());

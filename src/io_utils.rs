@@ -14,7 +14,9 @@ use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
 
-use crate::cli::{DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_STRAND};
+use crate::cli::{
+    DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_QUALFILTER, DEFAULT_STRAND,
+};
 
 /// Given a list of input files, parses them into triples of name, filename and
 /// [`None`] to be used with [SkaDict](`crate::ska_dict::SkaDict::new()`).
@@ -67,6 +69,7 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
             !DEFAULT_STRAND,
             DEFAULT_MINCOUNT,
             DEFAULT_MINQUAL,
+            &DEFAULT_QUALFILTER,
             threads,
         );
         Ok(MergeSkaArray::new(&merged_dict))

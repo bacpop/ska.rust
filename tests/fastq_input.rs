@@ -270,6 +270,9 @@ fn map_fastq() {
 // CACT    TTAA    C,T
 // zgrep 'TTAA.AGTG' test_1_fwd.fastq.gz
 // zgrep 'CACT.TTAA' test_1_rev.fastq.gz
+// test_error has base errors
+// test_quality has many qual '0' in these k-mers
+// test_quality_base has qual '0' at the middle base and '!' at one flanking base
 #[test]
 fn error_fastq() {
     let sandbox = TestSetup::setup();
@@ -295,9 +298,55 @@ fn error_fastq() {
         .unwrap()
         .stdout;
     let mut all_hash = var_hash(&fastq_align_out_all);
-    all_hash.remove(&vec!['C', 'T']);
+
+    // With no quality filtering
+    let rfile_name = sandbox.create_rfile(&"test_quality", FxType::Fastq);
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(&["--min-count", "5", "-v", "-k", "9", "--qual-filter", "no-filter"])
+        .assert()
+        .success();
+
+    let fastq_align_out_quality_nofilter = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&fastq_align_out_quality_nofilter), all_hash);
+
+    // With only quality filtering the middle base
+    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(&["--min-count", "5", "-v", "-k", "9", "--qual-filter", "middle", "--min-qual", "5"])
+        .assert()
+        .success();
+
+    let fastq_align_out_quality_base = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&fastq_align_out_quality_base), all_hash);
 
     // With errors
+    all_hash.remove(&vec!['C', 'T']);
     let rfile_name = sandbox.create_rfile(&"test_error", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -330,6 +379,52 @@ fn error_fastq() {
         .arg("-o")
         .arg("reads")
         .args(&["--min-count", "5", "-v", "-k", "9", "--min-qual", "30"])
+        .assert()
+        .success();
+
+    let fastq_align_out_quality = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&fastq_align_out_quality), all_hash);
+
+    // With low quality score in flanking region
+    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(&["--min-count", "5", "-v", "-k", "9", "--min-qual", "5", "--qual-filter", "strict"])
+        .assert()
+        .success();
+
+    let fastq_align_out_quality = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("reads.skf")
+        .output()
+        .unwrap()
+        .stdout;
+
+    assert_eq!(var_hash(&fastq_align_out_quality), all_hash);
+
+    // With low quality score in middle base region
+    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(&["--min-count", "5", "-v", "-k", "9"])
         .assert()
         .success();
 

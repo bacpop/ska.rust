@@ -13,6 +13,8 @@ pub const DEFAULT_STRAND: bool = false;
 pub const DEFAULT_MINCOUNT: u16 = 10;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
+/// Default quality filtering criteria
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -75,9 +77,30 @@ pub enum FilterType {
 impl fmt::Display for FilterType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Self::NoFilter => writeln!(f, "No filtering"),
-            Self::NoConst => writeln!(f, "No constant sites"),
-            Self::NoAmbigOrConst => writeln!(f, "No constant sites or ambiguous bases"),
+            Self::NoFilter => write!(f, "No filtering"),
+            Self::NoConst => write!(f, "No constant sites"),
+            Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
+        }
+    }
+}
+
+/// Possible quality score filters when building with reads
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum QualFilter {
+    /// Ignore quality scores in reads
+    NoFilter,
+    /// Filter middle bases below quality threshold
+    Middle,
+    /// Filter entire k-mer when any base below quality threshold
+    Strict,
+}
+
+impl fmt::Display for QualFilter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::NoFilter => write!(f, "No quality filtering"),
+            Self::Middle => write!(f, "Middle base quality filtering"),
+            Self::Strict => write!(f, "Whole k-mer quality filtering"),
         }
     }
 }
@@ -133,6 +156,10 @@ pub enum Commands {
         /// Minimum k-mer count (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
         min_qual: u8,
+
+        /// Quality filtering criteria (with reads)
+        #[arg(long, value_enum, default_value_t = QualFilter::Middle)]
+        qual_filter: QualFilter,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
