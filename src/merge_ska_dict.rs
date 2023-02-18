@@ -303,15 +303,16 @@ where
 /// # Examples
 /// ```
 /// use ska::merge_ska_dict::{InputFastx, build_and_merge};
-/// use ska::cli::QualFilter;
+/// use ska::{QualOpts, QualFilter};
 ///
+/// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 /// let input_files: [InputFastx; 2] = [("test1".to_string(),
 ///                                      "tests/test_files_in/test_1.fa".to_string(),
 ///                                      None),
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, &QualFilter::NoFilter, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, &quality, 1);
 /// ```
 ///
 /// # Panics

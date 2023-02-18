@@ -236,7 +236,7 @@
 //! ```rust
 //! use ska::merge_ska_dict::{InputFastx, build_and_merge};
 //! use ska::merge_ska_array::MergeSkaArray;
-//! use ska::cli::QualFilter;
+//! use ska::{QualOpts, QualFilter};
 //!
 //! // Build, merge
 //! let input_files: [InputFastx; 2] = [("test1".to_string(),
@@ -247,13 +247,11 @@
 //!                                      None)];
 //! let rc = true;
 //! let k = 17;
-//! let min_count = 1;
-//! let min_qual = 0;
+//! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
-//! let qual_filter = QualFilter::NoFilter;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, min_count, min_qual, &qual_filter, threads);
+//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
