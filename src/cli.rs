@@ -3,8 +3,6 @@ use std::fmt;
 
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
-extern crate num_cpus;
-
 use super::QualFilter;
 
 /// Default split k-mer size
@@ -47,11 +45,18 @@ fn valid_cpus(s: &str) -> Result<usize, String> {
     let threads: usize = s
         .parse()
         .map_err(|_| format!("`{s}` isn't a valid number of cores"))?;
-    let max_threads = num_cpus::get();
-    if threads < 1 || threads > max_threads {
-        Err("Threads must be between 1 and {max_threads}".to_string())
+    if threads < 1 {
+        Err("Threads must be one or higher".to_string())
     } else {
         Ok(threads)
+    }
+}
+
+/// Prints a warning if more threads than available have been requested
+pub fn check_threads(threads: usize) {
+    let max_threads = num_cpus::get();
+    if threads > max_threads {
+        log::warn!("{threads} threads is greater than available cores {max_threads}");
     }
 }
 

@@ -298,6 +298,7 @@ use std::fmt;
 use std::time::Instant;
 
 use clap::ValueEnum;
+extern crate num_cpus;
 
 pub mod merge_ska_dict;
 pub mod ska_dict;
@@ -365,6 +366,8 @@ pub fn main() {
     let args = cli_args();
     if args.verbose {
         simple_logger::init_with_level(log::Level::Info).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Warn).unwrap();
     }
 
     eprintln!("SKA: Split K-mer Analysis (the alignment-free aligner)");
@@ -381,6 +384,8 @@ pub fn main() {
             qual_filter,
             threads,
         } => {
+            check_threads(*threads);
+
             // Read input
             let input_files = get_input_list(file_list, seq_files);
             let quality = QualOpts {
@@ -412,6 +417,7 @@ pub fn main() {
             filter,
             threads,
         } => {
+            check_threads(*threads);
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
@@ -431,6 +437,7 @@ pub fn main() {
             format,
             threads,
         } => {
+            check_threads(*threads);
             log::info!("Loading skf as dictionary");
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(
