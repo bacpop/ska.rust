@@ -308,7 +308,15 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9", "--qual-filter", "no-filter"])
+        .args(&[
+            "--min-count",
+            "5",
+            "-v",
+            "-k",
+            "9",
+            "--qual-filter",
+            "no-filter",
+        ])
         .assert()
         .success();
 
@@ -331,7 +339,17 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9", "--qual-filter", "middle", "--min-qual", "5"])
+        .args(&[
+            "--min-count",
+            "5",
+            "-v",
+            "-k",
+            "9",
+            "--qual-filter",
+            "middle",
+            "--min-qual",
+            "5",
+        ])
         .assert()
         .success();
 
@@ -401,7 +419,17 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9", "--min-qual", "5", "--qual-filter", "strict"])
+        .args(&[
+            "--min-count",
+            "5",
+            "-v",
+            "-k",
+            "9",
+            "--min-qual",
+            "5",
+            "--qual-filter",
+            "strict",
+        ])
         .assert()
         .success();
 

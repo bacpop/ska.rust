@@ -11,10 +11,9 @@ use core::panic;
 use std::mem;
 
 use hashbrown::HashMap;
-use indicatif::{ParallelProgressIterator, ProgressIterator};
-use rayon::prelude::*;
+use indicatif::ProgressIterator;
 
-use crate::cli::QualFilter;
+use super::QualOpts;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
@@ -224,17 +223,27 @@ where
 
 /// Serial `MergeSkaDict::append()` into a [`MergeSkaDict`]
 fn multi_append<IntT>(
-    input_dicts: &mut [SkaDict<IntT>],
+    input_files: &[InputFastx],
+    offset: usize,
     total_size: usize,
     k: usize,
     rc: bool,
+    qual: &QualOpts,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
     let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
-    for ska_dict in &mut input_dicts.iter() {
-        merged_dict.append(ska_dict);
+    for (idx, (name, filename, second_file)) in input_files.iter().enumerate() {
+        let ska_dict = SkaDict::new(
+            k,
+            idx + offset,
+            (filename, second_file.as_ref()),
+            name,
+            rc,
+            qual,
+        );
+        merged_dict.append(&ska_dict);
     }
     merged_dict
 }
@@ -245,26 +254,39 @@ where
 /// i.e. depth 1 splits in 2, depth 2 splits in 4
 fn parallel_append<IntT>(
     depth: usize,
-    dict_list: &mut [SkaDict<IntT>],
+    offset: usize,
+    file_list: &[InputFastx],
     total_size: usize,
     k: usize,
     rc: bool,
+    qual: &QualOpts,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    let (bottom, top) = dict_list.split_at_mut(dict_list.len() / 2);
+    let split_point = file_list.len() / 2;
+    let (bottom, top) = file_list.split_at(split_point);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || multi_append(bottom, total_size, k, rc),
-            || multi_append(top, total_size, k, rc),
+            || multi_append(bottom, offset, total_size, k, rc, qual),
+            || multi_append(top, offset + split_point, total_size, k, rc, qual),
         );
         bottom_merge.merge(&mut top_merge);
         bottom_merge
     } else {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || parallel_append(depth - 1, bottom, total_size, k, rc),
-            || parallel_append(depth - 1, top, total_size, k, rc),
+            || parallel_append(depth - 1, offset, bottom, total_size, k, rc, qual),
+            || {
+                parallel_append(
+                    depth - 1,
+                    offset + split_point,
+                    top,
+                    total_size,
+                    k,
+                    rc,
+                    qual,
+                )
+            },
         );
         bottom_merge.merge(&mut top_merge);
         bottom_merge
@@ -281,15 +303,16 @@ where
 /// # Examples
 /// ```
 /// use ska::merge_ska_dict::{InputFastx, build_and_merge};
-/// use ska::cli::QualFilter;
+/// use ska::{QualOpts, QualFilter};
 ///
+/// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 /// let input_files: [InputFastx; 2] = [("test1".to_string(),
 ///                                      "tests/test_files_in/test_1.fa".to_string(),
 ///                                      None),
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, 0, 0, &QualFilter::NoFilter, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, &quality, 1);
 /// ```
 ///
 /// # Panics
@@ -299,9 +322,7 @@ pub fn build_and_merge<IntT>(
     input_files: &[InputFastx],
     k: usize,
     rc: bool,
-    min_count: u16,
-    min_qual: u8,
-    qual_filter: &QualFilter,
+    qual: &QualOpts,
     threads: usize,
 ) -> MergeSkaDict<IntT>
 where
@@ -309,68 +330,33 @@ where
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
-    log::info!(
-        "Read quality filtering criteria: minimum quality {min_qual}/'{}'; filter: {qual_filter}",
-        (min_qual + 33) as char
-    );
-    let mut ska_dicts: Vec<SkaDict<IntT>> = Vec::new();
-    ska_dicts.reserve(input_files.len());
+    log::info!("If FASTQ input: {qual}");
     if threads > 1 {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()
             .unwrap();
-        ska_dicts = input_files
-            .par_iter()
-            .progress_count(input_files.len() as u64)
-            .enumerate()
-            .map(|(idx, (name, filename, second_file))| {
-                SkaDict::new(
-                    k,
-                    idx,
-                    (filename, second_file.as_ref()),
-                    name,
-                    rc,
-                    min_count,
-                    qual_filter,
-                    min_qual,
-                )
-            })
-            .collect();
-    } else {
-        for file_it in input_files.iter().progress().enumerate() {
-            let (idx, (name, filename, second_file)) = file_it;
-            ska_dicts.push(SkaDict::new(
-                k,
-                idx,
-                (filename, second_file.as_ref()),
-                name,
-                rc,
-                min_count,
-                qual_filter,
-                min_qual,
-            ))
-        }
     }
 
     // Merge indexes, ensuring at least 10 samples per thread
-    let mut merged_dict = MergeSkaDict::new(k, ska_dicts.len(), rc);
-    let max_threads = usize::max(1, usize::min(threads, 1 + ska_dicts.len() / 10));
+    let total_size = input_files.len();
+    let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
+    let max_threads = usize::max(1, usize::min(threads, 1 + total_size / 10));
     let max_depth = f64::floor(f64::log2(max_threads as f64)) as usize;
     if max_depth > 0 {
         log::info!(
             "{}",
             format!(
-                "Merging skf dicts in parallel using {} threads",
+                "Build and merge skf dicts in parallel using {} threads",
                 1 << max_depth
             )
         );
-        let total_size = ska_dicts.len();
-        merged_dict = parallel_append(max_depth, &mut ska_dicts, total_size, k, rc);
+        merged_dict = parallel_append(max_depth, 0, input_files, total_size, k, rc, qual);
     } else {
-        log::info!("Merging skf dicts serially");
-        for ska_dict in ska_dicts.iter_mut().progress() {
-            merged_dict.append(ska_dict);
+        log::info!("Build and merge serially");
+        for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
+            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual);
+            merged_dict.append(&ska_dict);
         }
     }
     merged_dict

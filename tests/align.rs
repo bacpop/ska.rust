@@ -205,7 +205,7 @@ fn filters() {
 fn parallel_align() {
     let sandbox = TestSetup::setup();
     // Needs at least ten samples per threads, so make lots of copies
-    // (confimed with -v that this actually uses the multi-thread algorithm)
+    // (confirmed with -v that this actually uses the multi-thread algorithm)
     let rfile_name = sandbox.create_par_rfile();
 
     // Serial alignment
@@ -236,7 +236,7 @@ fn parallel_align() {
         .arg(rfile_name)
         .arg("-o")
         .arg("parallel_build")
-        .args(&["-v", "--threads", "2", "-k", "15"])
+        .args(&["-v", "--threads", "4", "-k", "15"])
         .assert()
         .success();
 

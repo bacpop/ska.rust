@@ -98,6 +98,20 @@
 //! FASTQ files must be paired end. If you'd like to request more flexibility in
 //! this regard please contact us.
 //!
+//! ### Threads
+//!
+//! The maximum threads actually used will be a power of two, so if you provided
+//! `--threads 6` only four would be used. Additionally, at least ten samples per
+//! thread are required so maximums are:
+//!
+//! | Samples | Maximum threads |
+//! |---------|-----------------|
+//! | 1-19    | 1               |
+//! | 20-39   | 2               |
+//! | 40-79   | 4               |
+//!
+//! and so on. Use `-v` to see a message with the number being used.
+//!
 //! ## ska align
 //!
 //! Creates an alignment from a `.skf` file or sequence files. Sites (columns) are
@@ -222,7 +236,7 @@
 //! ```rust
 //! use ska::merge_ska_dict::{InputFastx, build_and_merge};
 //! use ska::merge_ska_array::MergeSkaArray;
-//! use ska::cli::QualFilter;
+//! use ska::{QualOpts, QualFilter};
 //!
 //! // Build, merge
 //! let input_files: [InputFastx; 2] = [("test1".to_string(),
@@ -233,13 +247,11 @@
 //!                                      None)];
 //! let rc = true;
 //! let k = 17;
-//! let min_count = 1;
-//! let min_qual = 0;
+//! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
-//! let qual_filter = QualFilter::NoFilter;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, min_count, min_qual, &qual_filter, threads);
+//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -280,7 +292,11 @@
 //!
 
 #![warn(missing_docs)]
+use std::fmt;
 use std::time::Instant;
+
+use clap::ValueEnum;
+extern crate num_cpus;
 
 pub mod merge_ska_dict;
 pub mod ska_dict;
@@ -300,11 +316,56 @@ use crate::cli::*;
 pub mod io_utils;
 use crate::io_utils::*;
 
+/// Possible quality score filters when building with reads
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum QualFilter {
+    /// Ignore quality scores in reads
+    NoFilter,
+    /// Filter middle bases below quality threshold
+    Middle,
+    /// Filter entire k-mer when any base below quality threshold
+    Strict,
+}
+
+impl fmt::Display for QualFilter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::NoFilter => write!(f, "No quality filtering"),
+            Self::Middle => write!(f, "Middle base quality filtering"),
+            Self::Strict => write!(f, "Whole k-mer quality filtering"),
+        }
+    }
+}
+
+/// Quality filtering options for FASTQ files
+pub struct QualOpts {
+    /// Minimum k-mer count across reads to be added
+    pub min_count: u16,
+    /// Minimum base quality to be added
+    pub min_qual: u8,
+    /// [`QualFilter`]: apply quality across whole k-mer, just middle base, or not at all
+    pub qual_filter: QualFilter,
+}
+
+impl fmt::Display for QualOpts {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "minimum quality {} ({}); filter: {}",
+            self.min_qual,
+            (self.min_qual + 33) as char,
+            self.qual_filter
+        )
+    }
+}
+
 #[doc(hidden)]
 pub fn main() {
     let args = cli_args();
     if args.verbose {
         simple_logger::init_with_level(log::Level::Info).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Warn).unwrap();
     }
 
     eprintln!("SKA: Split K-mer Analysis (the alignment-free aligner)");
@@ -321,36 +382,27 @@ pub fn main() {
             qual_filter,
             threads,
         } => {
+            check_threads(*threads);
+
             // Read input
             let input_files = get_input_list(file_list, seq_files);
+            let quality = QualOpts {
+                min_count: *min_count,
+                min_qual: *min_qual,
+                qual_filter: *qual_filter,
+            };
 
             // Build, merge
             let rc = !*single_strand;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict = build_and_merge::<u64>(
-                    &input_files,
-                    *k,
-                    rc,
-                    *min_count,
-                    *min_qual,
-                    qual_filter,
-                    *threads,
-                );
+                let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict = build_and_merge::<u128>(
-                    &input_files,
-                    *k,
-                    rc,
-                    *min_count,
-                    *min_qual,
-                    qual_filter,
-                    *threads,
-                );
+                let merged_dict = build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
                 save_skf(&merged_dict, format!("{output}.skf").as_str());
@@ -363,6 +415,7 @@ pub fn main() {
             filter,
             threads,
         } => {
+            check_threads(*threads);
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
@@ -382,6 +435,7 @@ pub fn main() {
             format,
             threads,
         } => {
+            check_threads(*threads);
             log::info!("Loading skf as dictionary");
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(

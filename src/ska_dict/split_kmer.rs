@@ -13,7 +13,7 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
-use crate::cli::QualFilter;
+use super::super::QualFilter;
 
 use super::bit_encoding::*;
 use super::nthash::NtHashIterator;
