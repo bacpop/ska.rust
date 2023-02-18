@@ -21,7 +21,7 @@ use hashbrown::HashMap;
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
-use crate::cli::QualFilter;
+use super::QualOpts;
 use crate::ska_dict::split_kmer::SplitKmer;
 
 pub mod bit_encoding;
@@ -70,13 +70,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    fn add_file_kmers(
-        &mut self,
-        filename: &str,
-        is_reads: bool,
-        qual_filter: &QualFilter,
-        min_qual: u8,
-    ) {
+    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
         while let Some(record) = reader.next() {
@@ -87,8 +81,8 @@ where
                 seqrec.qual(),
                 self.k,
                 self.rc,
-                min_qual,
-                *qual_filter,
+                qual.min_qual,
+                qual.qual_filter,
                 is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
@@ -154,9 +148,7 @@ where
         files: (&str, Option<&String>),
         name: &str,
         rc: bool,
-        min_count: u16,
-        qual_filter: &QualFilter,
-        min_qual: u8,
+        qual: &QualOpts,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -168,7 +160,7 @@ where
             sample_idx,
             name: name.to_string(),
             split_kmers: HashMap::default(),
-            cm_filter: CountMin::empty(CM_WIDTH, CM_HEIGHT, min_count),
+            cm_filter: CountMin::empty(CM_WIDTH, CM_HEIGHT, qual.min_count),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so
@@ -185,9 +177,9 @@ where
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(files.0, is_reads, qual_filter, min_qual);
+        sk_dict.add_file_kmers(files.0, is_reads, qual);
         if let Some(second_filename) = files.1 {
-            sk_dict.add_file_kmers(second_filename, is_reads, qual_filter, min_qual);
+            sk_dict.add_file_kmers(second_filename, is_reads, qual);
         }
 
         if sk_dict.ksize() == 0 {

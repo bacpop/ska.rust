@@ -10,6 +10,7 @@ use std::path::Path;
 
 use regex::Regex;
 
+use super::QualOpts;
 use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
@@ -63,13 +64,16 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
     } else {
         log::info!("Multiple files as input, running ska build with default settings");
         let input_files = read_input_fastas(input);
+        let default_qual = QualOpts {
+            min_count: DEFAULT_MINCOUNT,
+            min_qual: DEFAULT_MINQUAL,
+            qual_filter: DEFAULT_QUALFILTER,
+        };
         let merged_dict = build_and_merge(
             &input_files,
             DEFAULT_KMER,
             !DEFAULT_STRAND,
-            DEFAULT_MINCOUNT,
-            DEFAULT_MINQUAL,
-            &DEFAULT_QUALFILTER,
+            &default_qual,
             threads,
         );
         Ok(MergeSkaArray::new(&merged_dict))

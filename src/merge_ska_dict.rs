@@ -13,7 +13,7 @@ use std::mem;
 use hashbrown::HashMap;
 use indicatif::ProgressIterator;
 
-use crate::cli::QualFilter;
+use super::QualOpts;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
@@ -228,9 +228,7 @@ fn multi_append<IntT>(
     total_size: usize,
     k: usize,
     rc: bool,
-    min_count: u16,
-    min_qual: u8,
-    qual_filter: &QualFilter,
+    qual: &QualOpts,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -243,9 +241,7 @@ where
             (filename, second_file.as_ref()),
             name,
             rc,
-            min_count,
-            qual_filter,
-            min_qual,
+            qual,
         );
         merged_dict.append(&ska_dict);
     }
@@ -263,9 +259,7 @@ fn parallel_append<IntT>(
     total_size: usize,
     k: usize,
     rc: bool,
-    min_count: u16,
-    min_qual: u8,
-    qual_filter: &QualFilter,
+    qual: &QualOpts,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -274,48 +268,14 @@ where
     let (bottom, top) = file_list.split_at(split_point);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || {
-                multi_append(
-                    bottom,
-                    offset,
-                    total_size,
-                    k,
-                    rc,
-                    min_count,
-                    min_qual,
-                    qual_filter,
-                )
-            },
-            || {
-                multi_append(
-                    top,
-                    offset + split_point,
-                    total_size,
-                    k,
-                    rc,
-                    min_count,
-                    min_qual,
-                    qual_filter,
-                )
-            },
+            || multi_append(bottom, offset, total_size, k, rc, qual),
+            || multi_append(top, offset + split_point, total_size, k, rc, qual),
         );
         bottom_merge.merge(&mut top_merge);
         bottom_merge
     } else {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || {
-                parallel_append(
-                    depth - 1,
-                    offset,
-                    bottom,
-                    total_size,
-                    k,
-                    rc,
-                    min_count,
-                    min_qual,
-                    qual_filter,
-                )
-            },
+            || parallel_append(depth - 1, offset, bottom, total_size, k, rc, qual),
             || {
                 parallel_append(
                     depth - 1,
@@ -324,9 +284,7 @@ where
                     total_size,
                     k,
                     rc,
-                    min_count,
-                    min_qual,
-                    qual_filter,
+                    qual,
                 )
             },
         );
@@ -363,9 +321,7 @@ pub fn build_and_merge<IntT>(
     input_files: &[InputFastx],
     k: usize,
     rc: bool,
-    min_count: u16,
-    min_qual: u8,
-    qual_filter: &QualFilter,
+    qual: &QualOpts,
     threads: usize,
 ) -> MergeSkaDict<IntT>
 where
@@ -373,10 +329,7 @@ where
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
-    log::info!(
-        "FASTQ (may not be used) quality filtering criteria: minimum quality {min_qual}/'{}'; filter: {qual_filter}",
-        (min_qual + 33) as char
-    );
+    log::info!("If FASTQ input: {qual}");
     if threads > 1 {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
@@ -397,30 +350,11 @@ where
                 1 << max_depth
             )
         );
-        merged_dict = parallel_append(
-            max_depth,
-            0,
-            &input_files,
-            total_size,
-            k,
-            rc,
-            min_count,
-            min_qual,
-            qual_filter,
-        );
+        merged_dict = parallel_append(max_depth, 0, input_files, total_size, k, rc, qual);
     } else {
         log::info!("Build and merge serially");
         for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
-            let ska_dict = SkaDict::new(
-                k,
-                idx,
-                (filename, second_file.as_ref()),
-                name,
-                rc,
-                min_count,
-                qual_filter,
-                min_qual,
-            );
+            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual);
             merged_dict.append(&ska_dict);
         }
     }

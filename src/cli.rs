@@ -5,6 +5,8 @@ use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 extern crate num_cpus;
 
+use super::QualFilter;
+
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
 /// Default single strand (which is equivalent to !rc)
@@ -80,27 +82,6 @@ impl fmt::Display for FilterType {
             Self::NoFilter => write!(f, "No filtering"),
             Self::NoConst => write!(f, "No constant sites"),
             Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
-        }
-    }
-}
-
-/// Possible quality score filters when building with reads
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum QualFilter {
-    /// Ignore quality scores in reads
-    NoFilter,
-    /// Filter middle bases below quality threshold
-    Middle,
-    /// Filter entire k-mer when any base below quality threshold
-    Strict,
-}
-
-impl fmt::Display for QualFilter {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Self::NoFilter => write!(f, "No quality filtering"),
-            Self::Middle => write!(f, "Middle base quality filtering"),
-            Self::Strict => write!(f, "Whole k-mer quality filtering"),
         }
     }
 }

@@ -55,8 +55,9 @@ use needletail::{
     parser::{write_fasta, Format},
 };
 
+use super::QualFilter;
 pub mod aln_writer;
-use crate::{cli::QualFilter, ska_ref::aln_writer::AlnWriter};
+use crate::ska_ref::aln_writer::AlnWriter;
 pub mod idx_check;
 use crate::ska_ref::idx_check::IdxCheck;
 
