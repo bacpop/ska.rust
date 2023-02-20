@@ -36,7 +36,7 @@ pub mod nthash;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
-pub struct SkaDict<IntT, FilterT> {
+pub struct SkaDict<IntT> {
     /// K-mer size
     k: usize,
     /// Whether reverse-complement was counted
@@ -48,13 +48,12 @@ pub struct SkaDict<IntT, FilterT> {
     /// Split k-mer dictionary split-k:middle-base
     split_kmers: HashMap<IntT, u8>,
     /// A countmin filter for counting from fastq files
-    kmer_filter: FilterT,
+    kmer_filter: KmerFilter,
 }
 
-impl<IntT, FilterT> SkaDict<IntT, FilterT>
+impl<IntT> SkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
-    FilterT: KmerFilter
 {
     /// Adds a split-kmer and middle base to dictionary.
     fn add_to_dict(&mut self, kmer: IntT, base: u8) {
@@ -149,7 +148,6 @@ where
         name: &str,
         rc: bool,
         qual: &QualOpts,
-        filter: &FilterT,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -161,7 +159,7 @@ where
             sample_idx,
             name: name.to_string(),
             split_kmers: HashMap::default(),
-            kmer_filter: filter.clone(),
+            kmer_filter: KmerFilter::empty(qual.min_count),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so

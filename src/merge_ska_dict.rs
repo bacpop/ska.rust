@@ -16,7 +16,6 @@ use indicatif::ProgressIterator;
 use super::QualOpts;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
-use crate::ska_dict::count_min_filter::{CountMin, KmerFilter, BlockedBloom};
 
 /// Tuple for name and fasta or paired fastq input
 pub type InputFastx = (String, String, Option<String>);
@@ -71,10 +70,7 @@ where
     /// # Panics
     ///
     /// If k-mer length or reverse complement do not match
-    pub fn append<FiltT>(&mut self, other: &SkaDict<IntT, FiltT>)
-    where
-        FiltT: KmerFilter
-    {
+    pub fn append(&mut self, other: &SkaDict<IntT>) {
         if other.kmer_len() != self.k {
             panic!(
                 "K-mer lengths do not match: {} {}",
@@ -239,32 +235,15 @@ where
 {
     let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
     for (idx, (name, filename, second_file)) in input_files.iter().enumerate() {
-        if qual.bloom() {
-            let filter = BlockedBloom::empty(qual.min_count);
-            let ska_dict = SkaDict::new(
-                k,
-                idx + offset,
-                (filename, second_file.as_ref()),
-                name,
-                rc,
-                qual,
-                &filter,
-            );
-            merged_dict.append(&ska_dict);
-        } else {
-            let filter = CountMin::empty(qual.min_count);
-            let ska_dict = SkaDict::new(
-                k,
-                idx + offset,
-                (filename, second_file.as_ref()),
-                name,
-                rc,
-                qual,
-                &filter,
-            );
-            merged_dict.append(&ska_dict);
-        }
-
+        let ska_dict = SkaDict::new(
+            k,
+            idx + offset,
+            (filename, second_file.as_ref()),
+            name,
+            rc,
+            qual,
+        );
+        merged_dict.append(&ska_dict);
     }
     merged_dict
 }
@@ -376,15 +355,8 @@ where
     } else {
         log::info!("Build and merge serially");
         for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
-            if qual.bloom() {
-                let filter = BlockedBloom::empty(qual.min_count);
-                let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual, &filter);
-                merged_dict.append(&ska_dict);
-            } else {
-                let filter = CountMin::empty(qual.min_count);
-                let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual, &filter);
-                merged_dict.append(&ska_dict);
-            }
+            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual);
+            merged_dict.append(&ska_dict);
         }
     }
     merged_dict
