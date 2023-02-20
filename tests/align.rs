@@ -5,6 +5,9 @@ use crate::common::*;
 
 use hashbrown::HashSet;
 
+#[cfg(test)]
+use pretty_assertions::{assert_eq};
+
 // NB: to view output, uncomment the current_dir lines
 
 #[test]
