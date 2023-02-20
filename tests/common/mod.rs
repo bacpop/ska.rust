@@ -9,6 +9,9 @@ use predicates::prelude::*;
 
 use hashbrown::HashSet;
 
+#[cfg(test)]
+use pretty_assertions::{assert_eq};
+
 // Creates correct path for input/output files
 static FILE_IN: &'static str = "tests/test_files_in";
 static FILE_TEST: &'static str = "tests/test_results_correct";
