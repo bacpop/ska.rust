@@ -16,8 +16,10 @@
 //! know how many you will be merging, which will let you use [`crate::merge_ska_dict::MergeSkaDict::merge()`].
 //! Otherwise you will need to use the slower [`crate::merge_ska_dict::MergeSkaDict::extend()`]
 
-extern crate needletail;
+use std::cmp::Ordering;
+
 use hashbrown::HashMap;
+extern crate needletail;
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
@@ -86,12 +88,17 @@ where
                 is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
-                if !is_reads || (kmer_it.middle_base_qual() && self.cm_filter.filter(&kmer_it)) {
+                if !is_reads
+                    || (kmer_it.middle_base_qual()
+                        && Ordering::is_eq(self.cm_filter.filter(&kmer_it)))
+                {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     self.add_to_dict(kmer, base);
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
-                    if !is_reads || (kmer_it.middle_base_qual() && self.cm_filter.filter(&kmer_it))
+                    if !is_reads
+                        || (kmer_it.middle_base_qual()
+                            && Ordering::is_eq(self.cm_filter.filter(&kmer_it)))
                     {
                         self.add_to_dict(kmer, base);
                     }

@@ -7,6 +7,8 @@
 //! See <https://en.wikipedia.org/wiki/Count-min_sketch> for more
 //! details on this data structure.
 
+use std::cmp::Ordering;
+
 use super::bit_encoding::UInt;
 use super::split_kmer::SplitKmer;
 
@@ -64,7 +66,7 @@ impl CountMin {
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> bool {
+    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering {
         // This is possible because of the k-mer size restriction, the top two
         // bit are always zero
         let mut count = 0;
@@ -79,6 +81,6 @@ impl CountMin {
                 count = u16::min(count, self.counts[table_idx]);
             }
         }
-        count >= self.min_count
+        count.cmp(&self.min_count)
     }
 }
