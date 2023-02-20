@@ -30,20 +30,13 @@ pub mod bit_encoding;
 use crate::ska_dict::bit_encoding::{decode_base, UInt, IUPAC};
 
 pub mod count_min_filter;
-use crate::ska_dict::count_min_filter::CountMin;
+use crate::ska_dict::count_min_filter::KmerFilter;
 
 pub mod nthash;
 
-/// Default countmin filter width (expected number of unique k-mers)
-///
-/// 2^27 =~ 130M
-const CM_WIDTH: usize = 1 << 27;
-/// Default number of countmin hashes/table height (controls false positive rate)
-const CM_HEIGHT: usize = 3;
-
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone)]
-pub struct SkaDict<IntT> {
+pub struct SkaDict<IntT, FilterT> {
     /// K-mer size
     k: usize,
     /// Whether reverse-complement was counted
@@ -55,12 +48,13 @@ pub struct SkaDict<IntT> {
     /// Split k-mer dictionary split-k:middle-base
     split_kmers: HashMap<IntT, u8>,
     /// A countmin filter for counting from fastq files
-    cm_filter: CountMin,
+    kmer_filter: FilterT,
 }
 
-impl<IntT> SkaDict<IntT>
+impl<IntT, FilterT> SkaDict<IntT, FilterT>
 where
     IntT: for<'a> UInt<'a>,
+    FilterT: KmerFilter
 {
     /// Adds a split-kmer and middle base to dictionary.
     fn add_to_dict(&mut self, kmer: IntT, base: u8) {
@@ -90,7 +84,7 @@ where
             if let Some(mut kmer_it) = kmer_opt {
                 if !is_reads
                     || (kmer_it.middle_base_qual()
-                        && Ordering::is_eq(self.cm_filter.filter(&kmer_it)))
+                        && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                 {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     self.add_to_dict(kmer, base);
@@ -98,7 +92,7 @@ where
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
                     if !is_reads
                         || (kmer_it.middle_base_qual()
-                            && Ordering::is_eq(self.cm_filter.filter(&kmer_it)))
+                            && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                     {
                         self.add_to_dict(kmer, base);
                     }
@@ -155,6 +149,7 @@ where
         name: &str,
         rc: bool,
         qual: &QualOpts,
+        filter: &FilterT,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -166,7 +161,7 @@ where
             sample_idx,
             name: name.to_string(),
             split_kmers: HashMap::default(),
-            cm_filter: CountMin::empty(CM_WIDTH, CM_HEIGHT, qual.min_count),
+            kmer_filter: filter.clone(),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so
@@ -178,7 +173,7 @@ where
             .expect("Invalid FASTA/Q record");
         let mut is_reads = false;
         if seq_peek.format() == Format::Fastq {
-            sk_dict.cm_filter.init();
+            sk_dict.kmer_filter.init();
             is_reads = true;
         }
 

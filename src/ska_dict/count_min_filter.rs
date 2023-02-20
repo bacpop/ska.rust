@@ -8,9 +8,25 @@
 //! details on this data structure.
 
 use std::cmp::Ordering;
+use std::borrow::BorrowMut;
 
 use super::bit_encoding::UInt;
 use super::split_kmer::SplitKmer;
+
+/// Default countmin filter width (expected number of unique k-mers)
+///
+/// 2^27 =~ 130M
+const CM_WIDTH: usize = 1 << 27;
+/// Default number of countmin hashes/table height (controls false positive rate)
+const CM_HEIGHT: usize = 3;
+const BITS_PER_ENTRY: usize = 12;
+
+pub trait KmerFilter:
+    std::fmt::Debug + Clone {
+    fn empty(min_count: u16) -> Self;
+    fn init(&mut self);
+    fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering;
+}
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
@@ -30,16 +46,16 @@ pub struct CountMin {
     min_count: u16,
 }
 
-impl CountMin {
+impl KmerFilter for CountMin {
     /// Creates a new countmin table of specified size, and pass threshold
     ///
     /// Note:
     /// - Must call [`CountMin::init()`] before using.
     /// - Width will be rounded down to the closest power of two
     /// - Maximum count is [`u16::MAX`] i.e. 65535
-    pub fn empty(width: usize, height: usize, min_count: u16) -> Self {
+    fn empty(min_count: u16) -> Self {
         // Consistent with consts used, but ensures a power of two
-        let width_bits: usize = f64::floor(f64::log2(width as f64)) as usize;
+        let width_bits: usize = f64::floor(f64::log2(CM_WIDTH as f64)) as usize;
         let width = 1 << (width_bits + 1);
         // Use MSB rather than LSB
         let width_shift = u64::BITS - width_bits as u32;
@@ -48,7 +64,7 @@ impl CountMin {
         Self {
             width,
             width_shift,
-            height,
+            height: CM_HEIGHT,
             mask,
             counts: Vec::new(),
             min_count,
@@ -58,7 +74,7 @@ impl CountMin {
     /// Initialises table so it is ready for use.
     ///
     /// Allocates memory and sets hash functions.
-    pub fn init(&mut self) {
+    fn init(&mut self) {
         if self.counts.is_empty() {
             self.counts = vec![0; self.width * self.height];
         }
@@ -66,7 +82,7 @@ impl CountMin {
 
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
-    pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering {
+    fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering {
         // This is possible because of the k-mer size restriction, the top two
         // bit are always zero
         let mut count = 0;
@@ -82,5 +98,62 @@ impl CountMin {
             }
         }
         count.cmp(&self.min_count)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockedBloom {
+    buf_size: u64,
+    buffer: Vec<u64>,
+}
+
+impl BlockedBloom {
+    #[inline(always)]
+    fn reduce(key: u64, range: u64) -> u64 {
+        (((key as u128) * (range as u128)) >> 64) as u64
+    }
+
+    #[inline(always)]
+    fn cheap_mix(key: u64) -> u64 {
+        (key ^ (key >> 31)).wrapping_mul(0x85D0_59AA_3331_21CF)
+    }
+
+    #[inline(always)]
+    fn fingerprint(key: u64) -> u64 {
+        1 << (key & 63)
+            | 1 << ((key >> 6) & 63)
+            | 1 << ((key >> 12) & 63)
+            | 1 << ((key >> 18) & 63)
+            | 1 << ((key >> 24) & 63)
+    }
+
+    #[inline(always)]
+    fn location(key: u64, range: u64) -> usize {
+        Self::reduce(Self::cheap_mix(key), range) as usize
+    }
+}
+
+impl KmerFilter for BlockedBloom {
+    fn empty(min_count: u16) -> Self {
+        Self {
+            buf_size: f64::round(CM_WIDTH as f64 * (BITS_PER_ENTRY as f64 / 8.0) / (u64::BITS as f64)) as u64,
+            buffer: Vec::new(),
+        }
+    }
+
+    fn init(&mut self) {
+        self.buffer.resize(self.buf_size as usize, 0);
+    }
+
+    fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering {
+        let hash_val = kmer.get_hash(0);
+        let f_print = Self::fingerprint(hash_val);
+        let buf_val = self.buffer[Self::location(hash_val, self.buf_size)].borrow_mut();
+        if *buf_val & f_print == f_print {
+            Ordering::Equal
+        } else {
+            *buf_val |= f_print;
+            Ordering::Less
+        }
     }
 }

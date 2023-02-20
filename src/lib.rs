@@ -347,11 +347,19 @@ pub struct QualOpts {
     pub qual_filter: QualFilter,
 }
 
+impl QualOpts {
+    pub fn bloom(&self) -> bool {
+        self.min_count < 3
+    }
+}
+
 impl fmt::Display for QualOpts {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "minimum quality {} ({}); filter: {}",
+            "min count: {}; filter type: {}\nminimum quality {} ({}); filter applied: {}",
+            self.min_count,
+            if self.min_count > 2 { "countmin" } else { "blockedbloom" },
             self.min_qual,
             (self.min_qual + 33) as char,
             self.qual_filter
