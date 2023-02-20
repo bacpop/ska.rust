@@ -88,8 +88,8 @@
 //! Options for filtering/error correction are:
 //! - `--min-count`. Specify a minimum number of appearances a k-mer must have
 //! to be included. This is an effective way of filtering sequencing errors if set
-//! to at least three, but higher may be appropriate for higher coverage data. A countmin
-//! filter is used for memory efficiency.
+//! to at least three, but higher may be appropriate for higher coverage data.
+//! A two-step blocked bloom and countmin filter is used for memory efficiency.
 //! - `--qual-filter`. `none` do not filter based on quality scores.
 //! `middle` (default) filter k-mers where the middle base is below the minimum quality.
 //! `strict` filter k-mers where any base is below the minimum quality.
@@ -111,6 +111,11 @@
 //! | 40-79   | 4               |
 //!
 //! and so on. Use `-v` to see a message with the number being used.
+//!
+//! Using more threads will increase memory use.
+//!
+//! You can also run blocks of samples independently (e.g. with snakemake or a
+//! job array) then use `ska merge` to combine results.
 //!
 //! ## ska align
 //!
@@ -351,7 +356,8 @@ impl fmt::Display for QualOpts {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "minimum quality {} ({}); filter: {}",
+            "min count: {}; minimum quality {} ({}); filter applied: {}",
+            self.min_count,
             self.min_qual,
             (self.min_qual + 33) as char,
             self.qual_filter

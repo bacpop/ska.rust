@@ -66,12 +66,13 @@ pub trait UInt<'a>:
     + std::marker::Send
     + std::marker::Sync
     + std::hash::Hash
-    + serde::Serialize
     + std::ops::Shl<usize, Output = Self>
     + std::ops::BitAnd
     + std::ops::ShrAssign<i32>
     + std::ops::ShlAssign<i32>
     + std::ops::BitOrAssign
+    + std::borrow::BorrowMut<Self>
+    + serde::Serialize
     + serde::Deserialize<'a>
 {
     /// Reverse complement of an encoded and packed split k-mer (64-bits).
