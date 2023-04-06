@@ -498,14 +498,29 @@ pub fn main() {
         Commands::Weed {
             skf_file,
             weed_file,
+            reverse,
             min_freq,
             filter,
         } => {
             log::info!("Loading skf file");
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
-                weed(&mut ska_array, weed_file, *min_freq, filter, skf_file);
+                weed(
+                    &mut ska_array,
+                    weed_file,
+                    *reverse,
+                    *min_freq,
+                    filter,
+                    skf_file,
+                );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
-                weed(&mut ska_array, weed_file, *min_freq, filter, skf_file);
+                weed(
+                    &mut ska_array,
+                    weed_file,
+                    *reverse,
+                    *min_freq,
+                    filter,
+                    skf_file,
+                );
             } else {
                 panic!("Could not read input file: {skf_file}");
             }

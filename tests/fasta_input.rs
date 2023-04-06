@@ -6,7 +6,7 @@ pub mod common;
 use crate::common::{var_hash, TestDir, TestSetup};
 
 #[cfg(test)]
-use pretty_assertions::{assert_eq};
+use pretty_assertions::assert_eq;
 
 #[test]
 fn align_n() {

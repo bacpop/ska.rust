@@ -3,7 +3,7 @@ use snapbox::cmd::{cargo_bin, Command};
 use hashbrown::HashSet;
 
 #[cfg(test)]
-use pretty_assertions::{assert_eq};
+use pretty_assertions::assert_eq;
 
 pub mod common;
 use crate::common::*;

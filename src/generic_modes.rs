@@ -114,6 +114,7 @@ pub fn delete<IntT: for<'a> UInt<'a>>(
 pub fn weed<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     weed_file: &Option<String>,
+    reverse: bool,
     min_freq: f64,
     filter: &FilterType,
     out_file: &str,
@@ -126,8 +127,12 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
         );
         let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc());
 
-        log::info!("Removing weed k-mers");
-        ska_array.weed(&ska_weed);
+        if !reverse {
+            log::info!("Removing weed k-mers");
+        } else {
+            log::info!("Keeping only weed k-mers");
+        }
+        ska_array.weed(&ska_weed, reverse);
     }
 
     let filter_threshold = f64::floor(ska_array.nsamples() as f64 * min_freq) as usize;
