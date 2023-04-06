@@ -1,7 +1,7 @@
 use snapbox::cmd::{cargo_bin, Command};
 
 #[cfg(test)]
-use pretty_assertions::{assert_eq};
+use pretty_assertions::assert_eq;
 
 pub mod common;
 use crate::common::{TestDir, TestSetup};
@@ -201,6 +201,31 @@ fn weed() {
         .arg("--full-info")
         .assert()
         .stdout_matches_path(sandbox.file_string("weed_nk.stdout", TestDir::Correct));
+
+    // Keep rather than weed
+    Command::new("cp")
+        .current_dir(sandbox.get_wd())
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .arg("merge.skf")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("weed")
+        .arg("merge.skf")
+        .arg(sandbox.file_string("weed.fa", TestDir::Input))
+        .arg("--reverse")
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("merge.skf")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("weed_align_reverse.stdout", TestDir::Correct));
 
     // With longer k-mers
     Command::new(cargo_bin("ska"))

@@ -228,6 +228,10 @@ pub enum Commands {
         /// A FASTA file containing sequences to remove
         weed_file: Option<String>,
 
+        /// Remove k-mers not in the weed_file
+        #[arg(long, default_value_t = false)]
+        reverse: bool,
+
         /// Minimum fraction of samples a k-mer has to appear in
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,

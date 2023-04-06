@@ -60,7 +60,8 @@ use crate::cli::FilterType;
 ///
 /// // Delete k-mers
 /// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc());
-/// ska_array.weed(&ska_weed);
+/// let reverse = false;
+/// ska_array.weed(&ska_weed, reverse);
 /// ```
 #[derive(Serialize, Deserialize)]
 pub struct MergeSkaArray<IntT> {
@@ -298,7 +299,13 @@ where
     /// may be a multi-FASTA) generated with [`RefSka::new()`]
     ///
     /// Used with `ska weed`.
-    pub fn weed(&mut self, weed_ref: &RefSka<IntT>) {
+    ///
+    /// # Arguments
+    ///
+    /// - `weed_ref` -- a processed reference with split k-mers to remove.
+    /// - `reverse` -- only remove k-mers not in the input file.
+    ///
+    pub fn weed(&mut self, weed_ref: &RefSka<IntT>, reverse: bool) {
         let weed_kmers: HashSet<IntT> = HashSet::from_iter(weed_ref.kmer_iter());
 
         let mut removed = 0;
@@ -312,7 +319,8 @@ where
             .zip(self.variant_count.iter())
         {
             let ((kmer, var_row), count) = kmer_it;
-            if !weed_kmers.contains(kmer) {
+            let kmer_found = weed_kmers.contains(kmer);
+            if (!reverse && !kmer_found) || (reverse && kmer_found) {
                 new_sk.push(*kmer);
                 new_variants.push_row(var_row).unwrap();
                 new_counts.push(*count);
@@ -323,7 +331,15 @@ where
         self.split_kmers = new_sk;
         self.variants = new_variants;
         self.variant_count = new_counts;
-        log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
+        if !reverse {
+            log::info!("Removed {} of {} weed k-mers", removed, weed_ref.ksize());
+        } else {
+            log::info!(
+                "Kept {} k-mers using {} reverse weed k-mers",
+                self.split_kmers.len(),
+                weed_ref.ksize()
+            );
+        }
     }
 
     /// Write the middle bases as an alignment (FASTA).
