@@ -63,6 +63,37 @@ where
             .or_insert(decode_base(base));
     }
 
+    /// Adds a split k-mer which is a self-rc to the dict
+    /// This requires amibguity of middle_base + rc(middle_base) to be added
+    fn add_palindrome_to_dict(&mut self, kmer: IntT, base: u8) {
+        self.split_kmers
+            .entry(kmer)
+            .and_modify(|b| {
+                *b = match b {
+                    b'W' => {
+                        if base == 0 || base == 2 {
+                            b'W'
+                        } else {
+                            b'N'
+                        }
+                    }
+                    b'S' => {
+                        if base == 0 || base == 2 {
+                            b'N'
+                        } else {
+                            b'S'
+                        }
+                    }
+                    _ => panic!("Palindrome middle base not W/S: {}", *b),
+                }
+            })
+            .or_insert(match base {
+                0 | 2 => b'W', // A or T
+                1 | 3 => b'S', // C or G
+                _ => panic!("Base encoding error: {base}"),
+            });
+    }
+
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
     fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
@@ -86,14 +117,22 @@ where
                         && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                 {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
-                    self.add_to_dict(kmer, base);
+                    if kmer_it.self_palindrome() {
+                        self.add_palindrome_to_dict(kmer, base);
+                    } else {
+                        self.add_to_dict(kmer, base);
+                    }
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
                     if !is_reads
                         || (kmer_it.middle_base_qual()
                             && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                     {
-                        self.add_to_dict(kmer, base);
+                        if kmer_it.self_palindrome() {
+                            self.add_palindrome_to_dict(kmer, base);
+                        } else {
+                            self.add_to_dict(kmer, base);
+                        }
                     }
                 }
             }

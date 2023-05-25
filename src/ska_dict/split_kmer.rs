@@ -128,7 +128,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             }
         }
 
-        // For reads, start an rolling hash
+        // For reads, start a rolling hash
         let hash_gen = if is_reads {
             Some(NtHashIterator::new(&seq[*idx..(*idx + k)], k, rc))
         } else {
@@ -137,6 +137,12 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
 
         *idx += k - 1;
         Some((upper, lower, middle_base, hash_gen))
+    }
+
+    /// Checks if the split k-mer arms are palindromes, i.e. k-mer is its own reverse complement
+    /// In this case the middle base needs ambiguity with its rc added.
+    pub fn self_palindrome(&mut self) -> bool {
+        self.rc && self.upper == self.rc_upper && self.lower == self.rc_lower
     }
 
     /// Update the stored reverse complement using the stored split-k and middle base

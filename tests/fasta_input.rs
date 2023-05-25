@@ -218,3 +218,74 @@ fn repeats() {
         .assert()
         .stdout_eq_path(sandbox.file_string("dup_rc.stdout", TestDir::Correct));
 }
+
+#[test]
+fn palindromes() {
+    let sandbox = TestSetup::setup();
+
+    // Check that palindrome k-mers (self-rc) are correctly ambiguous
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("palindrome_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("palindrome_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("otto")
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("otto.skf")
+        .args(&["--filter", "no-filter"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("palindrome.stdout", TestDir::Correct));
+
+    // Single strand forces orientation so no ambiguity
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("palindrome_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("palindrome_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("otan")
+        .arg("--single-strand")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("otan.skf")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("palindrome_norc.stdout", TestDir::Correct));
+
+    // Check that palindrome k-mers (self-rc) are correctly ambiguous, and
+    // work correctly when multiple copies are present
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-k")
+        .arg("15")
+        .arg(sandbox.file_string("palindrome_reps_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("palindrome_reps_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("ottootto")
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg("ottootto.skf")
+        .args(&["--filter", "no-filter"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("palindrome_reps.stdout", TestDir::Correct));
+}
