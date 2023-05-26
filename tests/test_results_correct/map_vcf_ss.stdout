@@ -51,7 +51,7 @@ fake_ref	47	.	G	.	.	.	.	GT	0	.
 fake_ref	48	.	A	.	.	.	.	GT	0	.
 fake_ref	49	.	G	.	.	.	.	GT	0	.
 fake_ref	50	.	T	.	.	.	.	GT	0	.
-fake_ref	51	.	C	.	.	.	.	GT	0	.
+fake_ref	51	.	C	N	.	.	.	GT	1	.
 fake_ref	52	.	T	.	.	.	.	GT	0	.
 fake_ref	53	.	T	.	.	.	.	GT	0	.
 fake_ref	54	.	T	.	.	.	.	GT	0	.

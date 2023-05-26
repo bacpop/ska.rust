@@ -257,7 +257,6 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,4 +300,3 @@ mod tests {
         test_obj_panic.add_palindrome_to_dict(555, 1);
     }
 }
-
