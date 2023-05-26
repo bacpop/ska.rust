@@ -35,7 +35,7 @@ use crate::ska_dict::count_min_filter::KmerFilter;
 pub mod nthash;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SkaDict<IntT> {
     /// K-mer size
     k: usize,
@@ -256,3 +256,49 @@ where
         &self.name
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_palindrome_to_dict() {
+        // Initialize the test subject
+        let mut test_obj = SkaDict::<u64>::default(); // Replace YourStruct with the actual struct name
+
+        // Test case 1: Updating existing entry
+        test_obj.split_kmers.insert(123, b'W');
+        test_obj.add_palindrome_to_dict(123, 1);
+        assert_eq!(test_obj.split_kmers[&123], b'N');
+
+        // Test case 2: Adding new entry with base 0
+        test_obj.split_kmers.clear();
+        test_obj.add_palindrome_to_dict(456, 0);
+        assert_eq!(test_obj.split_kmers[&456], b'W');
+
+        // Test case 3: Adding new entry with base 3
+        test_obj.split_kmers.clear();
+        test_obj.add_palindrome_to_dict(789, 3);
+        assert_eq!(test_obj.split_kmers[&789], b'S');
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_add_palindrome_to_dict() {
+        // Test case 4: Panicking with invalid base
+        let mut test_obj_panic = SkaDict::<u64>::default();
+        test_obj_panic.add_palindrome_to_dict(987, 5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic2_add_palindrome_to_dict() {
+        // Test case 5: Panicking with invalid middle base
+        let mut test_obj_panic = SkaDict::<u64>::default();
+        test_obj_panic.split_kmers.clear();
+        test_obj_panic.split_kmers.insert(555, b'A');
+        test_obj_panic.add_palindrome_to_dict(555, 1);
+    }
+}
+
