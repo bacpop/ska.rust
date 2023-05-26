@@ -11,6 +11,8 @@
 //! All sequence is stored in memory. Calling [`AlnWriter::get_seq()`] finalises
 //! and writes to the end of the last contig.
 
+use crate::ska_dict::bit_encoding::is_ambiguous;
+
 /// Stores indexes which keep track of the writing, the output sequence and a
 /// reference to the reference sequences which are written in to flanks of
 /// each match.
@@ -35,6 +37,8 @@ pub struct AlnWriter<'a> {
     /// Whether the finalise function has been run, filling to the end of the
     /// final contig.
     finalised: bool,
+    /// Buffer for amibguous bases, which are written in at the end.
+    _ambig_out: Vec<(u8, usize)>,
 }
 
 impl<'a> AlnWriter<'a> {
@@ -53,6 +57,7 @@ impl<'a> AlnWriter<'a> {
             seq_out: vec![b'-'; total_size],
             half_split_len,
             finalised: false,
+            _ambig_out: Vec::new(),
         }
     }
 
@@ -110,6 +115,11 @@ impl<'a> AlnWriter<'a> {
             self.fill_contig();
         }
         if mapped_pos < self.next_pos {
+            // Ambiguous bases may clash with the flanks, which are copied from
+            // reference. Deal with these in `finalise`.
+            if is_ambiguous(base) {
+                self._ambig_out.push((base, mapped_pos + self.chrom_offset));
+            }
             self.last_mapped = mapped_pos;
         } else {
             // Write bases between last match and this one
@@ -138,6 +148,10 @@ impl<'a> AlnWriter<'a> {
         if !self.finalised {
             while self.curr_chrom < self.ref_seq.len() {
                 self.fill_contig();
+            }
+            // Make sure any ambiguous bases are correct
+            for (ambig_base, ambig_pos) in &self._ambig_out {
+                self.seq_out[*ambig_pos] = *ambig_base;
             }
             self.finalised = true;
         }

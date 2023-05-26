@@ -58,6 +58,27 @@ fn map_aln() {
         .arg(sandbox.file_string("indel_test.fa", TestDir::Input))
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_indels.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-k")
+        .arg("17")
+        .arg(sandbox.file_string("ambig_test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("ambig_test_2.fa", TestDir::Input))
+        .arg("-o")
+        .arg("ambig_map")
+        .arg("--single-strand")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("ambig_test_ref.fa", TestDir::Input))
+        .arg("ambig_map.skf")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_aln_ambig.stdout", TestDir::Correct));
 }
 
 #[test]
