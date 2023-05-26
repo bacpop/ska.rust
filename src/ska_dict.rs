@@ -35,7 +35,7 @@ use crate::ska_dict::count_min_filter::KmerFilter;
 pub mod nthash;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SkaDict<IntT> {
     /// K-mer size
     k: usize,
@@ -63,6 +63,37 @@ where
             .or_insert(decode_base(base));
     }
 
+    /// Adds a split k-mer which is a self-rc to the dict
+    /// This requires amibguity of middle_base + rc(middle_base) to be added
+    fn add_palindrome_to_dict(&mut self, kmer: IntT, base: u8) {
+        self.split_kmers
+            .entry(kmer)
+            .and_modify(|b| {
+                *b = match b {
+                    b'W' => {
+                        if base == 0 || base == 2 {
+                            b'W'
+                        } else {
+                            b'N'
+                        }
+                    }
+                    b'S' => {
+                        if base == 0 || base == 2 {
+                            b'N'
+                        } else {
+                            b'S'
+                        }
+                    }
+                    _ => panic!("Palindrome middle base not W/S: {}", *b),
+                }
+            })
+            .or_insert(match base {
+                0 | 2 => b'W', // A or T
+                1 | 3 => b'S', // C or G
+                _ => panic!("Base encoding error: {base}"),
+            });
+    }
+
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
     fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
@@ -86,14 +117,22 @@ where
                         && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                 {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
-                    self.add_to_dict(kmer, base);
+                    if kmer_it.self_palindrome() {
+                        self.add_palindrome_to_dict(kmer, base);
+                    } else {
+                        self.add_to_dict(kmer, base);
+                    }
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
                     if !is_reads
                         || (kmer_it.middle_base_qual()
                             && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                     {
-                        self.add_to_dict(kmer, base);
+                        if kmer_it.self_palindrome() {
+                            self.add_palindrome_to_dict(kmer, base);
+                        } else {
+                            self.add_to_dict(kmer, base);
+                        }
                     }
                 }
             }
@@ -217,3 +256,49 @@ where
         &self.name
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_palindrome_to_dict() {
+        // Initialize the test subject
+        let mut test_obj = SkaDict::<u64>::default(); // Replace YourStruct with the actual struct name
+
+        // Test case 1: Updating existing entry
+        test_obj.split_kmers.insert(123, b'W');
+        test_obj.add_palindrome_to_dict(123, 1);
+        assert_eq!(test_obj.split_kmers[&123], b'N');
+
+        // Test case 2: Adding new entry with base 0
+        test_obj.split_kmers.clear();
+        test_obj.add_palindrome_to_dict(456, 0);
+        assert_eq!(test_obj.split_kmers[&456], b'W');
+
+        // Test case 3: Adding new entry with base 3
+        test_obj.split_kmers.clear();
+        test_obj.add_palindrome_to_dict(789, 3);
+        assert_eq!(test_obj.split_kmers[&789], b'S');
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_add_palindrome_to_dict() {
+        // Test case 4: Panicking with invalid base
+        let mut test_obj_panic = SkaDict::<u64>::default();
+        test_obj_panic.add_palindrome_to_dict(987, 5);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic2_add_palindrome_to_dict() {
+        // Test case 5: Panicking with invalid middle base
+        let mut test_obj_panic = SkaDict::<u64>::default();
+        test_obj_panic.split_kmers.clear();
+        test_obj_panic.split_kmers.insert(555, b'A');
+        test_obj_panic.add_palindrome_to_dict(555, 1);
+    }
+}
+

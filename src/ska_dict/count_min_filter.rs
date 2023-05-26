@@ -36,7 +36,7 @@ const CM_WIDTH: usize = 1 << 24;
 /// This has the advantage of using less memory than a larger countmin filter,
 /// being a bit faster (bloom is ~3x faster than countmin, but having count also
 /// allows entry to dictionary to be only checked once for each passing k-mer)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct KmerFilter {
     /// Size of the bloom filter
     buf_size: u64,
