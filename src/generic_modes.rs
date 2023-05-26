@@ -95,6 +95,26 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
         .expect("Failed to save output file");
 }
 
+pub fn distance<IntT: for<'a> UInt<'a>>(
+    ska_array: &mut MergeSkaArray<IntT>,
+    output_prefix: &str,
+    cutoff: usize,
+    threads: usize,
+) {
+    todo!();
+    // Calculate upper tri of XX^T in a parallel loop
+    //  Needs to be custom mapping function
+    //  ACGT vs different ACGT -> +1
+    //  Ambig bases are converted to prob vectors and multiplied, or ignored
+    //  '-' vs anything counts as a mismatch (need to add this back into CLI)
+
+    // Write out the distances (long form)
+
+    // Calculate single linkage clustering (rust network library? Or connected components alg?)
+
+    // Write out dot and clusters for microreact
+}
+
 /// Delete files with passed names in the given array
 pub fn delete<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,

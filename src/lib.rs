@@ -162,6 +162,9 @@
 //! ska map ref.fa seq1.fa seq2.fa -f vcf --threads 2 | bgzip -c - > seqs.vcf.gz
 //! ```
 //!
+//! ## ska distance
+//! TODO
+//!
 //! ## ska merge
 //!
 //! Use to combine multiple `.skf` files into one, typically for subsequent use in `align` or `map`.
@@ -463,6 +466,20 @@ pub fn main() {
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {
                 panic!("Could not read input file(s): {input:?}");
+            }
+        }
+        Commands::Distance { skf_file, output, cutoff, threads } => {
+            check_threads(*threads);
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                distance(&mut ska_array, output, *cutoff, *threads);
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                distance(&mut ska_array, output, *cutoff, *threads);
+            } else {
+                panic!("Could not read input file(s): {skf_file}");
             }
         }
         Commands::Merge { skf_files, output } => {
