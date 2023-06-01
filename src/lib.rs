@@ -133,7 +133,7 @@
 //!
 //! With an `.skf` file from `ska build`, constant sites, and no missing variants:
 //! ```bash
-//! ska align --min-freq 1 --filter NoFilter -o seqs seqs.skf
+//! ska align --min-freq 1 --filter no-filter -o seqs seqs.skf
 //! ```
 //!
 //! Another example: directly from FASTA files, with default `build` and `align` settings,
