@@ -321,6 +321,9 @@ use crate::cli::*;
 pub mod io_utils;
 use crate::io_utils::*;
 
+pub mod coverage;
+use crate::coverage::*;
+
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum QualFilter {
@@ -543,6 +546,19 @@ pub fn main() {
                 }
             } else {
                 panic!("Could not read input file: {skf_file}");
+            }
+        }
+        Commands::Cov { fastq_fwd, fastq_rev, k, single_strand, threads } => {
+            check_threads(*threads);
+
+            // Build, merge
+            let rc = !*single_strand;
+            if *k <= 31 {
+                log::info!("k={}: using 64-bit representation", *k);
+                coverage_cutoff::<u64>(fastq_fwd, fastq_rev, *k, rc, *threads);
+            } else {
+                log::info!("k={}: using 128-bit representation", *k);
+                coverage_cutoff::<u128>(fastq_fwd, fastq_rev, *k, rc, *threads);
             }
         }
     }
