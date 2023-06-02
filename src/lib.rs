@@ -322,7 +322,7 @@ pub mod io_utils;
 use crate::io_utils::*;
 
 pub mod coverage;
-use crate::coverage::*;
+use crate::coverage::CoverageHistogram;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -548,18 +548,27 @@ pub fn main() {
                 panic!("Could not read input file: {skf_file}");
             }
         }
-        Commands::Cov { fastq_fwd, fastq_rev, k, single_strand, threads } => {
-            check_threads(*threads);
-
+        Commands::Cov {
+            fastq_fwd,
+            fastq_rev,
+            k,
+            single_strand,
+        } => {
             // Build, merge
             let rc = !*single_strand;
+            let cutoff;
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                coverage_cutoff::<u64>(fastq_fwd, fastq_rev, *k, rc, *threads);
+                let mut cov =
+                    CoverageHistogram::<u64>::new(fastq_fwd, fastq_rev, *k, rc, args.verbose);
+                cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                coverage_cutoff::<u128>(fastq_fwd, fastq_rev, *k, rc, *threads);
+                let mut cov =
+                    CoverageHistogram::<u128>::new(fastq_fwd, fastq_rev, *k, rc, args.verbose);
+                cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
             }
+            println!("Estimated cutoff\t{cutoff}");
         }
     }
     let end = Instant::now();

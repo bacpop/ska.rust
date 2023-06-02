@@ -252,25 +252,19 @@ pub enum Commands {
     /// Estimate a coverage cutoff using a k-mer count profile (FASTQ only)
     Cov {
         /// FASTQ file (or .fastq.gz) with forward reads
-        #[arg(short)]
         fastq_fwd: String,
 
         /// FASTQ file (or .fastq.gz) with reverse reads
-        #[arg(short)]
         fastq_rev: String,
 
         /// K-mer size
         #[arg(short, value_parser = valid_kmer, default_value_t = DEFAULT_KMER)]
         k: usize,
 
-        /// Ignore reverse complement (all contigs are oriented along same strand)
+        /// Ignore reverse complement (all reads are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
-
-        /// Number of CPU threads
-        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
-        threads: usize,
-    }
+    },
 }
 
 /// Function to parse command line args into [`Args`] struct
