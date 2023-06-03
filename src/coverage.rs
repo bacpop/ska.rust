@@ -20,6 +20,8 @@ use crate::QualFilter;
 
 const MAX_COUNT: usize = 1000;
 const MIN_FREQ: u32 = 50;
+const INIT_W0: f64 = 0.8f64;
+const INIT_C: f64 = 20.0f64;
 
 pub struct CoverageHistogram<IntT> {
     /// K-mer size
@@ -35,7 +37,7 @@ pub struct CoverageHistogram<IntT> {
     /// Estimated coverage
     c: f64,
     /// Coverage cutoff
-    cutoff: u32,
+    cutoff: usize,
     /// Show logging
     verbose: bool,
 }
@@ -55,8 +57,8 @@ where
             rc,
             kmer_dict: HashMap::default(),
             counts: vec![0; MAX_COUNT],
-            w0: 0.8,
-            c: 20.0,
+            w0: INIT_W0,
+            c: INIT_C,
             cutoff: 0,
             verbose,
         };
@@ -111,7 +113,7 @@ where
         cov_counts
     }
 
-    pub fn fit_histogram(&mut self) -> Result<u32, Error> {
+    pub fn fit_histogram(&mut self) -> Result<usize, Error> {
         // Calculate k-mer histogram
         log::info!("Calculating k-mer histogram");
         for kmer_count in self.kmer_dict.values() {
@@ -130,6 +132,7 @@ where
                 counts_f64.push(*hist_bin as f64);
             }
         }
+        let count_len = counts_f64.len();
 
         log::info!("Fitting Poisson mixture model using maximum likelihood");
         let mixture_fit = MixPoisson { counts: counts_f64 };
@@ -157,7 +160,8 @@ where
                 self.w0 = best[0];
                 self.c = best[1];
 
-                // TODO calculate the coverage cutoff
+                // calculate the coverage cutoff
+                self.cutoff = find_cutoff(best, count_len);
                 Ok(self.cutoff)
             } else {
                 Err(Error::msg(format!(
@@ -257,3 +261,19 @@ fn grad_ll(pars: &[f64], counts: &[f64]) -> Vec<f64> {
     }
     vec![grad_w0, grad_c]
 }
+
+fn find_cutoff(pars: &[f64], max_cutoff: usize) -> usize {
+    let w0 = pars[0];
+    let c = pars[1];
+
+    let mut cutoff = 1;
+    while cutoff < max_cutoff {
+        let cutoff_f64 = cutoff as f64;
+        let root = a(w0, cutoff_f64) - b(w0, c, cutoff_f64);
+        if root < 0.0 {
+            break;
+        }
+        cutoff += 1;
+    }
+    cutoff
+  }
