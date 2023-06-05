@@ -1,3 +1,12 @@
+//! Tools for estimating a count cutoff with FASTQ input.
+//!
+//! This module has a basic k-mer counter using a dictionary, and then uses
+//! maximum likelihood with some basic numerical optimisation to fit a two-component
+//! mixture of Poissons to determine a coverage model. This can be used to classify
+//! a count cutoff with noisy data.
+//!
+//! [`CoverageHistogram`] is the main interface.
+
 use core::panic;
 
 use argmin::core::observers::{ObserverMode, SlogLogger};
@@ -23,6 +32,11 @@ const MIN_FREQ: u32 = 50;
 const INIT_W0: f64 = 0.8f64;
 const INIT_C: f64 = 20.0f64;
 
+/// K-mer counts and a coverage model for a single sample, using a pair of FASTQ files as input
+///
+/// Call [`CoverageHistogram::new()`] to count k-mers, then [`CoverageHistogram::fit_histogram()`]
+/// to fit the model and find a cutoff. [`CoverageHistogram::plot_hist()`] can be used to
+/// extract a table of the output for plotting purposes.
 pub struct CoverageHistogram<IntT> {
     /// K-mer size
     k: usize,
@@ -40,13 +54,18 @@ pub struct CoverageHistogram<IntT> {
     cutoff: usize,
     /// Show logging
     verbose: bool,
+    /// Has the fit been run
+    fitted: bool,
 }
 
 impl<IntT> CoverageHistogram<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    // Called by lib.rs
+    /// Count split k-mers from a pair of input FASTQ files.
+    ///
+    /// Parameters the same as for [`crate::ska_dict::SkaDict`]. `verbose` will
+    /// also print to stderr on each iteration of the optiser.
     pub fn new(fastq1: &String, fastq2: &String, k: usize, rc: bool, verbose: bool) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -61,6 +80,7 @@ where
             c: INIT_C,
             cutoff: 0,
             verbose,
+            fitted: false,
         };
 
         // Check if we're working with reads first
@@ -113,7 +133,22 @@ where
         cov_counts
     }
 
+    /// Fit the coverage model to the histogram of counts
+    ///
+    /// Returns the fitted cutoff if successful.
+    ///
+    /// # Errors
+    /// - If the optimiser didn't finish (reached 100 iterations or another problem).
+    /// - If the linesearch cannot be constructed (may be a bounds issue, or poor data).
+    /// - If the optimiser is still running (this shouldn't happen).
+    ///
+    /// # Panics
+    /// - If the fit has already been run
     pub fn fit_histogram(&mut self) -> Result<usize, Error> {
+        if self.fitted {
+            panic!("Model already fitted");
+        }
+
         // Calculate k-mer histogram
         log::info!("Calculating k-mer histogram");
         for kmer_count in self.kmer_dict.values() {
@@ -162,6 +197,7 @@ where
 
                 // calculate the coverage cutoff
                 self.cutoff = find_cutoff(best, count_len);
+                self.fitted = true;
                 Ok(self.cutoff)
             } else {
                 Err(Error::msg(format!(
@@ -174,8 +210,37 @@ where
         }
     }
 
-    pub fn plot_hist() {
-        todo!()
+    /// Prints the counts and model to stdout, for use in plotting.
+    ///
+    /// Creates a table with count, number of k-mers at that count, mixture
+    /// density, and most likely component.
+    /// Plot with the `plot_hist.py` helper script.
+    pub fn plot_hist(&self) {
+        if !self.fitted {
+            panic!("Model has not yet been fitted");
+        }
+
+        log::info!("Calculating and printing count series");
+        println!("Count\tK_mers\tMixture_density\tComponent");
+        for (idx, count) in self.counts.iter().enumerate() {
+            if *count < MIN_FREQ {
+                break;
+            }
+            println!(
+                "{}\t{}\t{:e}\t{}",
+                idx + 1,
+                *count,
+                f64::exp(lse(
+                    a(self.w0, idx as f64 + 1.0),
+                    b(self.w0, self.c, idx as f64 + 1.0)
+                )),
+                if (idx + 1) < self.cutoff {
+                    "Error"
+                } else {
+                    "Coverage"
+                }
+            )
+        }
     }
 }
 
@@ -234,11 +299,12 @@ fn log_likelihood(pars: &[f64], counts: &[f64]) -> f64 {
     let w0 = pars[0];
     let c = pars[1];
     let mut ll = 0.0;
-    if w0 > 1.0 || w0 < 0.0 || c < 1.0 {
+    if !(0.0..=1.0).contains(&w0) || c < 1.0 {
         ll = f64::MIN;
     } else {
         for (i, count) in counts.iter().enumerate() {
-            ll += *count * lse(a(w0, i as f64 + 1.0), b(w0, c, i as f64 + 1.0));
+            let i_f64 = i as f64 + 1.0;
+            ll += *count * lse(a(w0, i_f64), b(w0, c, i_f64));
         }
     }
     ll
@@ -256,8 +322,8 @@ fn grad_ll(pars: &[f64], counts: &[f64]) -> Vec<f64> {
         let b_val = b(w0, c, i_f64);
         let dlda = 1.0 / (1.0 + f64::exp(b_val - a_val));
         let dldb = 1.0 / (1.0 + f64::exp(a_val - b_val));
-        grad_w0 += *count as f64 * (dlda / w0 - dldb / (1.0 - w0));
-        grad_c += *count as f64 * (dldb * (i_f64 / c - 1.0));
+        grad_w0 += *count * (dlda / w0 - dldb / (1.0 - w0));
+        grad_c += *count * (dldb * (i_f64 / c - 1.0));
     }
     vec![grad_w0, grad_c]
 }
@@ -276,4 +342,4 @@ fn find_cutoff(pars: &[f64], max_cutoff: usize) -> usize {
         cutoff += 1;
     }
     cutoff
-  }
+}

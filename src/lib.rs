@@ -562,13 +562,15 @@ pub fn main() {
                 let mut cov =
                     CoverageHistogram::<u64>::new(fastq_fwd, fastq_rev, *k, rc, args.verbose);
                 cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                cov.plot_hist();
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
                 let mut cov =
                     CoverageHistogram::<u128>::new(fastq_fwd, fastq_rev, *k, rc, args.verbose);
                 cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                cov.plot_hist();
             }
-            println!("Estimated cutoff\t{cutoff}");
+            eprintln!("Estimated cutoff\t{cutoff}");
         }
     }
     let end = Instant::now();
