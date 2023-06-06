@@ -263,8 +263,8 @@ mod tests {
 
     #[test]
     fn test_add_palindrome_to_dict() {
-        // Initialize the test subject
-        let mut test_obj = SkaDict::<u64>::default(); // Replace YourStruct with the actual struct name
+        // Initialize the test object
+        let mut test_obj = SkaDict::<u64>::default();
 
         // Test case 1: Updating existing entry
         test_obj.split_kmers.insert(123, b'W');
