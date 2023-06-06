@@ -96,6 +96,9 @@ where
             }
         }
 
+        // Count the k-mers using the same iterator as in SkaDict, and just use
+        // a dictionary rather than a special filter (~10-20s per sample)
+        // NB: Quality scores totally ignored here, could change this in future
         log::info!("Counting k-mers");
         for fastx_file in [fastq1, fastq2] {
             let mut reader = parse_fastx_file(fastx_file)
@@ -149,7 +152,7 @@ where
             panic!("Model already fitted");
         }
 
-        // Calculate k-mer histogram
+        // Calculate k-mer histogram from k-mer counts
         log::info!("Calculating k-mer histogram");
         for kmer_count in self.kmer_dict.values() {
             let kc = (*kmer_count - 1) as usize;
@@ -169,12 +172,17 @@ where
         }
         let count_len = counts_f64.len();
 
+        // Fit with maximum likelihood. Using BFGS optimiser and simple line search
+        // seems to work fine
         log::info!("Fitting Poisson mixture model using maximum likelihood");
         let mixture_fit = MixPoisson { counts: counts_f64 };
         let init_param: Vec<f64> = vec![self.w0, self.c];
+        // This is required. I tried the numerical Hessian but the scale was wrong
+        // and it gave very poor results for the c optimisation
         let init_hessian: Vec<Vec<f64>> = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         let linesearch = BacktrackingLineSearch::new(ArmijoCondition::new(0.0001f64)?);
         let solver = BFGS::new(linesearch);
+        // Usually around 10 iterations should be enough
         let mut exec = Executor::new(mixture_fit, solver).configure(|state| {
             state
                 .param(init_param)
@@ -186,7 +194,7 @@ where
         }
         let res = exec.run()?;
 
-        // print diagnostics
+        // Print diagnostics
         log::info!("{res}");
         if let Some(termination_reason) = res.state().get_termination_reason() {
             if *termination_reason == SolverConverged {
@@ -244,22 +252,27 @@ where
     }
 }
 
+// Helper struct for optimisation which keep counts as state
 struct MixPoisson {
     counts: Vec<f64>,
 }
 
+// These just use Vec rather than ndarray, simpler packaging and doubt
+// there's any performance difference with two params
+// negative log-likelihood
 impl CostFunction for MixPoisson {
     /// Type of the parameter vector
     type Param = Vec<f64>;
     /// Type of the return value computed by the cost function
     type Output = f64;
 
-    /// Apply the cost function to a parameter `p`
+    /// Apply the cost function to a parameters `p`
     fn cost(&self, p: &Self::Param) -> Result<Self::Output, Error> {
         Ok(-log_likelihood(p, &self.counts))
     }
 }
 
+// negative grad(ll)
 impl Gradient for MixPoisson {
     /// Type of the parameter vector
     type Param = Vec<f64>;
@@ -268,12 +281,13 @@ impl Gradient for MixPoisson {
 
     /// Compute the gradient at parameter `p`.
     fn gradient(&self, p: &Self::Param) -> Result<Self::Gradient, Error> {
-        // Compute gradient of 2D Rosenbrock function
+        // As doing minimisation, need to invert sign of gradients
         Ok(grad_ll(p, &self.counts).iter().map(|x| -*x).collect())
     }
 }
 
-// log-sum-exp
+// log-sum-exp needed to combine components likelihoods
+// (hard coded as two here, of course could be generalised to N)
 fn lse(a: f64, b: f64) -> f64 {
     let xstar = f64::max(a, b);
     xstar + f64::ln(f64::exp(a - xstar) + f64::exp(b - xstar))
@@ -284,21 +298,23 @@ fn ln_dpois(x: f64, lambda: f64) -> f64 {
     x * f64::ln(lambda) - lgamma(x + 1.0) - lambda
 }
 
-// error component
+// error component (mean of 1)
 fn a(w0: f64, i: f64) -> f64 {
     f64::ln(w0) + ln_dpois(i, 1.0)
 }
 
-// coverage component
+// coverage component (mean of coverage)
 fn b(w0: f64, c: f64, i: f64) -> f64 {
     f64::ln(1.0 - w0) + ln_dpois(i, c)
 }
 
-// Mixture likelihood
+// Mixture model likelihood
 fn log_likelihood(pars: &[f64], counts: &[f64]) -> f64 {
     let w0 = pars[0];
     let c = pars[1];
     let mut ll = 0.0;
+    // 'soft' bounds. I think f64::NEG_INFINITY might be mathematically better
+    // but arg_min doesn't like it
     if !(0.0..=1.0).contains(&w0) || c < 1.0 {
         ll = f64::MIN;
     } else {
@@ -310,6 +326,8 @@ fn log_likelihood(pars: &[f64], counts: &[f64]) -> f64 {
     ll
 }
 
+// Analytic gradient. Bounds not needed as this is only evaluated
+// when the ll is valid
 fn grad_ll(pars: &[f64], counts: &[f64]) -> Vec<f64> {
     let w0 = pars[0];
     let c = pars[1];
@@ -328,6 +346,8 @@ fn grad_ll(pars: &[f64], counts: &[f64]) -> Vec<f64> {
     vec![grad_w0, grad_c]
 }
 
+// Root finder at integer steps -- when is the responsibility of
+// the b component higher than the a component
 fn find_cutoff(pars: &[f64], max_cutoff: usize) -> usize {
     let w0 = pars[0];
     let c = pars[1];

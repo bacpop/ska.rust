@@ -233,6 +233,27 @@
 //! These are not precisely canonical k-mers, as the encoding order `{A, C, T, G}` is used internally.
 //! But if you can't find a sequence in your input file, you will find its reverse complement.
 //!
+//! ## ska cov
+//!
+//! Estimate a coverage cutoff for use with read data. This will count the split
+//! k-mers in a pair of FASTQ samples, and create a histogram of these counts.
+//! A mixture model is then fitted to this histogram using maximum likelihood,
+//! which can give a suggested cutoff with noisy data.
+//!
+//! The cutoff will be printed to STDERR. Use `-v` to get additional information on the
+//! optimisation progress and result. A table of counts and the fit will be printed
+//! to STDOUT, which can then be plotted by the companion script in
+//! `scripts/plot_cov.py` (requires `matplotlib`):
+//! ```bash
+//! ska cov reads_1.fastq.gz reads_2.fastq.gz -k 31 -v > cov_plot.txt
+//! python scripts/plot_cov.py cov_plot.txt
+//! ```
+//!
+//! The cutoff can be used with the `--min-count` parameter of `ska build`. For
+//! a set of sequence experiments with similar characteristics it may be sufficient
+//! to use the same cutoff. Alternatively `ska cov` can be run on every sample
+//! independently (`gnu parallel` would be an efficient way to do this).
+//!
 //! # API usage
 //!
 //! See the submodule documentation linked below.
