@@ -369,23 +369,28 @@ fn find_cutoff(pars: &[f64], max_cutoff: usize) -> usize {
 mod tests {
     use super::*;
 
+
+
     #[test]
     fn test_fit_histogram() {
+        let example_counts =
+            vec![44633459, 950672, 104410, 44137, 24170, 21232, 21699,
+                24145, 30696, 39210, 49878, 63683, 77690, 95147, 112416,
+                130307, 146531, 160932, 175130, 185113, 193149, 197468,
+                199189, 198235, 192150, 185565, 176362, 165455, 152487,
+                139495, 127036, 112803, 103080, 90425, 80637, 70960, 62698,
+                54949, 46744, 41240, 35591, 30025, 25856, 22105,
+                19405, 16668, 14780, 12620, 11074, 9807, 8517, 7731, 7112,
+                6846, 6126, 5696, 5233, 4779, 4288, 3873, 3519, 3406, 2994,
+                2859, 2650, 2394, 2376, 2260, 2233, 2050, 1859, 1863, 1792,
+                1777, 1773, 1738, 1648];
+
         // Initialize the test object
         let mut test_obj = CoverageHistogram::<u64> {
             k: 31,
             rc: true,
             kmer_dict: HashMap::default(),
-            counts: vec![44633459, 950672, 104410, 44137, 24170, 21232, 21699,
-                         24145, 30696, 39210, 49878, 63683, 77690, 95147, 112416,
-                         130307, 146531, 160932, 175130, 185113, 193149, 197468,
-                         199189, 198235, 192150, 185565, 176362, 165455, 152487,
-                         139495, 127036, 112803, 103080, 90425, 80637, 70960, 62698,
-                         54949, 46744, 41240, 35591, 30025, 25856, 22105,
-                         19405, 16668, 14780, 12620, 11074, 9807, 8517, 7731, 7112,
-                         6846, 6126, 5696, 5233, 4779, 4288, 3873, 3519, 3406, 2994,
-                         2859, 2650, 2394, 2376, 2260, 2233, 2050, 1859, 1863, 1792,
-                         1777, 1773, 1738, 1648],
+            counts: example_counts.clone(),
             w0: INIT_W0,
             c: INIT_C,
             cutoff: 0,
@@ -396,6 +401,22 @@ mod tests {
         let cutoff = test_obj.fit_histogram();
         assert_eq!(cutoff.is_ok(), true);
         assert_eq!(cutoff.unwrap(), 9);
+
+        // The other template
+        let mut test_obj = CoverageHistogram::<u128> {
+            k: 33,
+            rc: true,
+            kmer_dict: HashMap::default(),
+            counts: example_counts.clone(),
+            w0: INIT_W0,
+            c: INIT_C,
+            cutoff: 0,
+            verbose: false,
+            fitted: false,
+        };
+
+        test_obj.fit_histogram().unwrap();
+        test_obj.plot_hist();
     }
 
     #[test]
@@ -403,6 +424,38 @@ mod tests {
     fn print_before_fit() {
         let test_obj = CoverageHistogram::<u64>::default();
         test_obj.plot_hist();
+    }
+
+    #[test]
+    #[should_panic]
+    fn double_fit() {
+        let example_counts =
+            vec![44633459, 950672, 104410, 44137, 24170, 21232, 21699,
+                24145, 30696, 39210, 49878, 63683, 77690, 95147, 112416,
+                130307, 146531, 160932, 175130, 185113, 193149, 197468,
+                199189, 198235, 192150, 185565, 176362, 165455, 152487,
+                139495, 127036, 112803, 103080, 90425, 80637, 70960, 62698,
+                54949, 46744, 41240, 35591, 30025, 25856, 22105,
+                19405, 16668, 14780, 12620, 11074, 9807, 8517, 7731, 7112,
+                6846, 6126, 5696, 5233, 4779, 4288, 3873, 3519, 3406, 2994,
+                2859, 2650, 2394, 2376, 2260, 2233, 2050, 1859, 1863, 1792,
+                1777, 1773, 1738, 1648];
+
+        // Initialize the test object
+        let mut test_obj = CoverageHistogram::<u64> {
+            k: 31,
+            rc: true,
+            kmer_dict: HashMap::default(),
+            counts: example_counts.clone(),
+            w0: INIT_W0,
+            c: INIT_C,
+            cutoff: 0,
+            verbose: false,
+            fitted: false,
+        };
+
+        test_obj.fit_histogram().unwrap();
+        test_obj.fit_histogram().unwrap();
     }
 
 }

@@ -485,4 +485,27 @@ fn cov_check() {
         .arg("-v")
         .assert()
         .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("cov")
+        .arg(sandbox.file_string("test_long_1_fwd.fastq.gz", TestDir::Input))
+        .arg(sandbox.file_string("test_long_1_rev.fastq.gz", TestDir::Input))
+        .arg("-k")
+        .arg("33")
+        .arg("-v")
+        .assert()
+        .success();
+
+    // Doesn't run with fasta
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("cov")
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-k")
+        .arg("9")
+        .arg("-v")
+        .assert()
+        .failure();
 }
