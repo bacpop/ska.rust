@@ -469,3 +469,20 @@ fn error_fastq() {
 
     assert_eq!(var_hash(&fastq_align_out_quality), all_hash);
 }
+
+// Just checks that counter runs, model fit is in a unit test
+#[test]
+fn cov_check() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("cov")
+        .arg(sandbox.file_string("test_1_fwd.fastq.gz", TestDir::Input))
+        .arg(sandbox.file_string("test_1_rev.fastq.gz", TestDir::Input))
+        .arg("-k")
+        .arg("9")
+        .arg("-v")
+        .assert()
+        .success();
+}

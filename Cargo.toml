@@ -5,6 +5,9 @@ authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
     "Johanna von Wachsmann <j.vwachsmann@web.de>",
+    "Tommi Maklin <tommi.maklin@helsinki.fi>",
+    "Joel Hellewell <joel@ebi.ac.uk>",
+    "Timothy Russell <timothy.russell@lshtm.ac.uk>"
 ]
 edition = "2021"
 description = "Split k-mer analysis"
@@ -44,6 +47,10 @@ hashbrown = "0.12"
 ahash = "0.8.2"
 ndarray = { version = "0.15.6", features = ["serde"] }
 num-traits = "0.2.15"
+# coverage model
+libm = "0.2.7"
+argmin = { version = "0.8.1", features = ["slog-logger"] }
+argmin-math = "0.3.0"
 
 [dev-dependencies]
 # testing
