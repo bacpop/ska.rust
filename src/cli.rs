@@ -15,8 +15,6 @@ pub const DEFAULT_MINCOUNT: u16 = 10;
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
 pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
-/// Default SNP cutoff
-pub const DEFAULT_SNP_CUTOFF: usize = 20;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -159,7 +157,7 @@ pub enum Commands {
         #[arg(required = true)]
         input: Vec<String>,
 
-        /// Output prefix (omit to output to stdout)
+        /// Output filename (omit to output to stdout)
         #[arg(short)]
         output: Option<String>,
 
@@ -183,7 +181,7 @@ pub enum Commands {
         /// A .skf file, or list of .fasta files
         input: Vec<String>,
 
-        /// Output prefix
+        /// Output filename (omit to output to stdout)
         #[arg(short)]
         output: Option<String>,
 
@@ -200,12 +198,9 @@ pub enum Commands {
         /// Split-kmer (.skf) file to operate on
         skf_file: String,
 
-        /// Output prefix
-        output: String,
-
-        /// SNP cutoff for defining clusters
-        #[arg(short, default_value_t = DEFAULT_SNP_CUTOFF)]
-        cutoff: usize,
+        /// Output filename (omit to output to stdout)
+        #[arg(short)]
+        output: Option<String>,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

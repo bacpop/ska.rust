@@ -20,12 +20,13 @@ use std::io::{BufReader, BufWriter, Write};
 use std::mem;
 
 use hashbrown::{HashMap, HashSet};
-use ndarray::{Array2, ArrayView, Axis};
+use ndarray::{Array2, ArrayView, Axis, Dim};
+use ndarray::parallel::prelude::*;
 use needletail::parser::write_fasta;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, UInt};
+use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, base_to_prob, UInt};
 use crate::ska_ref::RefSka;
 
 use crate::cli::FilterType;
@@ -293,6 +294,20 @@ where
         log::info!("Filtering removed {removed} split k-mers");
     }
 
+    pub fn distance(&self) -> Vec<Vec<(f64, u32)>> {
+        let mut distances: Vec<Vec<(f64, u32)>> = Vec::new();
+        self.variants.axis_iter(Axis(1))
+                        .into_par_iter().enumerate().map(|(i, row)| {
+                            let mut partial_dists: Vec<(f64, u32)> = Vec::new();
+                            partial_dists.reserve(self.variants.ncols() - (i + 1));
+                            for j in (i + 1)..self.variants.ncols() {
+                                partial_dists.push(Self::variant_dist(&row, &self.variants.index_axis(Axis(1), j)));
+                            }
+                            partial_dists
+                        }).collect_into_vec(&mut distances);
+        distances
+    }
+
     /// Removes (weeds) a given set of split k-mers from the array.
     ///
     /// Split k-mers to be removed must be from a single FASTA file (which
@@ -389,6 +404,32 @@ where
     /// Number of samples
     pub fn nsamples(&self) -> usize {
         self.variants.ncols()
+    }
+
+    /// Sample names
+    pub fn names(&self) -> &Vec<String> {
+        &self.names
+    }
+
+    fn variant_dist(sample1: &ArrayView<u8, Dim<[usize; 1]>>, sample2: &ArrayView<u8, Dim<[usize; 1]>>) -> (f64, u32) {
+        //  ACGT vs different ACGT -> +1
+        //  Ambig bases are converted to prob vectors and multiplied, or (TODO) ignored
+        //  '-' vs anything counts as a mismatch
+        let mut distance = 0.0;
+        let mut mismatches = 0;
+        for (var1, var2) in sample1.iter().zip(sample2) {
+            if *var1 == b'-' || *var2 == b'-' {
+                if !(*var1 == b'-' && *var2 == b'-') {
+                    mismatches += 1;
+                }
+            } else {
+                let var1_p = base_to_prob(*var1);
+                let var2_p = base_to_prob(*var2);
+                let overlap: f64 = var1_p.iter().zip(var2_p).map(|(p1, p2)| *p1 * p2).sum();
+                distance += 1.0 - overlap;
+            }
+        }
+        (distance, mismatches)
     }
 }
 

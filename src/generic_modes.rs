@@ -5,6 +5,8 @@
 //! what the int type used is, so we want to then dispatch the sucessfully loaded
 //! file to a generic function.
 
+use std::io::Write;
+
 use crate::cli::{FileType, FilterType};
 use crate::io_utils::set_ostream;
 use crate::merge_ska_array::MergeSkaArray;
@@ -97,22 +99,27 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
 
 pub fn distance<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
-    output_prefix: &str,
-    cutoff: usize,
+    output_prefix: &Option<String>,
     threads: usize,
 ) {
-    todo!();
-    // Calculate upper tri of XX^T in a parallel loop
-    //  Needs to be custom mapping function
-    //  ACGT vs different ACGT -> +1
-    //  Ambig bases are converted to prob vectors and multiplied, or ignored
-    //  '-' vs anything counts as a mismatch (need to add this back into CLI)
+    log::info!("Calculating distances");
+    if threads > 1 {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+    }
+    let distances = ska_array.distance();
 
     // Write out the distances (long form)
-
-    // Calculate single linkage clustering (rust network library? Or connected components alg?)
-
-    // Write out dot and clusters for microreact
+    let mut f = set_ostream(output_prefix);
+    writeln!(&mut f, "Sample1\tSample2\tDistance\tMismatches").unwrap();
+    let sample_names = ska_array.names();
+    for (idx, (dist_vec, sample1)) in distances.iter().zip(sample_names).enumerate() {
+        for ((distance, mismatches), j) in dist_vec.iter().zip(std::ops::Range{start: (idx + 1), end: sample_names.len()}) {
+            writeln!(&mut f, "{sample1}\t{}\t{distance}\t{mismatches}", sample_names[j]).unwrap();
+        }
+    }
 }
 
 /// Delete files with passed names in the given array
