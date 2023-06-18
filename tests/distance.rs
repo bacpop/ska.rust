@@ -31,6 +31,7 @@ fn basic_dists() {
         .stdout_eq_path(sandbox.file_string("merge_k41.dist.stdout", TestDir::Correct));
 }
 
+// With filters
 #[test]
 fn dist_filter() {
     let sandbox = TestSetup::setup();
@@ -66,4 +67,42 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9_min_freq.dist.stdout", TestDir::Correct));
 }
 
-// TODO need a multisample test
+// With two samples
+#[test]
+fn multisample_dists() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("N_test_2.fa", TestDir::Input))
+        .arg(sandbox.file_string("ambig_test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("ambig_test_2.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-k")
+        .arg("9")
+        .arg("-o")
+        .arg("multidist")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg("multidist.skf")
+        .arg("-v")
+        .args(&["--threads", "2"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg("multidist.skf")
+        .arg("-v")
+        .args(&["--min-freq", "0.5"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("multidist.filter.stdout", TestDir::Correct));
+}
