@@ -522,11 +522,23 @@ pub fn main() {
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, *filter_ambiguous, *threads);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    *filter_ambiguous,
+                    *threads,
+                );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, *filter_ambiguous, *threads);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    *filter_ambiguous,
+                    *threads,
+                );
             } else {
                 panic!("Could not read input file(s): {skf_file}");
             }
