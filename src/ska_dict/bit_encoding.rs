@@ -499,4 +499,3 @@ mod tests {
         assert_eq!(overlap(&n, &empty), 0.0);
     }
 }
-

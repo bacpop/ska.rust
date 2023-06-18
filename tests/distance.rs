@@ -20,6 +20,15 @@ fn basic_dists() {
         .assert()
         .stdout_eq_path(sandbox.file_string("merge.dist.stdout", TestDir::Correct));
 
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .args(&["-o", "dists.txt"])
+        .assert()
+        .success();
+    sandbox.file_check("dists.txt", "merge.dist.stdout");
+
     // One difference
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())

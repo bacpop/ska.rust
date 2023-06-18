@@ -465,12 +465,11 @@ where
                 distance += 1.0 - overlap;
             }
         }
-        mismatches =
-            if (matches + mismatches) == 0.0 {
-                0.0
-            } else {
-                mismatches / (matches + mismatches)
-            };
+        mismatches = if (matches + mismatches) == 0.0 {
+            0.0
+        } else {
+            mismatches / (matches + mismatches)
+        };
         (distance, mismatches)
     }
 }
