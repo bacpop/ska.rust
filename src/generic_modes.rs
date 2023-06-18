@@ -1,9 +1,11 @@
 //! Main control of most CLI functions, generic over `u64` and `u128`.
 //!
-//! Includes functions for `ska align`, `ska map`, `ska merge`, `ska delete`,
+//! Includes functions for `ska align`, `ska map`, `ska merge`, `ska distance`, `ska delete`,
 //! and `ska weed`. These are needed as when loading an skf file we don't know
 //! what the int type used is, so we want to then dispatch the sucessfully loaded
 //! file to a generic function.
+
+use std::io::Write;
 
 use crate::cli::{FileType, FilterType};
 use crate::io_utils::set_ostream;
@@ -23,10 +25,7 @@ pub fn align<IntT: for<'a> UInt<'a>>(
     log::debug!("{ska_array}");
 
     // Apply filters
-    let update_kmers = false;
-    let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * min_freq) as usize;
-    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter}");
-    ska_array.filter(filter_threshold, filter, update_kmers);
+    apply_filters(ska_array, min_freq, filter);
 
     // Write out to file/stdout
     log::info!("Writing alignment");
@@ -93,6 +92,71 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     merged_array
         .save(format!("{output}.skf").as_str())
         .expect("Failed to save output file");
+}
+
+/// Apply a constant/ambigbuous filter [`FilterType`] and a minimum frequency
+/// filter to the array of variants, updating the object.
+///
+/// Returns the number of removed sites
+pub fn apply_filters<IntT: for<'a> UInt<'a>>(
+    ska_array: &mut MergeSkaArray<IntT>,
+    min_freq: f64,
+    filter: &FilterType,
+) -> i32 {
+    let update_kmers = false;
+    let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * min_freq) as usize;
+    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter}");
+    ska_array.filter(filter_threshold, filter, update_kmers)
+}
+
+/// Calculate distances between samples
+///
+/// Also applies filters and prints them out in 'long' form
+pub fn distance<IntT: for<'a> UInt<'a>>(
+    ska_array: &mut MergeSkaArray<IntT>,
+    output_prefix: &Option<String>,
+    min_freq: f64,
+    filt_ambig: bool,
+    threads: usize,
+) {
+    // In debug mode (cannot be set from CLI, give details)
+    log::debug!("{ska_array}");
+
+    let constant = apply_filters(ska_array, min_freq, &FilterType::NoConst);
+    if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
+        if filt_ambig {
+            apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst);
+        } else {
+            apply_filters(ska_array, min_freq, &FilterType::NoFilter);
+        }
+    }
+
+    log::info!("Calculating distances");
+    if threads > 1 {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+    }
+    let distances = ska_array.distance(constant as f64);
+
+    // Write out the distances (long form)
+    let mut f = set_ostream(output_prefix);
+    writeln!(&mut f, "Sample1\tSample2\tDistance\tMismatches").unwrap();
+    let sample_names = ska_array.names();
+    for (idx, (dist_vec, sample1)) in distances.iter().zip(sample_names).enumerate() {
+        for ((distance, mismatches), j) in dist_vec.iter().zip(std::ops::Range {
+            start: (idx + 1),
+            end: sample_names.len(),
+        }) {
+            writeln!(
+                &mut f,
+                "{sample1}\t{}\t{distance:.2}\t{mismatches:.5}",
+                sample_names[j]
+            )
+            .unwrap();
+        }
+    }
 }
 
 /// Delete files with passed names in the given array

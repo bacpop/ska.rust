@@ -50,11 +50,35 @@ pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
-/// Checks for A, C, G, T with ASCII input
+/// Checks for A, C, G, T/U or gap with ASCII input
 #[inline(always)]
 pub fn is_ambiguous(mut base: u8) -> bool {
-    base &= 0x5F; // to upper
-    !matches!(base, b'A' | b'C' | b'G' | b'T')
+    base |= 0x20; // to lower
+    !matches!(base, b'a' | b'c' | b'g' | b't' | b'u' | b'-')
+}
+
+/// Convert an ASCII base into a probability vector
+/// [p(A), p(C), p(T), p(G)]
+pub fn base_to_prob(base: u8) -> [f64; 4] {
+    match base {
+        //      (A    C    T    G  )
+        b'A' => [1.0, 0.0, 0.0, 0.0],
+        b'C' => [0.0, 1.0, 0.0, 0.0],
+        b'G' => [0.0, 0.0, 0.0, 1.0],
+        b'T' | b'U' => [0.0, 0.0, 1.0, 0.0],
+        b'R' => [0.5, 0.0, 0.0, 0.5],
+        b'Y' => [0.0, 0.5, 0.5, 0.0],
+        b'S' => [0.0, 0.5, 0.0, 0.5],
+        b'W' => [0.5, 0.0, 0.5, 0.0],
+        b'K' => [0.0, 0.0, 0.5, 0.5],
+        b'M' => [0.5, 0.5, 0.0, 0.0],
+        b'B' => [0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
+        b'D' => [1.0 / 3.0, 0.0, 1.0 / 3.0, 1.0 / 3.0],
+        b'H' => [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 0.0],
+        b'V' => [1.0 / 3.0, 1.0 / 3.0, 0.0, 1.0 / 3.0],
+        b'N' => [0.25, 0.25, 0.25, 0.25],
+        _ => [0.0, 0.0, 0.0, 0.0],
+    }
 }
 
 /// Trait to support both `u64` and `u128` representation of split k-mers
@@ -427,3 +451,51 @@ pub const RC_IUPAC: [u8; 256] = [
     b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-',
     b'-', // 240-255
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use pretty_assertions::assert_eq;
+
+    fn overlap(b1: &[f64; 4], b2: &[f64; 4]) -> f64 {
+        b1.iter().zip(b2).map(|(p1, p2)| *p1 * p2).sum()
+    }
+
+    #[test]
+    fn test_base_to_prob() {
+        let a = base_to_prob(b'A');
+        let c = base_to_prob(b'C');
+        let g = base_to_prob(b'G');
+        let t = base_to_prob(b'T');
+        let u = base_to_prob(b'U');
+        let r = base_to_prob(b'R');
+        let y = base_to_prob(b'Y');
+        let s = base_to_prob(b'S');
+        let w = base_to_prob(b'W');
+        let k = base_to_prob(b'K');
+        let m = base_to_prob(b'M');
+        let b = base_to_prob(b'B');
+        let d = base_to_prob(b'D');
+        let h = base_to_prob(b'H');
+        let v = base_to_prob(b'V');
+        let n = base_to_prob(b'N');
+        let empty = base_to_prob(b'-');
+
+        assert_eq!(overlap(&a, &a), 1.0);
+        assert_eq!(overlap(&a, &c), 0.0);
+        assert_eq!(overlap(&t, &u), 1.0);
+        assert_eq!(overlap(&g, &u), 0.0);
+
+        assert_eq!(overlap(&r, &y), 0.0);
+        assert_eq!(overlap(&s, &g), 0.5);
+        assert_eq!(overlap(&w, &w), 0.5);
+        assert_eq!(overlap(&m, &y), 0.25);
+
+        assert_eq!(overlap(&k, &b), 1.0 / 3.0);
+        assert_eq!(overlap(&d, &h), 2.0 / 9.0);
+        assert_eq!(overlap(&v, &n), 0.25);
+
+        assert_eq!(overlap(&n, &empty), 0.0);
+    }
+}

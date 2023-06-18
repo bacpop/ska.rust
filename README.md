@@ -63,22 +63,28 @@ And other improvements:
 - Stream to STDOUT, or file with `-o`.
 - Simpler command line combining `ska fasta`, `ska fastq`, `ska alleles` and `ska merge` into the new `ska build`.
 - Option for single commands to run `ska align` or `ska map`.
+- New coverage model for filtering FASTQ files with `ska cov`.
 - Logging.
 - CI testing.
 
-All of which make ska.rust run faster and with smaller file size and memory
+All of which make `ska.rust` run faster and with smaller file size and memory
 footprint than the original.
 
 ## Planned features
 
-- Add support for amiguity in VCF output
+None at present
+
+## Feature ideas (not definitely planned)
+
+- Add support for ambiguity in VCF output (`ska map`). [Issue #5](https://github.com/bacpop/ska.rust/issues/5).
+- Non-serial loading of .skf files (for when they are very large). [Issue #22](https://github.com/bacpop/ska.rust/issues/22).
 
 ## Things you can no longer do
 
 - Use k > 63 (shouldn't be necessary? Let us know if you need this and why).
 - `ska annotate` (use bedtools).
-- `ska compare`, `ska humanise`, `ska info` or `ska summary` (use `ska nk --full-info`).
-- `ska distance` and `ska unique` (use [pp-sketchlib](https://github.com/bacpop/pp-sketchlib)).
+- `ska compare`, `ska humanise`, `ska info` or `ska summary` (replaced by `ska nk --full-info`).
+- `ska unique` (you can parse `ska nk --full-info` if you want this functionality, but we didn't think it's used much).
 - `ska type` (use [PopPUNK](https://github.com/bacpop/PopPUNK) instead of MLST 🙂)
 - Ns are always skipped, and will not be found in any split k-mers.
 - `.skf` files are not backwards compatible with version 1.

@@ -76,7 +76,7 @@ pub enum FilterType {
     NoFilter,
     /// Filter constant bases
     NoConst,
-    /// Filter constant bases, and any variants where the only variation is an ambiguous base
+    /// Filter constant bases, and any variants where there are ambiguous bases
     NoAmbigOrConst,
 }
 
@@ -157,7 +157,7 @@ pub enum Commands {
         #[arg(required = true)]
         input: Vec<String>,
 
-        /// Output prefix (omit to output to stdout)
+        /// Output filename (omit to output to stdout)
         #[arg(short)]
         output: Option<String>,
 
@@ -181,13 +181,34 @@ pub enum Commands {
         /// A .skf file, or list of .fasta files
         input: Vec<String>,
 
-        /// Output prefix
+        /// Output filename (omit to output to stdout)
         #[arg(short)]
         output: Option<String>,
 
         /// Format of output file
         #[arg(short, long, value_enum, default_value_t = FileType::Aln)]
         format: FileType,
+
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
+        threads: usize,
+    },
+    /// Calculate SNP distances and k-mer mismatches
+    Distance {
+        /// Split-kmer (.skf) file to operate on
+        skf_file: String,
+
+        /// Output filename (omit to output to stdout)
+        #[arg(short)]
+        output: Option<String>,
+
+        /// Minimum fraction of samples a k-mer has to appear in
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
+        min_freq: f64,
+
+        /// Filter for ambiguous bases
+        #[arg(long, default_value_t = false)]
+        filter_ambiguous: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

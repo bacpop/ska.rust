@@ -3,6 +3,7 @@
 //! In fixed size array representation to support:
 //!  - filter
 //!  - save/load
+//!  - distances
 //!  - mapping
 //!  - sample deletion
 //!  - printing out alignment
@@ -20,12 +21,15 @@ use std::io::{BufReader, BufWriter, Write};
 use std::mem;
 
 use hashbrown::{HashMap, HashSet};
-use ndarray::{Array2, ArrayView, Axis};
+use indicatif::ParallelProgressIterator;
+use ndarray::parallel::prelude::*;
+use ndarray::{Array2, ArrayView, Axis, Dim};
 use needletail::parser::write_fasta;
+use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 
 use crate::merge_ska_dict::MergeSkaDict;
-use crate::ska_dict::bit_encoding::{decode_kmer, is_ambiguous, UInt};
+use crate::ska_dict::bit_encoding::{base_to_prob, decode_kmer, is_ambiguous, UInt};
 use crate::ska_ref::RefSka;
 
 use crate::cli::FilterType;
@@ -147,6 +151,7 @@ where
 
     /// Load a split k-mer array from a `.skf` file.
     pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
+        log::info!("Loading skf file");
         let ska_file = BufReader::new(File::open(filename)?);
         let decompress_reader = snap::read::FrameDecoder::new(ska_file);
         let ska_obj: Self = ciborium::de::from_reader(decompress_reader)?;
@@ -222,6 +227,7 @@ where
     /// Filters variants (middle bases) by frequency.
     ///
     /// Passing variants (rows) are added to a new array, which overwrites the old one.
+    /// Returns the number of removed sites
     ///
     /// # Arguments
     ///
@@ -231,7 +237,7 @@ where
     ///
     /// The default for `update_kmers` should be `true`, but it can be `false`
     /// if [`write_fasta()`] will be called immediately afterwards.
-    pub fn filter(&mut self, min_count: usize, filter: &FilterType, update_kmers: bool) {
+    pub fn filter(&mut self, min_count: usize, filter: &FilterType, update_kmers: bool) -> i32 {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
@@ -267,8 +273,10 @@ where
                                     first_var = Some(*var);
                                 } else if *var != first_var.unwrap() {
                                     keep = true;
-                                    break;
                                 }
+                            } else {
+                                keep = false;
+                                break;
                             }
                         }
                         keep
@@ -291,6 +299,42 @@ where
             self.split_kmers = filtered_kmers;
         }
         log::info!("Filtering removed {removed} split k-mers");
+        removed
+    }
+
+    /// Calculates pairwise distances between samples in the array.
+    ///
+    /// Returns a [`Vec`] of [`Vec`]. This is the upper triangle of the
+    /// distance matrix. Each entry is a tuple: first entry is the number of
+    /// SNPs different, second entry is the proportion of mismatching k-mers.
+    ///
+    /// Used with `ska distance`
+    ///
+    /// # Arguments
+    ///
+    /// - `constant` – the number of prefiltered constant bases, used to adjust
+    /// the denominator of mismatch proportion
+    pub fn distance(&self, constant: f64) -> Vec<Vec<(f64, f64)>> {
+        let mut distances: Vec<Vec<(f64, f64)>> = Vec::new();
+        self.variants
+            .axis_iter(Axis(1))
+            .into_par_iter()
+            .progress_count(self.variants.ncols() as u64)
+            .enumerate()
+            .map(|(i, row)| {
+                let mut partial_dists: Vec<(f64, f64)> = Vec::new();
+                partial_dists.reserve(self.variants.ncols() - (i + 1));
+                for j in (i + 1)..self.variants.ncols() {
+                    partial_dists.push(Self::variant_dist(
+                        &row,
+                        &self.variants.index_axis(Axis(1), j),
+                        constant,
+                    ));
+                }
+                partial_dists
+            })
+            .collect_into_vec(&mut distances);
+        distances
     }
 
     /// Removes (weeds) a given set of split k-mers from the array.
@@ -389,6 +433,44 @@ where
     /// Number of samples
     pub fn nsamples(&self) -> usize {
         self.variants.ncols()
+    }
+
+    /// Sample names
+    pub fn names(&self) -> &Vec<String> {
+        &self.names
+    }
+
+    // Distance between two samples (columns of the array)
+    fn variant_dist(
+        sample1: &ArrayView<u8, Dim<[usize; 1]>>,
+        sample2: &ArrayView<u8, Dim<[usize; 1]>>,
+        constant: f64,
+    ) -> (f64, f64) {
+        //  ACGT vs different ACGT -> +1
+        //  Ambig bases are converted to prob vectors and multiplied
+        //  '-' vs anything counts as a mismatch
+        let mut distance = 0.0;
+        let mut mismatches = 0.0;
+        let mut matches = constant;
+        for (var1, var2) in sample1.iter().zip(sample2) {
+            if *var1 == b'-' || *var2 == b'-' {
+                if !(*var1 == b'-' && *var2 == b'-') {
+                    mismatches += 1.0;
+                }
+            } else {
+                matches += 1.0;
+                let var1_p = base_to_prob(*var1);
+                let var2_p = base_to_prob(*var2);
+                let overlap: f64 = var1_p.iter().zip(var2_p).map(|(p1, p2)| *p1 * p2).sum();
+                distance += 1.0 - overlap;
+            }
+        }
+        mismatches = if (matches + mismatches) == 0.0 {
+            0.0
+        } else {
+            mismatches / (matches + mismatches)
+        };
+        (distance, mismatches)
     }
 }
 

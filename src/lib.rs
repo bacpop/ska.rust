@@ -162,6 +162,28 @@
 //! ska map ref.fa seq1.fa seq2.fa -f vcf --threads 2 | bgzip -c - > seqs.vcf.gz
 //! ```
 //!
+//! ## ska distance
+//!
+//! Use to calculate distances between all samples within an `.skf` file. The output
+//! will contain the number of SNP differences between all pairs of samples, as
+//! well as the proportion of matching k-mers.
+//!
+//! ```bash
+//! ska distance -o distances.txt seqs.skf
+//! ```
+//!
+//! Ignore ambiguous bases by adding `--filter-ambiguous` flag, and `--min-freq` to
+//! ignore k-mers only found in some samples. Multiple threads
+//! can be used, but this will only be effective with large numbers of samples.
+//!
+//! The companion script in `scripts/cluster_dists.py` (requires `networkx`) can
+//! be used to make single linkage clusters from these distances at given thresholds,
+//! and create a visualisation in [Microreact](https://microreact.org/):
+//! ```bash
+//! ska distance seqs.skf > distances.txt
+//! python scripts/cluster_dists.py distances.txt --snps 20 --mismatches 0.05
+//! ```
+//!
 //! ## ska merge
 //!
 //! Use to combine multiple `.skf` files into one, typically for subsequent use in `align` or `map`.
@@ -487,6 +509,38 @@ pub fn main() {
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {
                 panic!("Could not read input file(s): {input:?}");
+            }
+        }
+        Commands::Distance {
+            skf_file,
+            output,
+            min_freq,
+            filter_ambiguous,
+            threads,
+        } => {
+            check_threads(*threads);
+            if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    *filter_ambiguous,
+                    *threads,
+                );
+            } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
+                // In debug mode (cannot be set from CLI, give details)
+                log::debug!("{ska_array}");
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    *filter_ambiguous,
+                    *threads,
+                );
+            } else {
+                panic!("Could not read input file(s): {skf_file}");
             }
         }
         Commands::Merge { skf_files, output } => {
