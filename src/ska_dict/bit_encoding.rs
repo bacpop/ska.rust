@@ -50,11 +50,11 @@ pub fn valid_base(base: u8) -> bool {
     base & 0xF != 14
 }
 
-/// Checks for A, C, G, T with ASCII input
+/// Checks for A, C, G, T/U or gap with ASCII input
 #[inline(always)]
 pub fn is_ambiguous(mut base: u8) -> bool {
-    base &= 0x5F; // to upper
-    !matches!(base, b'A' | b'C' | b'G' | b'T')
+    base |= 0x20; // to lower
+    !matches!(base, b'a' | b'c' | b'g' | b't' | b'u' | b'-')
 }
 
 /// Convert an ASCII base into a probability vector

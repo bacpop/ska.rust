@@ -247,6 +247,7 @@ fn weed() {
         .arg("build_k41.skf")
         .arg("--filter")
         .arg("no-ambig-or-const")
+        .args(&["--min-freq", "1"])
         .arg("-v")
         .assert()
         .success();

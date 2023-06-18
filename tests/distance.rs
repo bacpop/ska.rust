@@ -46,7 +46,6 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9.dist.stdout", TestDir::Correct));
 
     // Ignoring the S,G gives 2.0
-    // TODO mismatches seem wrong here
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
@@ -57,7 +56,6 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9_no_ambig.dist.stdout", TestDir::Correct));
 
     // Making only k-mers in both reduces mismatches to zero
-    // TODO why does this change to 2.0?
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")

@@ -124,7 +124,11 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
 
     let constant = apply_filters(ska_array, min_freq, &FilterType::NoConst);
     if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
-        apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst);
+        if filt_ambig {
+            apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst);
+        } else {
+            apply_filters(ska_array, min_freq, &FilterType::NoFilter);
+        }
     }
 
     log::info!("Calculating distances");
