@@ -451,3 +451,52 @@ pub const RC_IUPAC: [u8; 256] = [
     b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-', b'-',
     b'-', // 240-255
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use pretty_assertions::assert_eq;
+
+    fn overlap(b1: &[f64; 4], b2: &[f64; 4]) -> f64 {
+        b1.iter().zip(b2).map(|(p1, p2)| *p1 * p2).sum()
+    }
+
+    #[test]
+    fn test_base_to_prob() {
+        let a = base_to_prob(b'A');
+        let c = base_to_prob(b'C');
+        let g = base_to_prob(b'G');
+        let t = base_to_prob(b'T');
+        let u = base_to_prob(b'U');
+        let r = base_to_prob(b'R');
+        let y = base_to_prob(b'Y');
+        let s = base_to_prob(b'S');
+        let w = base_to_prob(b'W');
+        let k = base_to_prob(b'K');
+        let m = base_to_prob(b'M');
+        let b = base_to_prob(b'B');
+        let d = base_to_prob(b'D');
+        let h = base_to_prob(b'H');
+        let v = base_to_prob(b'V');
+        let n = base_to_prob(b'N');
+        let empty = base_to_prob(b'-');
+
+        assert_eq!(overlap(&a, &a), 1.0);
+        assert_eq!(overlap(&a, &c), 0.0);
+        assert_eq!(overlap(&t, &u), 1.0);
+        assert_eq!(overlap(&g, &u), 0.0);
+
+        assert_eq!(overlap(&r, &y), 0.0);
+        assert_eq!(overlap(&s, &g), 0.5);
+        assert_eq!(overlap(&w, &w), 0.5);
+        assert_eq!(overlap(&m, &y), 0.25);
+
+        assert_eq!(overlap(&k, &b), 1.0 / 3.0);
+        assert_eq!(overlap(&d, &h), 2.0 / 9.0);
+        assert_eq!(overlap(&v, &n), 0.25);
+
+        assert_eq!(overlap(&n, &empty), 0.0);
+    }
+}
+
