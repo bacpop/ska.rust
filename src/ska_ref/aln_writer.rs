@@ -37,14 +37,16 @@ pub struct AlnWriter<'a> {
     /// Whether the finalise function has been run, filling to the end of the
     /// final contig.
     finalised: bool,
-    /// Buffer for amibguous bases, which are written in at the end.
+    /// Repeats to mask, which happens at finalisation
+    repeat_regions: &'a Vec<usize>,
+    /// Buffer for amibguous bases, which are written at finalisation.
     _ambig_out: Vec<(u8, usize)>,
 }
 
 impl<'a> AlnWriter<'a> {
     /// Create a new [`AlnWriter`] taking the reference sequence mapped against
     /// and the k-mer size used for the mapping
-    pub fn new(ref_seq: &'a Vec<Vec<u8>>, k: usize) -> Self {
+    pub fn new(ref_seq: &'a Vec<Vec<u8>>, k: usize, repeat_regions: &'a Vec<usize>) -> Self {
         let total_size = ref_seq.iter().map(|x| x.len()).sum();
         let half_split_len = (k - 1) / 2;
         Self {
@@ -57,6 +59,7 @@ impl<'a> AlnWriter<'a> {
             seq_out: vec![b'-'; total_size],
             half_split_len,
             finalised: false,
+            repeat_regions,
             _ambig_out: Vec::new(),
         }
     }
@@ -152,6 +155,12 @@ impl<'a> AlnWriter<'a> {
             // Make sure any ambiguous bases are correct
             for (ambig_base, ambig_pos) in &self._ambig_out {
                 self.seq_out[*ambig_pos] = *ambig_base;
+            }
+            // Mask repeats
+            for repeat_idx in self.repeat_regions {
+                if self.seq_out[*repeat_idx] != b'-' {
+                    self.seq_out[*repeat_idx] = b'N';
+                }
             }
             self.finalised = true;
         }

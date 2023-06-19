@@ -63,7 +63,8 @@ use crate::cli::FilterType;
 /// ska_array.delete_samples(&[&"test_1"]);
 ///
 /// // Delete k-mers
-/// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc());
+/// let mask_repeats = false;
+/// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc(), mask_repeats);
 /// let reverse = false;
 /// ska_array.weed(&ska_weed, reverse);
 /// ```

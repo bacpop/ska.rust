@@ -189,7 +189,7 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
             ska_array.kmer_len(),
             ska_array.rc()
         );
-        let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc());
+        let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc(), false);
 
         if !reverse {
             log::info!("Removing weed k-mers");
