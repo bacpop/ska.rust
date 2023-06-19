@@ -9,6 +9,8 @@ use super::QualFilter;
 pub const DEFAULT_KMER: usize = 17;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default repeat masking behaviour
+pub const DEFAULT_REPEATMASK: bool = false;
 /// Default minimum k-mer count for FASTQ files
 pub const DEFAULT_MINCOUNT: u16 = 10;
 /// Default minimum base quality (PHRED score) for FASTQ files
@@ -188,6 +190,10 @@ pub enum Commands {
         /// Format of output file
         #[arg(short, long, value_enum, default_value_t = FileType::Aln)]
         format: FileType,
+
+        /// Mask any repeats in the alignment with 'N'
+        #[arg(long, default_value_t = DEFAULT_REPEATMASK)]
+        repeat_mask: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]

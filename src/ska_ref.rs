@@ -31,6 +31,8 @@
 use std::io::Write;
 use std::str;
 
+use hashbrown::hash_set::Entry::*;
+use hashbrown::HashSet;
 use rayon::prelude::*;
 
 use noodles_vcf::{
@@ -102,6 +104,8 @@ where
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
+    /// Where repeats should be masked with 'N'
+    repeat_coors: Vec<usize>,
 
     /// Mapping information
 
@@ -153,7 +157,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    pub fn new(k: usize, filename: &str, rc: bool) -> Self {
+    pub fn new(k: usize, filename: &str, rc: bool, repeat_mask: bool) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
@@ -161,6 +165,8 @@ where
         let mut split_kmer_pos = Vec::new();
         let mut seq = Vec::new();
         let mut chrom_names = Vec::new();
+        let mut singles = HashSet::new();
+        let mut repeats = HashSet::new();
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}",));
@@ -193,6 +199,9 @@ where
                     chrom,
                     rc,
                 });
+                if repeat_mask {
+                    Self::track_repeats(kmer, &mut singles, &mut repeats);
+                }
                 while let Some((kmer, base, rc)) = kmer_it.get_next_kmer() {
                     pos = kmer_it.get_middle_pos();
                     split_kmer_pos.push(RefKmer {
@@ -202,6 +211,9 @@ where
                         chrom,
                         rc,
                     });
+                    if repeat_mask {
+                        Self::track_repeats(kmer, &mut singles, &mut repeats);
+                    }
                 }
             }
             chrom += 1;
@@ -211,14 +223,63 @@ where
             panic!("{filename} has no valid sequence");
         }
 
+        // Find the repeat ranges, and intersect them
+        let mut repeat_coors = Vec::new();
+        if repeat_mask {
+            let half_split_len = (k - 1) / 2;
+            let mut last_chrom = 0;
+            let mut last_end = 0;
+            let mut chrom_offset = 0;
+            for sk in &split_kmer_pos {
+                if sk.chrom > last_chrom {
+                    chrom_offset += seq[last_chrom].len();
+                }
+                if repeats.contains(&sk.kmer) {
+                    let start = sk.pos - half_split_len;
+                    let end = sk.pos + half_split_len;
+                    let range = if sk.chrom > last_chrom || start > last_end || start == 0 {
+                        std::ops::Range {
+                            start: start + chrom_offset,
+                            end: end + 1 + chrom_offset,
+                        }
+                    } else {
+                        std::ops::Range {
+                            start: last_end + 1 + chrom_offset,
+                            end: end + 1 + chrom_offset,
+                        }
+                    };
+                    for pos in range {
+                        repeat_coors.push(pos);
+                    }
+                    last_chrom = sk.chrom;
+                    last_end = end;
+                }
+            }
+        }
+
         Self {
             k,
             seq,
             chrom_names,
             split_kmer_pos,
+            repeat_coors,
             mapped_pos: Vec::new(),
             mapped_variants: Array2::zeros((0, 0)),
             mapped_names: Vec::new(),
+        }
+    }
+
+    // Keeps track of split k-mers in the ref, any found before are moved
+    // to the repeats set
+    fn track_repeats(kmer: IntT, singles: &mut HashSet<IntT>, repeats: &mut HashSet<IntT>) {
+        if let Vacant(rep_kmer) = repeats.entry(kmer) {
+            match singles.entry(kmer) {
+                Vacant(single_entry) => single_entry.insert(),
+                Occupied(single_entry) => {
+                    single_entry.remove();
+                    rep_kmer.insert();
+                }
+            }
         }
     }
 
@@ -276,7 +337,8 @@ where
             panic!("No split k-mers mapped to reference");
         }
 
-        let mut seq_writers = vec![AlnWriter::new(&self.seq, self.k); self.mapped_names.len()];
+        let mut seq_writers =
+            vec![AlnWriter::new(&self.seq, self.k, &self.repeat_coors); self.mapped_names.len()];
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()

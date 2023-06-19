@@ -488,6 +488,7 @@ pub fn main() {
             input,
             output,
             format,
+            repeat_mask,
             threads,
         } => {
             check_threads(*threads);
@@ -498,8 +499,12 @@ pub fn main() {
                     ska_array.kmer_len(),
                     ska_array.rc()
                 );
-                let mut ska_ref =
-                    RefSka::<u64>::new(ska_array.kmer_len(), reference, ska_array.rc());
+                let mut ska_ref = RefSka::<u64>::new(
+                    ska_array.kmer_len(),
+                    reference,
+                    ska_array.rc(),
+                    *repeat_mask,
+                );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 log::info!(
@@ -507,8 +512,12 @@ pub fn main() {
                     ska_array.kmer_len(),
                     ska_array.rc()
                 );
-                let mut ska_ref =
-                    RefSka::<u128>::new(ska_array.kmer_len(), reference, ska_array.rc());
+                let mut ska_ref = RefSka::<u128>::new(
+                    ska_array.kmer_len(),
+                    reference,
+                    ska_array.rc(),
+                    *repeat_mask,
+                );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {
                 panic!("Could not read input file(s): {input:?}");
