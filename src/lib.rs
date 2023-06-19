@@ -183,6 +183,9 @@
 //! ska distance seqs.skf > distances.txt
 //! python scripts/cluster_dists.py distances.txt --snps 20 --mismatches 0.05
 //! ```
+//! If you install `rapidnj` and `biopython` you can also draw an NJ tree from
+//! these distances, which will be displayed in Microreact. Use your `--api-key`
+//! to directly upload and get the URL printed on the terminal.
 //!
 //! ## ska merge
 //!
