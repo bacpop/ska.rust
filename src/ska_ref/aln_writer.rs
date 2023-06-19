@@ -158,7 +158,9 @@ impl<'a> AlnWriter<'a> {
             }
             // Mask repeats
             for repeat_idx in self.repeat_regions {
-                self.seq_out[*repeat_idx] = b'N';
+                if self.seq_out[*repeat_idx] != b'-' {
+                    self.seq_out[*repeat_idx] = b'N';
+                }
             }
             self.finalised = true;
         }

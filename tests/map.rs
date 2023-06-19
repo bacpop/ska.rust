@@ -224,3 +224,62 @@ fn map_rev_comp() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_vcf_ss.stdout", TestDir::Correct));
 }
+
+// Tests the --repeat-mask option
+#[test]
+fn repeat_mask() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("-v")
+        .arg("--repeat-mask")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_aln_k9.masked.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("-v")
+        .arg("--repeat-mask")
+        .args(&["--format", "vcf"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_vcf_k9.masked.stdout", TestDir::Correct));
+
+    // Two identical chromosomes. All bases masked
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("-v")
+        .arg("--repeat-mask")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_all_repeats.masked.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref_two_chrom_repeats.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("-v")
+        .arg("--repeat-mask")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_aln_two_chrom.masked.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
+        .arg(sandbox.file_string("test_ref_two_chrom_repeats.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("-v")
+        .arg("--repeat-mask")
+        .args(&["--format", "vcf"])
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct));
+}

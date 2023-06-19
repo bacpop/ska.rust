@@ -234,19 +234,20 @@ where
             for sk in &split_kmer_pos {
                 if sk.chrom > last_chrom {
                     chrom_offset += seq[last_chrom].len();
+                    last_chrom = sk.chrom;
                 }
                 if repeats.contains(&sk.kmer) {
-                    let start = sk.pos - half_split_len;
-                    let end = sk.pos + half_split_len;
-                    let range = if sk.chrom > last_chrom || start > last_end || start == 0 {
+                    let start = sk.pos - half_split_len + chrom_offset;
+                    let end = sk.pos + half_split_len + chrom_offset;
+                    let range = if start > last_end || start == 0 {
                         std::ops::Range {
-                            start: start + chrom_offset,
-                            end: end + 1 + chrom_offset,
+                            start,
+                            end: end + 1,
                         }
                     } else {
                         std::ops::Range {
-                            start: last_end + 1 + chrom_offset,
-                            end: end + 1 + chrom_offset,
+                            start: last_end + 1,
+                            end: end + 1,
                         }
                     };
                     for pos in range {
