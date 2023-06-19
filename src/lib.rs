@@ -154,6 +154,7 @@
 //! ```bash
 //! ska map ref.fa seqs.skf -o ref_mapped.aln
 //! ```
+//! Add `--repeat-mask` to mask any repeated split k-mers in the reference with 'N'.
 //!
 //! You can also get a VCF as output, which has rows as variants, and only has the
 //! variable sites (but will include unmapped bases as missing).
