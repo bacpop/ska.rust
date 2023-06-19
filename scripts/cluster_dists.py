@@ -5,6 +5,73 @@ import sys, os
 import networkx as nx
 import argparse
 
+
+def square_to_condensed(i, j, n):
+    if j > i:
+        tmp = j
+        j = i
+        i = tmp
+    return int(n * i - ((i * (i + 1)) / 2) + j - 1 - i)
+
+
+# See PopPUNK/trees.py
+def build_rapidnj(rapidnj_exe, names, dists, out_prefix, threads=1):
+    import io
+    import subprocess
+
+    try:
+        from Bio import Phylo
+    except ImportError as e:
+        sys.stderr.write("Using rapidnj requires biopython")
+        sys.exit(1)
+
+    # generate phylip matrix
+    phylip_name = f"{out_prefix}_core_distances.phylip"
+    n_samples = len(names)
+
+    with open(phylip_name, "w") as p_file:
+        p_file.write(str(n_samples) + "\n")
+        for i, ref_name in enumerate(names):
+            p_file.write(ref_name)
+            for j in range(n_samples):
+                dist = dists[square_to_condensed(i, j, n_samples)] if i != j else 0.0
+                p_file.write(f" {dist}")
+            p_file.write("\n")
+
+    # construct tree
+    tree_filename = f"{out_prefix}.nwk"
+    rapidnj_cmd = (
+        f"{rapidnj_exe} {phylip_name} -n -i pd -o t -x {tree_filename} -c {threads}"
+    )
+    try:
+        # run command
+        subprocess.run(rapidnj_cmd, shell=True, check=True)
+
+    # record errors
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(
+            f'Could not run command "{rapidnj_cmd}"; returned code:{str(e.returncode)}\n'
+        )
+        sys.exit(1)
+
+    # read tree
+    tree = Phylo.read(tree_filename, "newick")
+
+    # tidy unnecessary files
+    os.remove(phylip_name)
+    os.remove(tree_filename)
+
+    # Midpoint root and format
+    tree.root_at_midpoint()
+    output_str = io.StringIO()
+    Phylo.write(tree, output_str, "newick")
+    output_str.seek(0)
+    tree_string = output_str.getvalue()
+    tree_string = tree_string.replace("'", "")
+
+    return tree_string
+
+
 ## See PopPUNK/plot.py
 def createMicroreact(prefix, pickle_loc, microreact_files, api_key=None):
     import pickle
@@ -96,13 +163,21 @@ def main():
     parser.add_argument(
         "--json-dir", help="Directory with 'microreact_example.pkl' file"
     )
+    parser.add_argument(
+        "--rapidnj", help="rapidnj executable (builds a tree from dists)"
+    )
     parser.add_argument("--api-key", help="Microreact API key")
 
     args = parser.parse_args()
 
+    build_tree = args.rapidnj != None
+    if args.rapidnj != None:
+        build_tree = True
+
     G = nx.Graph()
     samples = set()
     edges = list()
+    dists = list()
     all_samples = False
     with open(args.distfile, "r") as distances:
         distances.readline()
@@ -116,14 +191,13 @@ def main():
                 samples.add(sample2)
             if float(snps) <= args.snps and float(mismatches) <= args.mismatches:
                 edges.append([sample1, sample2])
+            if build_tree:
+                dists.append(snps)
 
     # Create graph
     G.add_nodes_from(samples)
     G.add_edges_from(edges)
-
-    # Layout and print (Microreact does the layout)
-    # nx.nx_agraph.pygraphviz_layout(G, prog="neato")
-    nx.nx_agraph.write_dot(G, f"{args.output}.graph.dot")
+    microreact_files = list()
 
     # Write CSV of clusters
     with open(f"{args.output}.clusters.csv", "w") as out_csv:
@@ -133,13 +207,25 @@ def main():
         ):
             for sample in c:
                 out_csv.write(",".join([sample, str(idx + 1)]) + "\n")
+    microreact_files.append(f"{args.output}.clusters.csv")
+
+    # Layout and print (Microreact does the layout)
+    # nx.nx_agraph.pygraphviz_layout(G, prog="neato")
+    nx.nx_agraph.write_dot(G, f"{args.output}.graph.dot")
+    microreact_files.append(f"{args.output}.graph.dot")
+
+    if build_tree:
+        tree = build_rapidnj(args.rapidnj, samples, dists, args.output)
+        with open(f"{args.output}.njtree.nwk", "w") as tree_file:
+            tree_file.write(tree)
+        microreact_files.append(f"{args.output}.njtree.nwk")
 
     if args.json_dir == None:
         args.json_dir = "scripts/"
     url = createMicroreact(
         args.output,
         args.json_dir,
-        [f"{args.output}.clusters.csv", f"{args.output}.graph.dot"],
+        microreact_files,
         args.api_key,
     )
     if url != None:
