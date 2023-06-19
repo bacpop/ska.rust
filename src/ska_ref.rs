@@ -257,6 +257,7 @@ where
                     last_end = end;
                 }
             }
+            log::info!("Masking {} unique split k-mer repeats spanning {} bases", repeats.len(), repeat_coors.len());
         }
 
         Self {
@@ -382,7 +383,7 @@ where
         threads: usize,
     ) -> Result<(), needletail::errors::ParseError> {
         if self.chrom_names.len() > 1 {
-            eprintln!("WARNING: Reference contained multiple contigs, in the output they will be concatenated");
+            log::warn!("Reference contained multiple contigs, in the output they will be concatenated");
         }
 
         let alignments = self.pseudoalignment(threads);
