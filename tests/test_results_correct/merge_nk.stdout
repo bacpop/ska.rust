@@ -2,7 +2,8 @@ ska_version=[..]
 k=17
 k_bits=64
 rc=true
-78 k-mers
-2 samples
-["test_1", "test_2"]
+k-mers=78
+samples=2
+sample_names=["test_1", "test_2"]
+sample_kmers=[46, 46]
 

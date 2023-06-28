@@ -28,6 +28,11 @@
 //! Various optimisations are used to make this as fast as possible. For a more thorough comparison with version 1.0 of SKA, see the
 //! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
 //!
+//! //! *NB As split k-mers are even lengths, it is possible that they are their
+//! own reverse complement. The original version of ska would randomly pick a strand,
+//! possibly introducing a SNP across samples. This version uses an ambiguous middle
+//! base (W for A/T; S for C/G) to represent this case.*
+//!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
 //! # Usage
@@ -228,20 +233,31 @@
 //! You can do this by removing any constant sites or ambiguous-only s0tes (which are typically unused), and by hard-filtering
 //! by frequency (i.e. before writing output):
 //! ```bash
-//! ska weed --filter NoAmbigOrConst --min-freq 0.9 all_samples.skf
+//! ska weed --filter no-ambig-or-const --min-freq 0.9 all_samples.skf
 //! ```
 //!
 //! ## ska nk
 //! Return information on the *n*umber of *k*-mers in an `.skf` file. This will
 //! print on STDOUT:
+//! - The version of ska used to build the file.
 //! - The k-mer size.
+//! - Number of bits used for the split k-mer (64 or 128).
 //! - Whether reverse complements were used.
-//! - The number of split k-mers.
-//! - The number of samples.
+//! - The total number of split k-mers.
+//! - The total number of samples.
 //! - The sample names.
+//! - The number of split k-mers found in each sample.
 //!
 //! ```bash
 //! ska nk all_samples.skf
+//! ska_version=0.3.1
+//! k=21
+//! k_bits=64
+//! rc=true
+//! k-mers=3228084
+//! samples=28
+//! sample_names=["19183_4#73", "12673_8#29", "12673_8#31", "12754_5#61", "12754_5#89", "12754_5#47", "12754_5#32", "12754_5#78", "12754_4#85", "12754_5#74", "19183_4#57", "12754_5#36", "19183_4#49", "19183_4#79", "19183_4#60", "12754_5#24", "12754_5#22", "12754_5#71", "12673_8#26", "12754_5#95", "12754_5#86", "12673_8#24", "19183_4#61", "12673_8#41", "12754_4#66", "12754_5#80", "12754_5#84", "19183_4#78"]
+//! sample_kmers=[2872587, 2997448, 2949719, 2997496, 2997178, 2912749, 2996491, 2997221, 2949102, 2997454, 2914109, 2912237, 2872518, 2869957, 2872470, 2997992, 2997647, 2958512, 2998099, 2997290, 2950253, 3027707, 2997881, 2907920, 2911447, 2997644, 2944830, 2915080]
 //! ```
 //!
 //! If you add `--full-info`, the split k-mer dictionary will be decoded and printed

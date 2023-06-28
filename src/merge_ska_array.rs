@@ -416,6 +416,14 @@ where
             })
     }
 
+    /// Count of number of k-mers found in each sample
+    pub fn n_sample_kmers(&self) -> Vec<i32> {
+        self.variants
+            .map(|v| if *v != b'-' { 1 } else { 0 })
+            .sum_axis(Axis(0))
+            .to_vec()
+    }
+
     /// K-mer length used when builiding
     pub fn kmer_len(&self) -> usize {
         self.k
@@ -487,7 +495,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "ska_version={}\nk={}\nk_bits={}\nrc={}\n{} k-mers\n{} samples\n",
+            "ska_version={}\nk={}\nk_bits={}\nrc={}\nk-mers={}\nsamples={}\n",
             self.ska_version,
             self.kmer_len(),
             self.k_bits,
@@ -495,7 +503,8 @@ where
             self.ksize(),
             self.nsamples()
         )?;
-        writeln!(f, "{:?}", self.names)
+        writeln!(f, "sample_names={:?}", self.names)?;
+        writeln!(f, "sample_kmers={:?}", self.n_sample_kmers())
     }
 }
 
