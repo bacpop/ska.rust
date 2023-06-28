@@ -2,9 +2,10 @@ ska_version=[..]
 k=9
 k_bits=64
 rc=false
-1 k-mers
-2 samples
-["dup_test_1", "dup_test_2"]
+k-mers=1
+samples=2
+sample_names=["dup_test_1", "dup_test_2"]
+sample_kmers=[1, 1]
 
 GATT	AAGG	K,D
 
