@@ -28,6 +28,11 @@
 //! Various optimisations are used to make this as fast as possible. For a more thorough comparison with version 1.0 of SKA, see the
 //! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
 //!
+//! //! *NB As split k-mers are even lengths, it is possible that they are their
+//! own reverse complement. The original version of ska would randomly pick a strand,
+//! possibly introducing a SNP across samples. This version uses an ambiguous middle
+//! base (W for A/T; S for C/G) to represent this case.*
+//!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
 //! # Usage

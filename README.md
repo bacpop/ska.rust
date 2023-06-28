@@ -51,12 +51,13 @@ Optimisations include:
 - Integer DNA encoding, optimised parsing from FASTA/FASTQ.
 - Faster dictionaries.
 - Full parallelisation of build phase.
-- Smaller, standardised input/output files.
+- Smaller, standardised input/output files. Faster to save/load.
 - Reduced memory footprint with read filtering.
 
 And other improvements:
 
-- IUPAC uncertainty codes for multiple copy k-mers.
+- IUPAC uncertainty codes for multiple copy split k-mers.
+- Uncertainty with self-reverse-complement split k-mers (palindromes).
 - Fully dynamic files (merge, delete samples).
 - Native VCF output for map.
 - Support for known strand sequence (e.g. RNA viruses).
