@@ -39,6 +39,8 @@ pub struct AlnWriter<'a> {
     finalised: bool,
     /// Repeats to mask, which happens at finalisation
     repeat_regions: &'a Vec<usize>,
+    /// Whether to treat all ambiguous bases as Ns
+    mask_ambig: bool,
     /// Buffer for amibguous bases, which are written at finalisation.
     _ambig_out: Vec<(u8, usize)>,
 }
@@ -46,7 +48,12 @@ pub struct AlnWriter<'a> {
 impl<'a> AlnWriter<'a> {
     /// Create a new [`AlnWriter`] taking the reference sequence mapped against
     /// and the k-mer size used for the mapping
-    pub fn new(ref_seq: &'a Vec<Vec<u8>>, k: usize, repeat_regions: &'a Vec<usize>) -> Self {
+    pub fn new(
+        ref_seq: &'a Vec<Vec<u8>>,
+        k: usize,
+        repeat_regions: &'a Vec<usize>,
+        mask_ambig: bool,
+    ) -> Self {
         let total_size = ref_seq.iter().map(|x| x.len()).sum();
         let half_split_len = (k - 1) / 2;
         Self {
@@ -60,6 +67,7 @@ impl<'a> AlnWriter<'a> {
             half_split_len,
             finalised: false,
             repeat_regions,
+            mask_ambig,
             _ambig_out: Vec::new(),
         }
     }
@@ -121,7 +129,10 @@ impl<'a> AlnWriter<'a> {
             // Ambiguous bases may clash with the flanks, which are copied from
             // reference. Deal with these in `finalise`.
             if is_ambiguous(base) {
-                self._ambig_out.push((base, mapped_pos + self.chrom_offset));
+                self._ambig_out.push((
+                    if self.mask_ambig { b'N' } else { base },
+                    mapped_pos + self.chrom_offset,
+                ));
             }
             self.last_mapped = mapped_pos;
         } else {

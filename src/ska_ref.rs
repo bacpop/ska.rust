@@ -98,6 +98,8 @@ where
     k: usize,
     /// Concatenated list of split k-mers
     split_kmer_pos: Vec<RefKmer<IntT>>,
+    /// Replace ambiguous bases with N
+    filter_ambig: bool,
 
     /// Input sequence
 
@@ -158,7 +160,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    pub fn new(k: usize, filename: &str, rc: bool, repeat_mask: bool) -> Self {
+    pub fn new(k: usize, filename: &str, rc: bool, repeat_mask: bool, filter_ambig: bool) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
@@ -267,6 +269,7 @@ where
         Self {
             k,
             seq,
+            filter_ambig,
             chrom_names,
             split_kmer_pos,
             repeat_coors,
@@ -344,7 +347,10 @@ where
         }
 
         let mut seq_writers =
-            vec![AlnWriter::new(&self.seq, self.k, &self.repeat_coors); self.mapped_names.len()];
+            vec![
+                AlnWriter::new(&self.seq, self.k, &self.repeat_coors, self.filter_ambig);
+                self.mapped_names.len()
+            ];
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()

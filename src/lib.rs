@@ -529,10 +529,30 @@ pub fn main() {
             input,
             output,
             format,
+            filter,
             repeat_mask,
             threads,
         } => {
             check_threads(*threads);
+
+            // Parse filter options, give verbose output
+            let filter_ambig = match *filter {
+                FilterType::NoAmbig => {
+                    log::info!("Replacing ambiguous bases with N");
+                    true
+                }
+                FilterType::NoAmbigOrConst => {
+                    log::info!("Replacing ambiguous bases with N");
+                    log::warn!("Cannot remove constant bases when mapping");
+                    true
+                }
+                FilterType::NoConst => {
+                    log::warn!("Cannot remove constant bases when mapping");
+                    false
+                }
+                FilterType::NoFilter => false,
+            };
+
             log::info!("Loading skf as dictionary");
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(
@@ -545,6 +565,7 @@ pub fn main() {
                     reference,
                     ska_array.rc(),
                     *repeat_mask,
+                    filter_ambig,
                 );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
@@ -558,6 +579,7 @@ pub fn main() {
                     reference,
                     ska_array.rc(),
                     *repeat_mask,
+                    filter_ambig,
                 );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {

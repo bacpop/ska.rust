@@ -253,7 +253,7 @@ where
             let ((count, row), kmer) = count_it;
             if *count >= min_count {
                 let keep_var = match *filter {
-                    FilterType::NoFilter => true,
+                    FilterType::NoFilter | FilterType::NoAmbig => true,
                     FilterType::NoConst => {
                         let first_var = row[0];
                         let mut keep = false;
@@ -299,6 +299,13 @@ where
         if update_kmers {
             self.split_kmers = filtered_kmers;
         }
+
+        // Replace any ambiguous variants with Ns, if requested
+        if *filter == FilterType::NoAmbig {
+            self.variants
+                .mapv_inplace(|v| if is_ambiguous(v) { b'N' } else { v });
+        }
+
         log::info!("Filtering removed {removed} split k-mers");
         removed
     }
