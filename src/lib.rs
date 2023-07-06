@@ -184,7 +184,7 @@
 //!
 //! As `ska map` is independent for each input file, the most efficient way to
 //! run this on a number of samples is with gnu parallel, for example:
-//! ```
+//! ```bash
 //! cat ${FILE_LIST} | parallel -j 8 "ID=\$(basename {} | sed 's/_a.*fasta/_temp_skf/g');
 //! ska build -o \$ID -k 31 {} ;
 //! MAPOUT=\$(basename {} | sed 's/_a.*fasta/_aln/g');
