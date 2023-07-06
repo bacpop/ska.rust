@@ -21,7 +21,8 @@
 //!
 //! // Index a reference sequence
 //! let mask_repeats = false;
-//! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc(), mask_repeats);
+//! let mask_ambiguous = false;
+//! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc(), mask_repeats, mask_ambiguous);
 //!
 //! // Run mapping, output an alignment to stdout
 //! ref_kmers.map(&ska_dict);
