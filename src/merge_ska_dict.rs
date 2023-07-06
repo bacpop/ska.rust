@@ -14,6 +14,7 @@ use hashbrown::HashMap;
 use indicatif::ProgressIterator;
 
 use super::QualOpts;
+use crate::io_utils::any_fastq;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
 
@@ -330,7 +331,13 @@ where
 {
     // Build indexes
     log::info!("Building skf dicts from sequence input");
-    log::info!("If FASTQ input: {qual}");
+
+    if any_fastq(input_files) {
+        log::info!("FASTQ files filtered with: {qual}");
+    } else {
+        log::info!("All input files FASTA (no error filtering)");
+    }
+
     if threads > 1 {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)

@@ -28,7 +28,7 @@
 //! Various optimisations are used to make this as fast as possible. For a more thorough comparison with version 1.0 of SKA, see the
 //! [github description](https://github.com/bacpop/ska.rust/blob/master/README.md).
 //!
-//! //! *NB As split k-mers are even lengths, it is possible that they are their
+//! *NB As split k-mers are even lengths, it is possible that they are their
 //! own reverse complement. The original version of ska would randomly pick a strand,
 //! possibly introducing a SNP across samples. This version uses an ambiguous middle
 //! base (W for A/T; S for C/G) to represent this case.*
@@ -49,6 +49,18 @@
 //! Output from `ska align` and `ska map` is to STDOUT, so you can use a redirect `>` to save to a file or pipe `|`
 //! to stream into another compatible program on STDIN. You can also add an output
 //! file prefix directly with `-o` (for `ska build` this is required).
+//!
+//! ## Important notes
+//!
+//! - In this version of ska the k-mer length is the _total_ split k-mer size,
+//! whereas in ska1 the k-mer length is half the split length. So the default of
+//! k=15 in ska1 corresponds to choosing `-k 31` in this version.
+//! - If you are using FASTQ input files (reads), these must be provided as two
+//! deinterleaved files using the `-f` option to `ska build`. Providing them as
+//! a single file will treat them as FASTA, and not correct sequencing errors.
+//! - If you are running `ska map`, it is more memory efficient to run these one at
+//! a time, rather than merging a single `.skf` file. A command for doing this
+//! in parallel is listed below.
 //!
 //! ## Common options
 //!
@@ -166,6 +178,18 @@
 //! An example command, also demonstrating that everything can be done from input sequences in a single command:
 //! ```bash
 //! ska map ref.fa seq1.fa seq2.fa -f vcf --threads 2 | bgzip -c - > seqs.vcf.gz
+//! ```
+//!
+//! ### Efficiency
+//!
+//! As `ska map` is independent for each input file, the most efficient way to
+//! run this on a number of samples is with gnu parallel, for example:
+//! ```
+//! cat ${FILE_LIST} | parallel -j 8 "ID=\$(basename {} | sed 's/_a.*fasta/_temp_skf/g');
+//! ska build -o \$ID -k 31 {} ;
+//! MAPOUT=\$(basename {} | sed 's/_a.*fasta/_aln/g');
+//!  ska map $REFERENCE_LOC \${ID}.skf -o \${MAPOUT}.aln"
+//! cat *.aln > ska_map.aln
 //! ```
 //!
 //! ## ska distance
