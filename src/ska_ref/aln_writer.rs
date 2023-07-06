@@ -125,15 +125,15 @@ impl<'a> AlnWriter<'a> {
         if mapped_chrom > self.curr_chrom {
             self.fill_contig();
         }
+        // Ambiguous bases may clash with the flanks, which are copied from
+        // reference. Deal with these in `finalise`.
+        if is_ambiguous(base) {
+            self._ambig_out.push((
+                if self.mask_ambig { b'N' } else { base },
+                mapped_pos + self.chrom_offset,
+            ));
+        }
         if mapped_pos < self.next_pos {
-            // Ambiguous bases may clash with the flanks, which are copied from
-            // reference. Deal with these in `finalise`.
-            if is_ambiguous(base) {
-                self._ambig_out.push((
-                    if self.mask_ambig { b'N' } else { base },
-                    mapped_pos + self.chrom_offset,
-                ));
-            }
             self.last_mapped = mapped_pos;
         } else {
             // Write bases between last match and this one
