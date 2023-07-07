@@ -1,0 +1,9 @@
+ska_version=[..]
+k=9
+k_bits=64
+rc=true
+k-mers=68
+samples=2
+sample_names=["test_1", "test_2"]
+sample_kmers=[53, 53]
+

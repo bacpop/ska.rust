@@ -366,7 +366,8 @@
 //! let min_count = 2;
 //! let update_kmers = false;
 //! let filter = FilterType::NoConst;
-//! ska_array.filter(min_count, &filter, update_kmers);
+//! let ambig_mask = false;
+//! ska_array.filter(min_count, &filter, update_kmers, ambig_mask);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);
@@ -509,17 +510,18 @@ pub fn main() {
             output,
             min_freq,
             filter,
+            ambig_mask,
             threads,
         } => {
             check_threads(*threads);
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *min_freq);
+                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *min_freq);
+                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
             } else {
                 panic!("Could not read input file(s): {input:?}");
             }
@@ -529,29 +531,11 @@ pub fn main() {
             input,
             output,
             format,
-            filter,
+            ambig_mask,
             repeat_mask,
             threads,
         } => {
             check_threads(*threads);
-
-            // Parse filter options, give verbose output
-            let filter_ambig = match *filter {
-                FilterType::NoAmbig => {
-                    log::info!("Replacing ambiguous bases with N");
-                    true
-                }
-                FilterType::NoAmbigOrConst => {
-                    log::info!("Replacing ambiguous bases with N");
-                    log::warn!("Cannot remove constant bases when mapping");
-                    true
-                }
-                FilterType::NoConst => {
-                    log::warn!("Cannot remove constant bases when mapping");
-                    false
-                }
-                FilterType::NoFilter => false,
-            };
 
             log::info!("Loading skf as dictionary");
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
@@ -564,8 +548,8 @@ pub fn main() {
                     ska_array.kmer_len(),
                     reference,
                     ska_array.rc(),
+                    *ambig_mask,
                     *repeat_mask,
-                    filter_ambig,
                 );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
@@ -578,8 +562,8 @@ pub fn main() {
                     ska_array.kmer_len(),
                     reference,
                     ska_array.rc(),
+                    *ambig_mask,
                     *repeat_mask,
-                    filter_ambig,
                 );
                 map(&mut ska_array, &mut ska_ref, output, format, *threads);
             } else {
@@ -653,6 +637,7 @@ pub fn main() {
             weed_file,
             reverse,
             min_freq,
+            ambig_mask,
             filter,
         } => {
             log::info!("Loading skf file");
@@ -663,6 +648,7 @@ pub fn main() {
                     *reverse,
                     *min_freq,
                     filter,
+                    *ambig_mask,
                     skf_file,
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
@@ -672,6 +658,7 @@ pub fn main() {
                     *reverse,
                     *min_freq,
                     filter,
+                    *ambig_mask,
                     skf_file,
                 );
             } else {

@@ -202,6 +202,29 @@ fn weed() {
         .assert()
         .stdout_matches_path(sandbox.file_string("weed_nk.stdout", TestDir::Correct));
 
+    // Masking ambig sites
+    Command::new("cp")
+        .current_dir(sandbox.get_wd())
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("merge_k9.skf")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("weed")
+        .arg("merge_k9.skf")
+        .arg("--ambig-mask")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("merge_k9.skf")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("weed_nk_k9.stdout", TestDir::Correct));
+
     // Keep rather than weed
     Command::new("cp")
         .current_dir(sandbox.get_wd())

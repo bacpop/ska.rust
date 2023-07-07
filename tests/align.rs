@@ -162,7 +162,7 @@ fn filters() {
     let unfilt_align_out = Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
-        .arg(sandbox.file_string("merge_k9.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-filter")
         .arg("-v")
@@ -170,9 +170,26 @@ fn filters() {
         .unwrap()
         .stdout;
 
+    let full_length = 38; // could also get 38 from ska nk
     let lengths = aln_length(&unfilt_align_out);
     for length in lengths {
-        assert_eq!(39, length); // could also get 39 from ska nk
+        assert_eq!(full_length, length);
+    }
+
+    let noambig_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-ambig")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let lengths = aln_length(&noambig_align_out);
+    for length in lengths {
+        assert_eq!(full_length - 1, length);
     }
 
     let const_filt_align_out = Command::new(cargo_bin("ska"))
@@ -186,10 +203,10 @@ fn filters() {
         .unwrap()
         .stdout;
 
-    let mut correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['S', 'G']]);
+    let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['S', 'G']]);
     assert_eq!(var_hash(&const_filt_align_out), correct_aln);
 
-    let no_ambig_align_out = Command::new(cargo_bin("ska"))
+    let no_ambig_or_const_align_out = Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -200,8 +217,23 @@ fn filters() {
         .unwrap()
         .stdout;
 
-    correct_aln.remove(&vec!['S', 'G']);
-    assert_eq!(var_hash(&no_ambig_align_out), correct_aln);
+    let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T']]);
+    assert_eq!(var_hash(&no_ambig_or_const_align_out), correct_aln);
+
+    let ambig_filter_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-const")
+        .arg("--ambig-mask")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['N', 'G']]);
+    assert_eq!(var_hash(&ambig_filter_align_out), correct_aln);
 }
 
 #[test]
