@@ -11,6 +11,8 @@ pub const DEFAULT_KMER: usize = 17;
 pub const DEFAULT_STRAND: bool = false;
 /// Default repeat masking behaviour
 pub const DEFAULT_REPEATMASK: bool = false;
+/// Default ambiguous masking behaviour
+pub const DEFAULT_AMBIGMASK: bool = false;
 /// Default minimum k-mer count for FASTQ files
 pub const DEFAULT_MINCOUNT: u16 = 10;
 /// Default minimum base quality (PHRED score) for FASTQ files
@@ -71,14 +73,16 @@ pub enum FileType {
     Aln,
 }
 
-/// Possible variant filters for align
+/// Possible variant filters
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum FilterType {
     /// Output all variants
     NoFilter,
     /// Filter constant bases
     NoConst,
-    /// Filter constant bases, and any variants where there are ambiguous bases
+    /// Filter any site with an ambiguous base
+    NoAmbig,
+    /// Filter constant bases, and any ambiguous bases
     NoAmbigOrConst,
 }
 
@@ -88,6 +92,7 @@ impl fmt::Display for FilterType {
         match *self {
             Self::NoFilter => write!(f, "No filtering"),
             Self::NoConst => write!(f, "No constant sites"),
+            Self::NoAmbig => write!(f, "No ambiguous sites"),
             Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
         }
     }
@@ -171,6 +176,10 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = FilterType::NoConst)]
         filter: FilterType,
 
+        /// Mask any ambiguous bases in the alignment with 'N'
+        #[arg(long, default_value_t = DEFAULT_AMBIGMASK)]
+        ambig_mask: bool,
+
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
@@ -190,6 +199,10 @@ pub enum Commands {
         /// Format of output file
         #[arg(short, long, value_enum, default_value_t = FileType::Aln)]
         format: FileType,
+
+        /// Mask any ambiguous bases in the alignment with 'N'
+        #[arg(long, default_value_t = DEFAULT_AMBIGMASK)]
+        ambig_mask: bool,
 
         /// Mask any repeats in the alignment with 'N'
         #[arg(long, default_value_t = DEFAULT_REPEATMASK)]
@@ -266,6 +279,10 @@ pub enum Commands {
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoFilter)]
         filter: FilterType,
+
+        /// Mask any ambiguous bases in the alignment with 'N'
+        #[arg(long, default_value_t = DEFAULT_AMBIGMASK)]
+        ambig_mask: bool,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {

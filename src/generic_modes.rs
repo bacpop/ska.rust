@@ -19,13 +19,14 @@ pub fn align<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     output: &Option<String>,
     filter: &FilterType,
+    mask_ambig: bool,
     min_freq: f64,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
 
     // Apply filters
-    apply_filters(ska_array, min_freq, filter);
+    apply_filters(ska_array, min_freq, filter, mask_ambig);
 
     // Write out to file/stdout
     log::info!("Writing alignment");
@@ -102,11 +103,12 @@ pub fn apply_filters<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     min_freq: f64,
     filter: &FilterType,
+    ambig_mask: bool,
 ) -> i32 {
     let update_kmers = false;
     let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * min_freq) as usize;
-    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter}");
-    ska_array.filter(filter_threshold, filter, update_kmers)
+    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask}");
+    ska_array.filter(filter_threshold, filter, ambig_mask, update_kmers)
 }
 
 /// Calculate distances between samples
@@ -122,12 +124,13 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
 
-    let constant = apply_filters(ska_array, min_freq, &FilterType::NoConst);
+    let mask_ambig = false;
+    let constant = apply_filters(ska_array, min_freq, &FilterType::NoConst, mask_ambig);
     if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
         if filt_ambig {
-            apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst);
+            apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst, mask_ambig);
         } else {
-            apply_filters(ska_array, min_freq, &FilterType::NoFilter);
+            apply_filters(ska_array, min_freq, &FilterType::NoFilter, mask_ambig);
         }
     }
 
@@ -181,6 +184,7 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
     reverse: bool,
     min_freq: f64,
     filter: &FilterType,
+    ambig_mask: bool,
     out_file: &str,
 ) {
     if let Some(weed_fasta) = weed_file {
@@ -189,7 +193,15 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
             ska_array.kmer_len(),
             ska_array.rc()
         );
-        let ska_weed = RefSka::new(ska_array.kmer_len(), weed_fasta, ska_array.rc(), false);
+        let repeat_mask = false;
+        let filter_ambig = false;
+        let ska_weed = RefSka::new(
+            ska_array.kmer_len(),
+            weed_fasta,
+            ska_array.rc(),
+            repeat_mask,
+            filter_ambig,
+        );
 
         if !reverse {
             log::info!("Removing weed k-mers");
@@ -200,10 +212,10 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
     }
 
     let filter_threshold = f64::floor(ska_array.nsamples() as f64 * min_freq) as usize;
-    if filter_threshold > 0 || *filter != FilterType::NoFilter {
-        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter}");
+    if filter_threshold > 0 || *filter != FilterType::NoFilter || ambig_mask {
+        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask}");
         let update_kmers = true;
-        ska_array.filter(filter_threshold, filter, update_kmers);
+        ska_array.filter(filter_threshold, filter, ambig_mask, update_kmers);
     }
 
     log::info!("Saving modified skf file");

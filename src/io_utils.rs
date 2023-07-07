@@ -132,3 +132,15 @@ pub fn get_input_list(
         None => read_input_fastas(seq_files.as_ref().unwrap()),
     }
 }
+
+/// Checks if any input files are fastq
+pub fn any_fastq(files: &[InputFastx]) -> bool {
+    let mut fastq = false;
+    for file in files {
+        if file.2.is_some() {
+            fastq = true;
+            break;
+        }
+    }
+    fastq
+}

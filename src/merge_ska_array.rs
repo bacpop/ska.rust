@@ -55,8 +55,9 @@ use crate::cli::FilterType;
 /// // Remove constant sites and save
 /// let min_count = 1;                          // no filtering by minor allele frequency
 /// let filter = FilterType::NoAmbigOrConst;    // remove sites with no minor allele
+/// let mask_ambiguous = false;                 // leave ambiguous sites as IUPAC codes
 /// let update_counts = true;                   // keep counts updated, as saving
-/// ska_array.filter(min_count, &filter, update_counts);
+/// ska_array.filter(min_count, &filter, mask_ambiguous, update_counts);
 /// ska_array.save(&"no_const_sites.skf");
 ///
 /// // Delete a sample
@@ -64,7 +65,7 @@ use crate::cli::FilterType;
 ///
 /// // Delete k-mers
 /// let mask_repeats = false;
-/// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc(), mask_repeats);
+/// let ska_weed = RefSka::new(ska_array.kmer_len(), &"tests/test_files_in/weed.fa", ska_array.rc(), mask_repeats, mask_ambiguous);
 /// let reverse = false;
 /// ska_array.weed(&ska_weed, reverse);
 /// ```
@@ -234,11 +235,18 @@ where
     ///
     /// - `min_count` -- minimum number of samples split k-mer found in.
     /// - `const_sites` -- include sites where all middle bases are the same.
+    /// - `mask_ambig` -- replace any non-ACGTUN- with N
     /// - `update_kmers` -- update counts and split k-mers after removing variants.
     ///
     /// The default for `update_kmers` should be `true`, but it can be `false`
     /// if [`write_fasta()`] will be called immediately afterwards.
-    pub fn filter(&mut self, min_count: usize, filter: &FilterType, update_kmers: bool) -> i32 {
+    pub fn filter(
+        &mut self,
+        min_count: usize,
+        filter: &FilterType,
+        mask_ambig: bool,
+        update_kmers: bool,
+    ) -> i32 {
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
@@ -260,6 +268,16 @@ where
                         for var in row {
                             if *var != first_var {
                                 keep = true;
+                                break;
+                            }
+                        }
+                        keep
+                    }
+                    FilterType::NoAmbig => {
+                        let mut keep = true;
+                        for var in row {
+                            if is_ambiguous(*var) {
+                                keep = false;
                                 break;
                             }
                         }
@@ -300,6 +318,21 @@ where
             self.split_kmers = filtered_kmers;
         }
         log::info!("Filtering removed {removed} split k-mers");
+
+        // Replace any ambiguous variants with Ns, if requested
+        if mask_ambig {
+            let mut masked = 0;
+            self.variants.mapv_inplace(|v| {
+                if is_ambiguous(v) {
+                    masked += 1;
+                    b'N'
+                } else {
+                    v
+                }
+            });
+            log::info!("Masked {masked} ambiguous bases (non-A/C/G/T/U/N/-) with 'N'");
+        }
+
         removed
     }
 

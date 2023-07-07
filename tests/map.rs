@@ -45,6 +45,16 @@ fn map_aln() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
+        .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--ambig-mask")
+        .arg("-v")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("map_aln_k9_filter.stdout", TestDir::Correct));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
         .assert()

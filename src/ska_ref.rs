@@ -21,7 +21,8 @@
 //!
 //! // Index a reference sequence
 //! let mask_repeats = false;
-//! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc(), mask_repeats);
+//! let mask_ambiguous = false;
+//! let mut ref_kmers = RefSka::new(ska_dict.kmer_len(), &"tests/test_files_in/test_ref.fa", ska_dict.rc(), mask_repeats, mask_ambiguous);
 //!
 //! // Run mapping, output an alignment to stdout
 //! ref_kmers.map(&ska_dict);
@@ -98,6 +99,8 @@ where
     k: usize,
     /// Concatenated list of split k-mers
     split_kmer_pos: Vec<RefKmer<IntT>>,
+    /// Replace ambiguous bases with N
+    ambig_mask: bool,
 
     /// Input sequence
 
@@ -158,7 +161,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    pub fn new(k: usize, filename: &str, rc: bool, repeat_mask: bool) -> Self {
+    pub fn new(k: usize, filename: &str, rc: bool, ambig_mask: bool, repeat_mask: bool) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
         }
@@ -267,6 +270,7 @@ where
         Self {
             k,
             seq,
+            ambig_mask,
             chrom_names,
             split_kmer_pos,
             repeat_coors,
@@ -342,9 +346,15 @@ where
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
         }
+        if self.ambig_mask {
+            log::info!("Masking any ambiguous bases (non-A/C/G/T/U/N/-) with 'N'");
+        }
 
         let mut seq_writers =
-            vec![AlnWriter::new(&self.seq, self.k, &self.repeat_coors); self.mapped_names.len()];
+            vec![
+                AlnWriter::new(&self.seq, self.k, &self.repeat_coors, self.ambig_mask);
+                self.mapped_names.len()
+            ];
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()
