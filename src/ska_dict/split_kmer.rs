@@ -296,7 +296,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
 
     /// Get a `u64` hash of the current k-mer using [`NtHashIterator`]
     ///
-    /// Can get alternative hashes for a countmin table by giving an index
+    /// Can get alternative hashes for a table by giving an index
     ///
     /// # Panics
     ///

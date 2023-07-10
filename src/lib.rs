@@ -106,7 +106,7 @@
 //! - `--min-count`. Specify a minimum number of appearances a k-mer must have
 //! to be included. This is an effective way of filtering sequencing errors if set
 //! to at least three, but higher may be appropriate for higher coverage data.
-//! A two-step blocked bloom and countmin filter is used for memory efficiency.
+//! A two-step blocked bloom and hash table filter is used for memory efficiency.
 //! - `--qual-filter`. `none` do not filter based on quality scores.
 //! `middle` (default) filter k-mers where the middle base is below the minimum quality.
 //! `strict` filter k-mers where any base is below the minimum quality.

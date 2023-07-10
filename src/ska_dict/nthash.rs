@@ -80,7 +80,7 @@ impl NtHashIterator {
     /// Generates more hashes of the sequence.
     ///
     /// This only operates on the hash value, not the full sequence, so won't resolve
-    /// a full hash collision, but is suitable for use in the countmin table where
+    /// a full hash collision, but is suitable for use in e.g. a countmin table where
     /// most of the hash is masked off.
     pub fn extra_hash(&self, extra_idx: usize) -> u64 {
         let mut new_hash = self
