@@ -29,8 +29,8 @@ use crate::ska_dict::split_kmer::SplitKmer;
 pub mod bit_encoding;
 use crate::ska_dict::bit_encoding::{decode_base, UInt, IUPAC};
 
-pub mod count_min_filter;
-use crate::ska_dict::count_min_filter::KmerFilter;
+pub mod bloom_filter;
+use crate::ska_dict::bloom_filter::KmerFilter;
 
 pub mod nthash;
 
@@ -47,7 +47,7 @@ pub struct SkaDict<IntT> {
     name: String,
     /// Split k-mer dictionary split-k:middle-base
     split_kmers: HashMap<IntT, u8>,
-    /// A countmin filter for counting from fastq files
+    /// A bloom filter for counting from fastq files
     kmer_filter: KmerFilter,
 }
 
@@ -198,7 +198,7 @@ where
             sample_idx,
             name: name.to_string(),
             split_kmers: HashMap::default(),
-            kmer_filter: KmerFilter::empty(qual.min_count),
+            kmer_filter: KmerFilter::new(qual.min_count),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so

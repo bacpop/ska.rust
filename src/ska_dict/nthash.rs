@@ -21,8 +21,6 @@ const RC_HASH_LOOKUP: [u64; 4] = [
     0x3c8b_fbb3_95c6_0474,
     0x3193_c185_62a0_2b4c,
 ];
-const MULTISHIFT: i32 = 27;
-const MULTISEED: u64 = 0x90b4_5d39_fb6d_a1fa;
 
 /// Stores forward and (optionally) reverse complement hashes of k-mers in a nucleotide sequence
 #[derive(Debug)]
@@ -75,18 +73,5 @@ impl NtHashIterator {
         } else {
             self.fh
         }
-    }
-
-    /// Generates more hashes of the sequence.
-    ///
-    /// This only operates on the hash value, not the full sequence, so won't resolve
-    /// a full hash collision, but is suitable for use in the countmin table where
-    /// most of the hash is masked off.
-    pub fn extra_hash(&self, extra_idx: usize) -> u64 {
-        let mut new_hash = self
-            .curr_hash()
-            .wrapping_mul(MULTISEED.wrapping_mul((extra_idx ^ self.k) as u64));
-        new_hash ^= new_hash >> MULTISHIFT;
-        new_hash
     }
 }

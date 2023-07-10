@@ -296,23 +296,14 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
 
     /// Get a `u64` hash of the current k-mer using [`NtHashIterator`]
     ///
-    /// Can get alternative hashes for a countmin table by giving an index
-    ///
     /// # Panics
     ///
     /// If called after creating with `is_reads = false`
-    pub fn get_hash(&self, hash_idx: usize) -> u64 {
-        if hash_idx == 0 {
-            self.hash_gen
-                .as_ref()
-                .expect("Trying to get unitialised hash")
-                .curr_hash()
-        } else {
-            self.hash_gen
-                .as_ref()
-                .expect("Trying to get unitialised hash")
-                .extra_hash(hash_idx)
-        }
+    pub fn get_hash(&self) -> u64 {
+        self.hash_gen
+            .as_ref()
+            .expect("Trying to get unitialised hash")
+            .curr_hash()
     }
 
     /// Get the next split k-mer in the sequence
