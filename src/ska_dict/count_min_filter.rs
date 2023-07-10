@@ -10,6 +10,8 @@
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 
+use hashbrown::HashMap;
+
 use super::bit_encoding::UInt;
 use super::split_kmer::SplitKmer;
 
@@ -19,12 +21,6 @@ use super::split_kmer::SplitKmer;
 const BLOOM_WIDTH: usize = 1 << 27;
 /// Number of bits to use in each bloom block
 const BITS_PER_ENTRY: usize = 12;
-/// Default number of countmin hashes/table height (controls false positive rate)
-const CM_HEIGHT: usize = 3;
-/// Default countmin filter width (expected number of k-mers > two occurences)
-///
-/// 2^27 =~ 130M
-const CM_WIDTH: usize = 1 << 24;
 
 /// A Countmin table of specified width and height, counts input k-mers, returns
 /// whether they have passed a count threshold.
@@ -42,16 +38,8 @@ pub struct KmerFilter {
     buf_size: u64,
     /// Buffer for the bloom filter
     buffer: Vec<u64>,
-    /// Table width (estimated number of unique k-mers)
-    width: usize,
-    /// Number of bits to shift masked value to get table entry
-    width_shift: u32,
-    /// Table height (number of hashes)
-    height: usize,
-    /// Mask to convert hash into table column
-    mask: u64,
     /// Table of counts
-    counts: Vec<u16>,
+    counts: HashMap<u64, u16>,
     /// Minimum count to pass filter
     min_count: u16,
 }
@@ -98,41 +86,24 @@ impl KmerFilter {
         }
     }
 
-    /// Creates a new countmin table of specified size, and pass threshold
+    /// Creates a new filter with given threshold
     ///
     /// Note:
-    /// - Must call [`KmerFilter::init()`] before using.
-    /// - Width will be rounded down to the closest power of two
     /// - Maximum count is [`u16::MAX`] i.e. 65535
-    pub fn empty(min_count: u16) -> Self {
-        // Consistent with consts used, but ensures a power of two
-        let width_bits: usize = f64::floor(f64::log2(CM_WIDTH as f64)) as usize;
-        let width = 1 << (width_bits + 1);
-        // Use MSB rather than LSB
-        let width_shift = u64::BITS - width_bits as u32;
-        let mask = (width as u64 - 1) << width_shift;
-
+    /// - Must call [`KmerFilter::init()`] before using.
+    pub fn new(min_count: u16) -> Self {
+        let buf_size = f64::round(
+            BLOOM_WIDTH as f64 * (BITS_PER_ENTRY as f64 / 8.0) / (u64::BITS as f64),
+        ) as u64;
         Self {
-            buf_size: f64::round(
-                BLOOM_WIDTH as f64 * (BITS_PER_ENTRY as f64 / 8.0) / (u64::BITS as f64),
-            ) as u64,
+            buf_size,
             buffer: Vec::new(),
-            width,
-            width_shift,
-            height: CM_HEIGHT,
-            mask,
-            counts: Vec::new(),
+            counts: HashMap::new(),
             min_count,
         }
     }
 
-    /// Initialises table so it is ready for use.
-    ///
-    /// Allocates memory and sets hash functions.
     pub fn init(&mut self) {
-        if self.counts.is_empty() {
-            self.counts = vec![0; self.width * self.height];
-        }
         if self.buffer.is_empty() {
             self.buffer.resize(self.buf_size as usize, 0);
         }
@@ -154,22 +125,16 @@ impl KmerFilter {
                     Ordering::Less
                 }
             }
-            // Bloom filter then countmin
+            // Bloom filter then hash table
             _ => {
-                if self.bloom_add_and_check(kmer.get_hash(0)) {
-                    let mut count = 0;
-                    for row_idx in 0..self.height {
-                        let hash_val = kmer.get_hash(row_idx);
-                        let table_idx = row_idx * self.width
-                            + (((hash_val & self.mask) >> self.width_shift) as usize);
-                        self.counts[table_idx] = self.counts[table_idx].saturating_add(1);
-                        if row_idx == 0 {
-                            count = self.counts[table_idx];
-                        } else {
-                            count = u16::min(count, self.counts[table_idx]);
-                        }
-                    }
-                    (count + 1).cmp(&self.min_count)
+                let kmer_hash = kmer.get_hash(0);
+                if self.bloom_add_and_check(kmer_hash) {
+                    let mut count: u16 = 2;
+                    self.counts
+                        .entry(kmer_hash)
+                        .and_modify(|curr_cnt| {count = curr_cnt.saturating_add(1); *curr_cnt = count})
+                        .or_insert(count);
+                    self.min_count.cmp(&count)
                 } else {
                     Ordering::Less
                 }

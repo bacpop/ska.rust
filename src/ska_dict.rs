@@ -198,7 +198,7 @@ where
             sample_idx,
             name: name.to_string(),
             split_kmers: HashMap::default(),
-            kmer_filter: KmerFilter::empty(qual.min_count),
+            kmer_filter: KmerFilter::new(qual.min_count),
         };
 
         // Check if we're working with reads, and initalise the CM filter if so
