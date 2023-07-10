@@ -121,7 +121,7 @@ impl KmerFilter {
             0 | 1 => Ordering::Equal,
             // Just the bloom filter
             2 => {
-                if self.bloom_add_and_check(kmer.get_hash(0)) {
+                if self.bloom_add_and_check(kmer.get_hash()) {
                     Ordering::Equal
                 } else {
                     Ordering::Less
@@ -129,7 +129,7 @@ impl KmerFilter {
             }
             // Bloom filter then hash table
             _ => {
-                let kmer_hash = kmer.get_hash(0);
+                let kmer_hash = kmer.get_hash();
                 if self.bloom_add_and_check(kmer_hash) {
                     let mut count: u16 = 2;
                     self.counts
