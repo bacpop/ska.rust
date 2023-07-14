@@ -84,13 +84,14 @@ where
                             b'S'
                         }
                     }
-                    _ => panic!("Palindrome middle base not W/S: {}", *b),
+                    b'N' => b'N',
+                    _ => panic!("Palindrome middle base not W/S: {}", *b as char),
                 }
             })
             .or_insert(match base {
                 0 | 2 => b'W', // A or T
                 1 | 3 => b'S', // C or G
-                _ => panic!("Base encoding error: {base}"),
+                _ => panic!("Base encoding error: {}", base as char),
             });
     }
 
@@ -280,6 +281,12 @@ mod tests {
         test_obj.split_kmers.clear();
         test_obj.add_palindrome_to_dict(789, 3);
         assert_eq!(test_obj.split_kmers[&789], b'S');
+
+        // Test case 4: Updating existing twice
+        test_obj.split_kmers.insert(123, b'W');
+        test_obj.add_palindrome_to_dict(123, 1);
+        test_obj.add_palindrome_to_dict(123, 1);
+        assert_eq!(test_obj.split_kmers[&123], b'N');
     }
 
     #[test]
