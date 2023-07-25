@@ -9,9 +9,13 @@
 use core::mem::swap;
 use core::panic;
 use std::mem;
+use std::error::Error;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Write};
 
 use hashbrown::HashMap;
 use indicatif::ProgressIterator;
+use serde::{Deserialize, Serialize};
 
 use super::QualOpts;
 use crate::io_utils::any_fastq;
@@ -22,6 +26,7 @@ use crate::ska_dict::SkaDict;
 pub type InputFastx = (String, String, Option<String>);
 
 /// Merged dictionary with names, and middle bases in [`Vec<u8>`] in the same order.
+#[derive(Serialize, Deserialize)]
 pub struct MergeSkaDict<IntT> {
     /// K-mer size
     k: usize,
@@ -31,8 +36,11 @@ pub struct MergeSkaDict<IntT> {
     n_samples: usize,
     /// Sample names (some may be empty)
     names: Vec<String>,
+    /// Constant bases
+    ref_bases: HashMap<IntT, u8>,
     /// Dictionary of split k-mers, and middle base vectors
-    split_kmers: HashMap<IntT, Vec<u8>>,
+    variant_kmers: HashMap<IntT, Vec<(usize, u8)>>,
+    added_samples: Vec<usize>,
 }
 
 impl<IntT> MergeSkaDict<IntT>
@@ -47,20 +55,10 @@ where
             rc,
             n_samples,
             names: vec!["".to_string(); n_samples],
-            split_kmers: HashMap::default(),
+            ref_bases: HashMap::default(),
+            variant_kmers: HashMap::default(),
+            added_samples: Vec::new(),
         }
-    }
-
-    /// Directly add name and merged dictionary content
-    ///
-    /// Used when creating this struct from a [`crate::merge_ska_array::MergeSkaArray`]
-    pub fn build_from_array<'a>(
-        &'a mut self,
-        names: &'a mut Vec<String>,
-        split_kmers: &mut HashMap<IntT, Vec<u8>>,
-    ) {
-        swap(names, &mut self.names);
-        swap(split_kmers, &mut self.split_kmers);
     }
 
     /// Add a single [`crate::ska_dict::SkaDict`](`SkaDict`) to the merged dictionary
@@ -71,7 +69,7 @@ where
     /// # Panics
     ///
     /// If k-mer length or reverse complement do not match
-    pub fn append(&mut self, other: &SkaDict<IntT>) {
+    pub fn append(&mut self, other: &mut SkaDict<IntT>) {
         if other.kmer_len() != self.k {
             panic!(
                 "K-mer lengths do not match: {} {}",
@@ -82,27 +80,43 @@ where
         if other.rc() != self.rc {
             panic!("Strand use inconsistent");
         }
-        self.names[other.idx()] = other.name().clone();
+        self.names[other.idx()] = other.name().to_string();
+
+        // Vector of missing based on samples already in dict
+        let mut missing_vec = Vec::new();
+        for idx in self.added_samples {
+            missing_vec.push((idx, b'-'));
+        }
+
         if self.ksize() == 0 {
-            for (kmer, base) in other.kmers() {
-                let mut base_vec: Vec<u8> = vec![0; self.n_samples];
-                base_vec[other.idx()] = *base;
-                self.split_kmers.insert(*kmer, base_vec);
-            }
+            self.ref_bases = other.kmers().clone();
         } else {
-            for (kmer, base) in other.kmers() {
-                self.split_kmers
-                    .entry(*kmer)
-                    .and_modify(|b| {
-                        b[other.idx()] = *base;
-                    })
-                    .or_insert_with(|| {
-                        let mut new_base_vec: Vec<u8> = vec![0; self.n_samples];
-                        new_base_vec[other.idx()] = *base;
-                        new_base_vec
-                    });
+            // iterate over existing k-mers, and add new base or empty from
+            // the new sample. Remove k-mers when processed
+            for (kmer, ref_base) in self.ref_bases {
+                let new_base = match other.kmers().remove(&kmer) {
+                    Some(base) => {
+                        if base != ref_base {
+                            Some(base)
+                        } else {
+                            None
+                        }
+                    },
+                    None => {
+                        Some(b'-')
+                    }
+                };
+                if let Some(base) = new_base {
+                    self.variant_kmers.entry(kmer).and_modify(|vec| { vec.push((other.idx(), base))}).or_insert(vec![(other.idx(), base)]);
+                }
+            }
+            // then iterate over remaining other and add in empty
+            for (kmer, ref_base) in other.kmers() {
+                self.ref_bases.insert(*kmer, *ref_base);
+                self.variant_kmers.insert(*kmer, missing_vec.clone());
             }
         }
+        self.added_samples.push(other.idx());
     }
 
     /// Combine with another [`MergeSkaDict`] with non-overlapping samples
@@ -123,7 +137,9 @@ where
         if other.ksize() > 0 {
             if self.ksize() == 0 {
                 swap(&mut other.names, &mut self.names);
-                swap(&mut other.split_kmers, &mut self.split_kmers);
+                swap(&mut other.added_samples, &mut self.added_samples);
+                swap(&mut other.ref_bases, &mut self.ref_bases);
+                swap(&mut other.variant_kmers, &mut self.variant_kmers);
             } else {
                 for name_it in other.names.iter_mut().zip(self.names.iter_mut()) {
                     let (other_name, self_name) = name_it;
@@ -131,18 +147,64 @@ where
                         swap(self_name, other_name);
                     }
                 }
+                self.added_samples.append(&mut other.added_samples);
 
-                for (kmer, other_vec) in &mut other.split_kmers {
-                    self.split_kmers
-                        .entry(*kmer)
-                        .and_modify(|self_vec| {
-                            // Vectorises to VORPS (I've checked!)
-                            for base_it in other_vec.iter().zip(self_vec.iter_mut()) {
-                                *base_it.1 |= *base_it.0;
-                            }
-                        })
-                        .or_insert_with(|| mem::take(other_vec));
+                let mut other_missing_vec = Vec::new();
+                for idx in other.added_samples {
+                    other_missing_vec.push((idx, b'-'));
                 }
+                let mut self_missing_vec = Vec::new();
+                for idx in self.added_samples {
+                    self_missing_vec.push((idx, b'-'));
+                }
+
+                let mut new_variants = HashMap::new();
+                for (kmer, ref_base) in self.ref_bases {
+                    // This merges the references, and deals with missing
+                    match other.ref_dict().remove(&kmer) {
+                        Some(other_ref) => {
+                            // CASE 1 inconsistent refs must be reconciled
+                            if ref_base != other_ref {
+                                // For now, assuming most cases are where merging two similar sized
+                                // dicts, just pick one to be ref. Better would be to pick based on MAF
+                                let mut other_new = Vec::new();
+                                for idx in other.added_samples {
+                                    other_new.push((idx, ref_base));
+                                }
+                                other.variant_kmers.entry(kmer)
+                                    .and_modify(|variants| {
+                                        other_new.extend(variants.iter().filter(|v| v.1 != ref_base));
+                                        swap(variants, &mut other_new);
+                                    })
+                                    .or_insert_with(|| mem::take(&mut other_new));
+
+                            }
+                            // CASE 2 else the same -- do nothing
+                        },
+                        // CASE 3 present in self, not in other
+                        None => {
+                            new_variants.insert(kmer, other_missing_vec.clone());
+                        }
+                    }
+                }
+                // CASE 4 present in other, not in self
+                for (kmer, ref_base) in other.ref_dict() {
+                    self.ref_bases.insert(*kmer, *ref_base);
+                    new_variants.insert(*kmer, self_missing_vec.clone());
+                }
+
+                // Now deal with the variants
+                // same pattern again: when in both, append
+                // when only in self, do nothing
+                // when only in other, move vec from other
+                for (kmer, mut variants) in &other.variant_kmers {
+                    self.variant_kmers.entry(*kmer)
+                        .and_modify(|vec| {vec.append(&mut variants)})
+                        .or_insert_with(|| mem::take(&mut variants));
+                }
+
+                // append new_variants to self.var
+                self.variant_kmers.extend(new_variants);
             }
         }
     }
@@ -155,39 +217,87 @@ where
     ///
     /// If k-mer length or reverse complement do not match
     pub fn extend<'a>(&'a mut self, other: &'a mut MergeSkaDict<IntT>) {
-        if other.k != self.k {
-            panic!("K-mer lengths do not match: {} {}", other.k, self.k);
+        self.n_samples += other.nsamples();
+        other.n_samples = self.n_samples;
+        // Don't need to update names in other, they will be ignored
+        self.names.extend(other.names);
+        // Update indices
+        for idx in &other.added_samples {
+            *idx += self.n_samples;
         }
-        if other.rc() != self.rc {
-            panic!("Strand use inconsistent");
-        }
-
-        // Add new names in
-        self.names.extend_from_slice(&other.names);
-        let total_samples = self.n_samples + other.nsamples();
-
-        // Where overlapping (and_modify) concat the base vecs
-        // Where missing, add empty entries for self, and the other base vec
-        for (kmer, other_vec) in &mut other.split_kmers {
-            self.split_kmers
-                .entry(*kmer)
-                .and_modify(|self_vec| {
-                    self_vec.extend_from_slice(other_vec);
-                })
-                .or_insert_with(|| {
-                    let mut empty_samples = vec![0; self.n_samples];
-                    empty_samples.extend_from_slice(other_vec);
-                    empty_samples
-                });
-        }
-        // Extend any other missing k-mers in self with empty entries for other
-        for (_kmer, self_vec) in &mut self.split_kmers {
-            if self_vec.len() != total_samples {
-                self_vec.extend(vec![0; other.nsamples()]);
+        // Also need to add to indices
+        for variant in other.variant_kmers.values_mut() {
+            for sample_var in variant {
+                (*sample_var).0 += self.n_samples;
             }
         }
-        self.n_samples = total_samples;
+
+        // Then can call merge
+        self.merge(other);
     }
+
+    /// Save the split k-mer array to a `.skf` file.
+    ///
+    /// Serialised into [`ciborium`] format, and compressed with [`snappy`](`snap`)
+    pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
+        let serial_file = BufWriter::new(File::create(filename)?);
+        let mut compress_writer = snap::write::FrameEncoder::new(serial_file);
+        ciborium::ser::into_writer(self, &mut compress_writer)?;
+        Ok(())
+    }
+
+    /// Load a split k-mer array from a `.skf` file.
+    pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
+        log::info!("Loading skf file");
+        let ska_file = BufReader::new(File::open(filename)?);
+        let decompress_reader = snap::read::FrameDecoder::new(ska_file);
+        let ska_obj: Self = ciborium::de::from_reader(decompress_reader)?;
+        Ok(ska_obj)
+    }
+
+    /// Write the middle bases as an alignment (FASTA).
+    ///
+    /// This is simply a transpose of the middle bases (which is actually
+    /// recopied in memory) and written as a FASTA using [`needletail`].
+    ///
+    /// The writer `f` can be anything supporting the [`Write`] trait, but
+    /// is typically generated by [`crate::io_utils::set_ostream`].
+    ///
+    /// This is used in `ska align`.
+    pub fn write_fasta<W: Write>(&self, f: &mut W) -> Result<(), needletail::errors::ParseError> {
+        // Do the transpose, but recopy with correct strides
+        let var_t = self.variants.t();
+        let mut var_t_owned = Array2::zeros(var_t.raw_dim());
+        var_t_owned.assign(&var_t);
+
+        self.names
+            .iter()
+            .zip(var_t_owned.outer_iter())
+            .try_for_each(|it| {
+                let (name, seq_u8) = it;
+                write_fasta(
+                    name.as_bytes(),
+                    seq_u8.as_slice().expect("Array conversion error"),
+                    f,
+                    needletail::parser::LineEnding::Unix,
+                )
+            })
+    }
+
+    // TODO list
+    // for first test:
+    // write fasta
+    // serialise IntT
+    // display fn
+    // map function in ska_ref
+    // then:
+    // debug fn
+    // n_sample_kmers
+    // filter
+    // delete samples
+    // weed
+    // distance (probably no longer uses row dist)
+    // (maybe) in save, recode for optimal MAF
 
     /// K-mer length of split-kmers
     pub fn kmer_len(&self) -> usize {
@@ -205,13 +315,13 @@ where
     }
 
     /// Split k-mer dictionary
-    pub fn kmer_dict(&self) -> &HashMap<IntT, Vec<u8>> {
-        &self.split_kmers
+    pub fn ref_dict(&self) -> &HashMap<IntT, u8> {
+        &self.ref_bases
     }
 
     /// Total number of split k-mers
     pub fn ksize(&self) -> usize {
-        self.split_kmers.len()
+        self.ref_bases.len()
     }
 
     /// Number of samples
@@ -236,7 +346,7 @@ where
 {
     let mut merged_dict = MergeSkaDict::new(k, total_size, rc);
     for (idx, (name, filename, second_file)) in input_files.iter().enumerate() {
-        let ska_dict = SkaDict::new(
+        let mut ska_dict = SkaDict::new(
             k,
             idx + offset,
             (filename, second_file.as_ref()),
@@ -244,7 +354,7 @@ where
             rc,
             qual,
         );
-        merged_dict.append(&ska_dict);
+        merged_dict.append(&mut ska_dict);
     }
     merged_dict
 }
@@ -363,7 +473,7 @@ where
         log::info!("Build and merge serially");
         for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
             let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual);
-            merged_dict.append(&ska_dict);
+            merged_dict.append(&mut ska_dict);
         }
     }
     merged_dict
