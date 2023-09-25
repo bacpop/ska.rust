@@ -268,6 +268,10 @@ pub enum Commands {
         /// A FASTA file containing sequences to remove
         weed_file: Option<String>,
 
+        /// Output filename (omit to overwrite input file)
+        #[arg(short)]
+        output: Option<String>,
+
         /// Remove k-mers not in the weed_file
         #[arg(long, default_value_t = false)]
         reverse: bool,

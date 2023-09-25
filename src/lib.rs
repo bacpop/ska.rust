@@ -243,7 +243,8 @@
 //!
 //! Remove (weed) split k-mers from an `.skf` file. The split k-mers to be removed
 //! are generated from a FASTA file, which may for example contain known transposons or
-//! other repeat sequences. As with `delete`, the input `.skf` file is overwritten.
+//! other repeat sequences. As with `delete`, the input `.skf` file is overwritten by default.
+//! Use `-o` to write the results to a new file instead of overwriting the input `.skf`.
 //!
 //! ```bash
 //! ska weed all_samples.skf MGEs.fa
@@ -635,6 +636,7 @@ pub fn main() {
         Commands::Weed {
             skf_file,
             weed_file,
+            output,
             reverse,
             min_freq,
             ambig_mask,
@@ -649,7 +651,7 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
-                    skf_file,
+                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 weed(
@@ -659,7 +661,7 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
-                    skf_file,
+                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
                 );
             } else {
                 panic!("Could not read input file: {skf_file}");
