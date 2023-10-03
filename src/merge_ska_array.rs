@@ -209,20 +209,21 @@ where
         if !del_name_set.is_empty() {
             panic!("Could not find sample(s): {:?}", del_name_set);
         }
-        self.names = new_names;
 
         let mut idx_it = idx_list.iter();
         let mut next_idx = idx_it.next();
-        let new_size = self.names.len() - idx_list.len();
         let mut filtered_variants = Array2::zeros((self.ksize(), 0));
         for (sample_idx, sample_variants) in self.variants.t().outer_iter().enumerate() {
-            if *next_idx.unwrap_or(&new_size) == sample_idx {
-                next_idx = idx_it.next();
-            } else {
-                filtered_variants.push_column(sample_variants).unwrap();
+            if let Some(next_idx_val) = next_idx {
+                if *next_idx_val == sample_idx {
+                    next_idx = idx_it.next();
+                    continue;
+                }
             }
+            filtered_variants.push_column(sample_variants).unwrap();
         }
         self.variants = filtered_variants;
+        self.names = new_names;
         self.update_counts();
     }
 
