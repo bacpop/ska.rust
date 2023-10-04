@@ -97,11 +97,8 @@ where
     ///
     /// Recalculates counts, and removes any totally empty rows.
     fn update_counts(&mut self) {
-        let mut new_counts = Vec::new();
-        new_counts.reserve(self.variant_count.len());
-
-        let mut new_sk = Vec::new();
-        new_sk.reserve(self.split_kmers.len());
+        let mut new_counts = Vec::with_capacity(self.variant_count.len());
+        let mut new_sk = Vec::with_capacity(self.split_kmers.len());
 
         let mut new_variants = Array2::zeros((0, self.names.len()));
         for (var_row, sk) in self.variants.outer_iter().zip(self.split_kmers.iter()) {
@@ -120,8 +117,7 @@ where
     /// Convert a dynamic [`MergeSkaDict`] to static array representation.
     pub fn new(dynamic: &MergeSkaDict<IntT>) -> Self {
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
-        let mut split_kmers: Vec<IntT> = Vec::new();
-        split_kmers.reserve(dynamic.ksize());
+        let mut split_kmers: Vec<IntT> = Vec::with_capacity(dynamic.ksize());
         let mut variant_count: Vec<usize> = Vec::new();
         for (kmer, bases) in dynamic.kmer_dict() {
             split_kmers.push(*kmer);
@@ -209,20 +205,21 @@ where
         if !del_name_set.is_empty() {
             panic!("Could not find sample(s): {:?}", del_name_set);
         }
-        self.names = new_names;
 
         let mut idx_it = idx_list.iter();
         let mut next_idx = idx_it.next();
-        let new_size = self.names.len() - idx_list.len();
         let mut filtered_variants = Array2::zeros((self.ksize(), 0));
         for (sample_idx, sample_variants) in self.variants.t().outer_iter().enumerate() {
-            if *next_idx.unwrap_or(&new_size) == sample_idx {
-                next_idx = idx_it.next();
-            } else {
-                filtered_variants.push_column(sample_variants).unwrap();
+            if let Some(next_idx_val) = next_idx {
+                if *next_idx_val == sample_idx {
+                    next_idx = idx_it.next();
+                    continue;
+                }
             }
+            filtered_variants.push_column(sample_variants).unwrap();
         }
         self.variants = filtered_variants;
+        self.names = new_names;
         self.update_counts();
     }
 
@@ -356,8 +353,8 @@ where
             .progress_count(self.variants.ncols() as u64)
             .enumerate()
             .map(|(i, row)| {
-                let mut partial_dists: Vec<(f64, f64)> = Vec::new();
-                partial_dists.reserve(self.variants.ncols() - (i + 1));
+                let mut partial_dists: Vec<(f64, f64)> =
+                    Vec::with_capacity(self.variants.ncols() - (i + 1));
                 for j in (i + 1)..self.variants.ncols() {
                     partial_dists.push(Self::variant_dist(
                         &row,
@@ -569,5 +566,58 @@ where
                 let (upper, lower) = decode_kmer(self.k, *split_kmer, upper_mask, lower_mask);
                 writeln!(f, "{upper}\t{lower}\t{seq_string}")
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Import functions and types from the parent module
+    use ndarray::array;
+
+    fn setup_struct() -> MergeSkaArray<u64> {
+        let example_array = MergeSkaArray::<u64> {
+            k: 31,
+            rc: true,
+            split_kmers: vec![0, 1],
+            variants: array![[1, 2, 3], [4, 5, 6]],
+            variant_count: vec![3, 3],
+            ska_version: "NA".to_string(),
+            k_bits: 64,
+            names: vec![
+                "Sample1".to_string(),
+                "Sample2".to_string(),
+                "Sample3".to_string(),
+            ],
+        };
+        example_array
+    }
+
+    #[test]
+    fn test_delete_samples_normal() {
+        let mut my_struct = setup_struct();
+
+        my_struct.delete_samples(&["Sample1", "Sample2"]);
+
+        // Check that the samples were deleted
+        assert_eq!(my_struct.names, vec!["Sample3"]);
+        assert_eq!(my_struct.variants, array![[3], [6]]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid number of samples to remove")]
+    fn test_delete_samples_empty_or_all() {
+        let mut my_struct = setup_struct();
+
+        // This should panic
+        my_struct.delete_samples(&[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Could not find sample(s): ")]
+    fn test_delete_samples_non_existent() {
+        let mut my_struct = setup_struct();
+
+        // This should panic because "Sample4" does not exist
+        my_struct.delete_samples(&["Sample4"]);
     }
 }

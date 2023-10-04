@@ -539,7 +539,7 @@ pub fn main() {
             check_threads(*threads);
 
             log::info!("Loading skf as dictionary");
-            if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
+            if let Ok(ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),
@@ -552,8 +552,8 @@ pub fn main() {
                     *ambig_mask,
                     *repeat_mask,
                 );
-                map(&mut ska_array, &mut ska_ref, output, format, *threads);
-            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
+                map(&ska_array, &mut ska_ref, output, format, *threads);
+            } else if let Ok(ska_array) = load_array::<u128>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),
@@ -566,7 +566,7 @@ pub fn main() {
                     *ambig_mask,
                     *repeat_mask,
                 );
-                map(&mut ska_array, &mut ska_ref, output, format, *threads);
+                map(&ska_array, &mut ska_ref, output, format, *threads);
             } else {
                 panic!("Could not read input file(s): {input:?}");
             }
@@ -609,10 +609,10 @@ pub fn main() {
             }
 
             log::info!("Loading first alignment");
-            if let Ok(mut first_array) = MergeSkaArray::<u64>::load(&skf_files[0]) {
-                merge(&mut first_array, &skf_files[1..], output);
-            } else if let Ok(mut first_array) = MergeSkaArray::<u128>::load(&skf_files[0]) {
-                merge(&mut first_array, &skf_files[1..], output);
+            if let Ok(first_array) = MergeSkaArray::<u64>::load(&skf_files[0]) {
+                merge(&first_array, &skf_files[1..], output);
+            } else if let Ok(first_array) = MergeSkaArray::<u128>::load(&skf_files[0]) {
+                merge(&first_array, &skf_files[1..], output);
             } else {
                 panic!("Could not read input file: {}", skf_files[0]);
             }
@@ -651,7 +651,11 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
-                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
+                    if output.is_none() {
+                        skf_file
+                    } else {
+                        output.as_ref().unwrap().as_str()
+                    },
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 weed(
@@ -661,7 +665,11 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
-                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
+                    if output.is_none() {
+                        skf_file
+                    } else {
+                        output.as_ref().unwrap().as_str()
+                    },
                 );
             } else {
                 panic!("Could not read input file: {skf_file}");
