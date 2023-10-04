@@ -465,8 +465,7 @@ where
             let ref_base = self.seq[map_chrom][map_pos];
             let ref_allele = u8_to_base(ref_base);
 
-            let mut genotype_vec = Vec::new();
-            genotype_vec.reserve(var_t_owned.ncols());
+            let mut genotype_vec = Vec::with_capacity(var_t_owned.ncols());
             let mut alt_bases: Vec<Base> = Vec::new();
             let mut variant = false;
             for mapped_base in sample_variants {

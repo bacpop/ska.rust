@@ -97,11 +97,8 @@ where
     ///
     /// Recalculates counts, and removes any totally empty rows.
     fn update_counts(&mut self) {
-        let mut new_counts = Vec::new();
-        new_counts.reserve(self.variant_count.len());
-
-        let mut new_sk = Vec::new();
-        new_sk.reserve(self.split_kmers.len());
+        let mut new_counts = Vec::with_capacity(self.variant_count.len());
+        let mut new_sk = Vec::with_capacity(self.split_kmers.len());
 
         let mut new_variants = Array2::zeros((0, self.names.len()));
         for (var_row, sk) in self.variants.outer_iter().zip(self.split_kmers.iter()) {
@@ -120,8 +117,7 @@ where
     /// Convert a dynamic [`MergeSkaDict`] to static array representation.
     pub fn new(dynamic: &MergeSkaDict<IntT>) -> Self {
         let mut variants = Array2::zeros((0, dynamic.nsamples()));
-        let mut split_kmers: Vec<IntT> = Vec::new();
-        split_kmers.reserve(dynamic.ksize());
+        let mut split_kmers: Vec<IntT> = Vec::with_capacity(dynamic.ksize());
         let mut variant_count: Vec<usize> = Vec::new();
         for (kmer, bases) in dynamic.kmer_dict() {
             split_kmers.push(*kmer);
@@ -357,8 +353,8 @@ where
             .progress_count(self.variants.ncols() as u64)
             .enumerate()
             .map(|(i, row)| {
-                let mut partial_dists: Vec<(f64, f64)> = Vec::new();
-                partial_dists.reserve(self.variants.ncols() - (i + 1));
+                let mut partial_dists: Vec<(f64, f64)> =
+                    Vec::with_capacity(self.variants.ncols() - (i + 1));
                 for j in (i + 1)..self.variants.ncols() {
                     partial_dists.push(Self::variant_dist(
                         &row,

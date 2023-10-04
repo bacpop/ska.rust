@@ -41,7 +41,7 @@ pub fn align<IntT: for<'a> UInt<'a>>(
 /// Convert array to dictionary representation, runs map against a reference,
 /// prints out in requested format.
 pub fn map<IntT: for<'a> UInt<'a>>(
-    ska_array: &mut MergeSkaArray<IntT>,
+    ska_array: &MergeSkaArray<IntT>,
     ska_ref: &mut RefSka<IntT>,
     output: &Option<String>,
     format: &FileType,
@@ -75,7 +75,7 @@ pub fn map<IntT: for<'a> UInt<'a>>(
 ///
 /// Subsequent files are most easily passed as a slice with `[1..]`
 pub fn merge<IntT: for<'a> UInt<'a>>(
-    first_array: &mut MergeSkaArray<IntT>,
+    first_array: &MergeSkaArray<IntT>,
     skf_files: &[String],
     output: &str,
 ) {
