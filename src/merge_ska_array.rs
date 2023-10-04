@@ -571,7 +571,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;  // Import functions and types from the parent module
+    use super::*; // Import functions and types from the parent module
     use ndarray::array;
 
     fn setup_struct() -> MergeSkaArray<u64> {
@@ -583,7 +583,11 @@ mod tests {
             variant_count: vec![3, 3],
             ska_version: "NA".to_string(),
             k_bits: 64,
-            names: vec!["Sample1".to_string(), "Sample2".to_string(), "Sample3".to_string()],
+            names: vec![
+                "Sample1".to_string(),
+                "Sample2".to_string(),
+                "Sample3".to_string(),
+            ],
         };
         example_array
     }
@@ -617,4 +621,3 @@ mod tests {
         my_struct.delete_samples(&["Sample4"]);
     }
 }
-
