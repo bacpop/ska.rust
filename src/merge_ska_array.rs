@@ -568,3 +568,53 @@ where
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;  // Import functions and types from the parent module
+    use ndarray::array;
+
+    fn setup_struct() -> MergeSkaArray<u64> {
+        let example_array = MergeSkaArray::<u64> {
+            k: 31,
+            rc: true,
+            split_kmers: vec![0, 1],
+            variants: array![[1, 2, 3], [4, 5, 6]],
+            variant_count: vec![3, 3],
+            ska_version: "NA".to_string(),
+            k_bits: 64,
+            names: vec!["Sample1".to_string(), "Sample2".to_string(), "Sample3".to_string()],
+        };
+        example_array
+    }
+
+    #[test]
+    fn test_delete_samples_normal() {
+        let mut my_struct = setup_struct();
+
+        my_struct.delete_samples(&["Sample1", "Sample2"]);
+
+        // Check that the samples were deleted
+        assert_eq!(my_struct.names, vec!["Sample3"]);
+        assert_eq!(my_struct.variants, array![[3], [6]]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid number of samples to remove")]
+    fn test_delete_samples_empty_or_all() {
+        let mut my_struct = setup_struct();
+
+        // This should panic
+        my_struct.delete_samples(&[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Could not find sample(s): ")]
+    fn test_delete_samples_non_existent() {
+        let mut my_struct = setup_struct();
+
+        // This should panic because "Sample4" does not exist
+        my_struct.delete_samples(&["Sample4"]);
+    }
+}
+
