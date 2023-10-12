@@ -122,7 +122,7 @@ impl<'a> AlnWriter<'a> {
     /// Call in a loop over mapped positions, usually excluding '-' base which
     /// haven't actually been mapped
     pub fn write_split_kmer(&mut self, mapped_pos: usize, mapped_chrom: usize, base: u8) {
-        if mapped_chrom > self.curr_chrom {
+        while mapped_chrom > self.curr_chrom {
             self.fill_contig();
         }
         // Ambiguous bases may clash with the flanks, which are copied from
