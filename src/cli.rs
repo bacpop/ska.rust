@@ -151,7 +151,7 @@ pub enum Commands {
         min_qual: u8,
 
         /// Quality filtering criteria (with reads)
-        #[arg(long, value_enum, default_value_t = QualFilter::Middle)]
+        #[arg(long, value_enum, default_value_t = QualFilter::Strict)]
         qual_filter: QualFilter,
 
         /// Number of CPU threads
