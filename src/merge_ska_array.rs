@@ -511,6 +511,15 @@ where
         };
         (distance, mismatches)
     }
+
+    /// Iterator over split k-mers and middle bases
+    pub fn iter(&self) -> KmerIter<IntT> {
+        KmerIter {
+            kmers: &self.split_kmers,
+            vars: &self.variants,
+            index: 0,
+        }
+    }
 }
 
 /// Writes basic information.
@@ -569,6 +578,38 @@ where
     }
 }
 
+/// Iterator type over split k-mers and middle bases
+///
+/// Each return is a tuple of the encoded split-kmer and a vector
+/// of the encoded middle bases
+pub struct KmerIter<'a, IntT> {
+    kmers: &'a Vec<IntT>,
+    vars: &'a Array2<u8>,
+    index: usize,
+}
+
+impl<'a, IntT> Iterator for KmerIter<'a, IntT>
+where
+    IntT: for<'b> UInt<'b>,
+{
+    // Note this returns a Vec of the middle bases rather than an array
+    // because this is more likely to be useful in user code
+    type Item = (IntT, Vec<u8>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.kmers.len() {
+            let row = Some((
+                self.kmers[self.index],
+                self.vars.index_axis(Axis(0), self.index).to_vec(),
+            ));
+            self.index += 1;
+            row
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*; // Import functions and types from the parent module
@@ -590,6 +631,25 @@ mod tests {
             ],
         };
         example_array
+    }
+
+    #[test]
+    fn test_kmer_iterator() {
+        let ska = setup_struct();
+        let mut iter = ska.iter();
+
+        // First iteration
+        let (kmer, vars) = iter.next().unwrap();
+        assert_eq!(kmer, 0);
+        assert_eq!(vars, vec![1, 2, 3]);
+
+        // Second iteration
+        let (kmer, vars) = iter.next().unwrap();
+        assert_eq!(kmer, 1);
+        assert_eq!(vars, vec![4, 5, 6]);
+
+        // No more items
+        assert!(iter.next().is_none());
     }
 
     #[test]
