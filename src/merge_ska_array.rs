@@ -56,9 +56,14 @@ use crate::cli::FilterType;
 /// let min_count = 1;                          // no filtering by minor allele frequency
 /// let filter = FilterType::NoAmbigOrConst;    // remove sites with no minor allele
 /// let mask_ambiguous = false;                 // leave ambiguous sites as IUPAC codes
+/// let ignore_const_gaps = false;              // keep sites with only '-' as variants
 /// let update_counts = true;                   // keep counts updated, as saving
-/// ska_array.filter(min_count, &filter, mask_ambiguous, update_counts);
+/// ska_array.filter(min_count, &filter, mask_ambiguous, ignore_const_gaps, update_counts);
 /// ska_array.save(&"no_const_sites.skf");
+///
+/// // Create an iterators
+/// let mut kmer_iter = ska_array.iter();
+/// let (kmer, middle_base_vec) = kmer_iter.next().unwrap();
 ///
 /// // Delete a sample
 /// ska_array.delete_samples(&[&"test_1"]);
@@ -231,8 +236,9 @@ where
     /// # Arguments
     ///
     /// - `min_count` -- minimum number of samples split k-mer found in.
-    /// - `const_sites` -- include sites where all middle bases are the same.
+    /// - `filter` -- either none, remove constant, remove ambiguous, or both. See [`FilterType`]
     /// - `mask_ambig` -- replace any non-ACGTUN- with N
+    /// - `ignore_const_gaps` -- filter any sites where the only variants are gaps
     /// - `update_kmers` -- update counts and split k-mers after removing variants.
     ///
     /// The default for `update_kmers` should be `true`, but it can be `false`
@@ -242,6 +248,7 @@ where
         min_count: usize,
         filter: &FilterType,
         mask_ambig: bool,
+        ignore_const_gaps: bool,
         update_kmers: bool,
     ) -> i32 {
         let total = self.names.len();
@@ -260,15 +267,16 @@ where
                 let keep_var = match *filter {
                     FilterType::NoFilter => true,
                     FilterType::NoConst => {
-                        let first_var = row[0];
-                        let mut keep = false;
+                        let mut var_types = HashSet::new();
                         for var in row {
-                            if *var != first_var {
-                                keep = true;
-                                break;
+                            if !ignore_const_gaps || *var != b'-' {
+                                var_types.insert(*var);
+                                if var_types.len() > 1 {
+                                    break;
+                                }
                             }
                         }
-                        keep
+                        var_types.len() > 1
                     }
                     FilterType::NoAmbig => {
                         let mut keep = true;
@@ -281,21 +289,26 @@ where
                         keep
                     }
                     FilterType::NoAmbigOrConst => {
-                        let mut keep = false;
-                        let mut first_var = None;
+                        let mut var_types = HashSet::new();
                         for var in row {
-                            if !is_ambiguous(*var) {
-                                if first_var.is_none() {
-                                    first_var = Some(*var);
-                                } else if *var != first_var.unwrap() {
-                                    keep = true;
+                            var_types.insert(*var);
+                        }
+                        let mut count = 0;
+                        for base in var_types {
+                            let lower_base = base | 0x20;
+                            count += match lower_base {
+                                b'a' | b'c' | b'g' | b't' | b'u' => 1,
+                                b'-' => {
+                                    if ignore_const_gaps {
+                                        0
+                                    } else {
+                                        1
+                                    }
                                 }
-                            } else {
-                                keep = false;
-                                break;
+                                _ => 0,
                             }
                         }
-                        keep
+                        count > 1
                     }
                 };
                 if keep_var {
@@ -635,8 +648,8 @@ mod tests {
 
     #[test]
     fn test_kmer_iterator() {
-        let ska = setup_struct();
-        let mut iter = ska.iter();
+        let ska_array = setup_struct();
+        let mut iter = ska_array.iter();
 
         // First iteration
         let (kmer, vars) = iter.next().unwrap();
@@ -654,30 +667,30 @@ mod tests {
 
     #[test]
     fn test_delete_samples_normal() {
-        let mut my_struct = setup_struct();
+        let mut ska_array = setup_struct();
 
-        my_struct.delete_samples(&["Sample1", "Sample2"]);
+        ska_array.delete_samples(&["Sample1", "Sample2"]);
 
         // Check that the samples were deleted
-        assert_eq!(my_struct.names, vec!["Sample3"]);
-        assert_eq!(my_struct.variants, array![[3], [6]]);
+        assert_eq!(ska_array.names, vec!["Sample3"]);
+        assert_eq!(ska_array.variants, array![[3], [6]]);
     }
 
     #[test]
     #[should_panic(expected = "Invalid number of samples to remove")]
     fn test_delete_samples_empty_or_all() {
-        let mut my_struct = setup_struct();
+        let mut ska_array = setup_struct();
 
         // This should panic
-        my_struct.delete_samples(&[]);
+        ska_array.delete_samples(&[]);
     }
 
     #[test]
     #[should_panic(expected = "Could not find sample(s): ")]
     fn test_delete_samples_non_existent() {
-        let mut my_struct = setup_struct();
+        let mut ska_array = setup_struct();
 
         // This should panic because "Sample4" does not exist
-        my_struct.delete_samples(&["Sample4"]);
+        ska_array.delete_samples(&["Sample4"]);
     }
 }
