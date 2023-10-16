@@ -33,6 +33,9 @@
 //! possibly introducing a SNP across samples. This version uses an ambiguous middle
 //! base (W for A/T; S for C/G) to represent this case.*
 //!
+//! Tutorials:
+//! - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+//!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
 //! # Usage
