@@ -165,6 +165,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-filter")
+        .arg("--no-gap-only-sites") // adding with no filter produces a warning
         .arg("-v")
         .output()
         .unwrap()

@@ -154,7 +154,6 @@ where
 
     /// Load a split k-mer array from a `.skf` file.
     pub fn load(filename: &str) -> Result<Self, Box<dyn Error>> {
-        log::info!("Loading skf file");
         let ska_file = BufReader::new(File::open(filename)?);
         let decompress_reader = snap::read::FrameDecoder::new(ska_file);
         let ska_obj: Self = ciborium::de::from_reader(decompress_reader)?;
@@ -251,6 +250,10 @@ where
         ignore_const_gaps: bool,
         update_kmers: bool,
     ) -> i32 {
+        if ignore_const_gaps && matches!(filter, FilterType::NoAmbig | FilterType::NoFilter) {
+            log::warn!("--no-gap-only-sites can only be applied when filtering constant bases")
+        }
+
         let total = self.names.len();
         let mut filtered_variants = Array2::zeros((0, total));
         let mut filtered_counts = Vec::new();
