@@ -33,6 +33,9 @@
 //! possibly introducing a SNP across samples. This version uses an ambiguous middle
 //! base (W for A/T; S for C/G) to represent this case.*
 //!
+//! Tutorials:
+//! - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+//!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
 //! # Usage
@@ -367,8 +370,9 @@
 //! let min_count = 2;
 //! let update_kmers = false;
 //! let filter = FilterType::NoConst;
+//! let ignore_const_gaps = false;
 //! let ambig_mask = false;
-//! ska_array.filter(min_count, &filter, update_kmers, ambig_mask);
+//! ska_array.filter(min_count, &filter, ambig_mask, ignore_const_gaps, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);
@@ -512,17 +516,32 @@ pub fn main() {
             min_freq,
             filter,
             ambig_mask,
+            no_gap_only_sites,
             threads,
         } => {
             check_threads(*threads);
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
+                align(
+                    &mut ska_array,
+                    output,
+                    filter,
+                    *ambig_mask,
+                    *no_gap_only_sites,
+                    *min_freq,
+                );
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
+                align(
+                    &mut ska_array,
+                    output,
+                    filter,
+                    *ambig_mask,
+                    *no_gap_only_sites,
+                    *min_freq,
+                );
             } else {
                 panic!("Could not read input file(s): {input:?}");
             }
@@ -640,6 +659,7 @@ pub fn main() {
             reverse,
             min_freq,
             ambig_mask,
+            no_gap_only_sites,
             filter,
         } => {
             log::info!("Loading skf file");
@@ -651,6 +671,7 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
+                    *no_gap_only_sites,
                     if output.is_none() {
                         skf_file
                     } else {
@@ -665,6 +686,7 @@ pub fn main() {
                     *min_freq,
                     filter,
                     *ambig_mask,
+                    *no_gap_only_sites,
                     if output.is_none() {
                         skf_file
                     } else {

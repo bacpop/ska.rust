@@ -1,13 +1,15 @@
 [package]
 name = "ska"
-version = "0.3.3"
+version = "0.3.4"
 authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
-    "Johanna von Wachsmann <j.vwachsmann@web.de>",
+    "Johanna von Wachsmann <wachsmannj@ebi.ac.uk>",
     "Tommi Maklin <tommi.maklin@helsinki.fi>",
     "Joel Hellewell <joel@ebi.ac.uk>",
-    "Timothy Russell <timothy.russell@lshtm.ac.uk>"
+    "Timothy Russell <timothy.russell@lshtm.ac.uk>",
+    "Romain Derelle <r.derelle@imperial.ac.uk>",
+    "Nicholas Croucher <n.croucher@imperial.ac.uk>"
 ]
 edition = "2021"
 description = "Split k-mer analysis"

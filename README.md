@@ -9,6 +9,29 @@
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/bacpop/ska.rust)](https://github.com/bacpop/ska.rust/releases)
 <!-- badges: end -->
 
+## Description
+
+This is a reimplementation of the [SKA package](https://github.com/simonrharris/SKA)
+in the rust language, by Johanna von Wachsmann, Simon Harris and John Lees. We are also grateful to have
+received user contributions from:
+
+- Romain Derelle
+- Tommi Maklin
+- Joel Hellewell
+- Timothy Russell
+- Nicholas Croucher
+- Dan Lu
+
+Split k-mer analysis (version 2) uses exact matching of split k-mer sequences to align closely related sequences, typically small haploid genomes such as bacteria and viruses.
+
+SKA can only align SNPs further than the k-mer length apart, and does not use a gap penalty approach or give alignment scores. But the advantages are speed and flexibility, particularly the ability to run on a reference-free manner (i.e. including accessory genome variation) on both assemblies and reads.
+
+## Documentation
+
+Can be found at https://docs.rs/ska. We also have some tutorials available:
+
+- [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+
 ## Installation
 
 Choose from:
@@ -35,16 +58,7 @@ xattr -d "com.apple.quarantine" ./ska
 1. Clone the repository with `git clone`.
 2. Run `cargo install --path .` or `RUSTFLAGS="-C target-cpu=native" cargo install --path .` to optimise for your machine.
 
-## Documentation
-
-Can be found at https://docs.rs/ska.
-
-## Description
-
-This is a reimplementation of Simon Harris' [SKA package](https://github.com/simonrharris/SKA)
-in the rust language, by Johanna von Wachsmann, Simon Harris and John Lees.
-
-> SKA (Split Kmer Analysis) is a toolkit for prokaryotic (and any other small, haploid) DNA sequence analysis using split kmers. A split kmer is a pair of kmers in a DNA sequence that are separated by a single base. Split kmers allow rapid comparison and alignment of small genomes, and is particulalry suited for surveillance or outbreak investigation. SKA can produce split kmer files from fasta format assemblies or directly from fastq format read sequences, cluster them, align them with or without a reference sequence and provide various comparison and summary statistics. Currently all testing has been carried out on high-quality Illumina read data, so results for other platforms may vary.
+## Differences from SKA1
 
 Optimisations include:
 
@@ -52,7 +66,7 @@ Optimisations include:
 - Faster dictionaries.
 - Full parallelisation of build phase.
 - Smaller, standardised input/output files. Faster to save/load.
-- Reduced memory footprint with read filtering.
+- Reduced memory footprint and increased speed with read filtering.
 
 And other improvements:
 
@@ -73,12 +87,14 @@ footprint than the original.
 
 ## Planned features
 
-None at present
+- Sparse data structure which will reduce space and make parallelisation more efficient. [Issue #47](https://github.com/bacpop/ska.rust/issues/47).
+- 'fastcall' mode. [Issue #52](https://github.com/bacpop/ska.rust/issues/52).
 
 ## Feature ideas (not definitely planned)
 
 - Add support for ambiguity in VCF output (`ska map`). [Issue #5](https://github.com/bacpop/ska.rust/issues/5).
 - Non-serial loading of .skf files (for when they are very large). [Issue #22](https://github.com/bacpop/ska.rust/issues/22).
+- Alternative mixture models for read error correction. [Issue #50](https://github.com/bacpop/ska.rust/issues/50).
 
 ## Things you can no longer do
 
