@@ -245,6 +245,7 @@ where
     pub fn filter(
         &mut self,
         min_count: usize,
+        filter_ambig_as_missing: bool,
         filter: &FilterType,
         mask_ambig: bool,
         ignore_const_gaps: bool,

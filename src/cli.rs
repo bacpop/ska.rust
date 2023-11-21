@@ -9,6 +9,8 @@ use super::QualFilter;
 pub const DEFAULT_KMER: usize = 17;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default behaviour when min-freq counting ambig sites
+pub const DEFAULT_AMBIGMISSING: bool = false;
 /// Default repeat masking behaviour
 pub const DEFAULT_REPEATMASK: bool = false;
 /// Default ambiguous masking behaviour
@@ -174,6 +176,10 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
 
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
+
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoConst)]
         filter: FilterType,
@@ -285,6 +291,10 @@ pub enum Commands {
         /// Minimum fraction of samples a k-mer has to appear in
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
+
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
 
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoFilter)]

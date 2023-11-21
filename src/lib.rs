@@ -514,6 +514,7 @@ pub fn main() {
             input,
             output,
             min_freq,
+            filter_ambig_as_missing,
             filter,
             ambig_mask,
             no_gap_only_sites,
@@ -530,6 +531,7 @@ pub fn main() {
                     *ambig_mask,
                     *no_gap_only_sites,
                     *min_freq,
+                    *filter_ambig_as_missing,
                 );
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
@@ -541,6 +543,7 @@ pub fn main() {
                     *ambig_mask,
                     *no_gap_only_sites,
                     *min_freq,
+                    *filter_ambig_as_missing,
                 );
             } else {
                 panic!("Could not read input file(s): {input:?}");
@@ -658,6 +661,7 @@ pub fn main() {
             output,
             reverse,
             min_freq,
+            filter_ambig_as_missing,
             ambig_mask,
             no_gap_only_sites,
             filter,
@@ -669,6 +673,7 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
                     *no_gap_only_sites,
@@ -684,6 +689,7 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
                     *no_gap_only_sites,

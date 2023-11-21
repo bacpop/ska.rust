@@ -22,12 +22,13 @@ pub fn align<IntT: for<'a> UInt<'a>>(
     mask_ambig: bool,
     ignore_const_gaps: bool,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
 
     // Apply filters
-    apply_filters(ska_array, min_freq, filter, mask_ambig, ignore_const_gaps);
+    apply_filters(ska_array, min_freq, filter_ambig_as_missing, filter, mask_ambig, ignore_const_gaps);
 
     // Write out to file/stdout
     log::info!("Writing alignment");
@@ -103,6 +104,7 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
 pub fn apply_filters<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
     filter: &FilterType,
     ambig_mask: bool,
     ignore_const_gaps: bool,
@@ -112,6 +114,7 @@ pub fn apply_filters<IntT: for<'a> UInt<'a>>(
     log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
     ska_array.filter(
         filter_threshold,
+        filter_ambig_as_missing,
         filter,
         ambig_mask,
         ignore_const_gaps,
@@ -134,9 +137,11 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
 
     let mask_ambig = false;
     let ignore_const_gaps = false;
+    let filter_ambig_as_missing = false;
     let constant = apply_filters(
         ska_array,
         min_freq,
+        filter_ambig_as_missing,
         &FilterType::NoConst,
         mask_ambig,
         ignore_const_gaps,
@@ -146,6 +151,7 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
             apply_filters(
                 ska_array,
                 min_freq,
+                filter_ambig_as_missing,
                 &FilterType::NoAmbigOrConst,
                 mask_ambig,
                 ignore_const_gaps,
@@ -154,6 +160,7 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
             apply_filters(
                 ska_array,
                 min_freq,
+                filter_ambig_as_missing,
                 &FilterType::NoFilter,
                 mask_ambig,
                 ignore_const_gaps,
@@ -211,6 +218,7 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
     weed_file: &Option<String>,
     reverse: bool,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
     filter: &FilterType,
     ambig_mask: bool,
     ignore_const_gaps: bool,
@@ -246,6 +254,7 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
         let update_kmers = true;
         ska_array.filter(
             filter_threshold,
+            filter_ambig_as_missing,
             filter,
             ambig_mask,
             ignore_const_gaps,
