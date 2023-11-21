@@ -16,11 +16,11 @@ pub const DEFAULT_AMBIGMASK: bool = false;
 /// Default gap ignoring behaviour (at constant sites)
 pub const DEFAULT_CONSTGAPS: bool = false;
 /// Default minimum k-mer count for FASTQ files
-pub const DEFAULT_MINCOUNT: u16 = 10;
+pub const DEFAULT_MINCOUNT: u16 = 5;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
-pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -153,7 +153,7 @@ pub enum Commands {
         min_qual: u8,
 
         /// Quality filtering criteria (with reads)
-        #[arg(long, value_enum, default_value_t = QualFilter::Strict)]
+        #[arg(long, value_enum, default_value_t = DEFAULT_QUALFILTER)]
         qual_filter: QualFilter,
 
         /// Number of CPU threads
