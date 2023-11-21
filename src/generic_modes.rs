@@ -28,7 +28,14 @@ pub fn align<IntT: for<'a> UInt<'a>>(
     log::debug!("{ska_array}");
 
     // Apply filters
-    apply_filters(ska_array, min_freq, filter_ambig_as_missing, filter, mask_ambig, ignore_const_gaps);
+    apply_filters(
+        ska_array,
+        min_freq,
+        filter_ambig_as_missing,
+        filter,
+        mask_ambig,
+        ignore_const_gaps,
+    );
 
     // Write out to file/stdout
     log::info!("Writing alignment");

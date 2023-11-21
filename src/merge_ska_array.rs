@@ -101,13 +101,20 @@ where
     /// Update `variant_count` after changing `variants`.
     ///
     /// Recalculates counts, and removes any totally empty rows.
-    fn update_counts(&mut self) {
+    ///
+    /// # Arguments
+    ///
+    /// - `filter_ambig_as_missing` -- any non-ACGTU base counts as missing.
+    fn update_counts(&mut self, filter_ambig_as_missing: bool) {
         let mut new_counts = Vec::with_capacity(self.variant_count.len());
         let mut new_sk = Vec::with_capacity(self.split_kmers.len());
 
         let mut new_variants = Array2::zeros((0, self.names.len()));
         for (var_row, sk) in self.variants.outer_iter().zip(self.split_kmers.iter()) {
-            let count = var_row.iter().filter(|b| **b != b'-').count();
+            let count = var_row
+                .iter()
+                .filter(|b| **b != b'-' && (!filter_ambig_as_missing || !is_ambiguous(**b)))
+                .count();
             if count > 0 {
                 new_counts.push(count);
                 new_sk.push(*sk);
@@ -224,7 +231,7 @@ where
         }
         self.variants = filtered_variants;
         self.names = new_names;
-        self.update_counts();
+        self.update_counts(false);
     }
 
     /// Filters variants (middle bases) by frequency.
@@ -331,6 +338,13 @@ where
         if update_kmers {
             self.split_kmers = filtered_kmers;
         }
+
+        if filter_ambig_as_missing {
+            let before_count = self.variant_count.len();
+            self.update_counts(true);
+            removed += (before_count - self.variant_count.len()) as i32;
+        }
+
         log::info!("Filtering removed {removed} split k-mers");
 
         // Replace any ambiguous variants with Ns, if requested
