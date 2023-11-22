@@ -118,7 +118,7 @@ pub fn apply_filters<IntT: for<'a> UInt<'a>>(
 ) -> i32 {
     let update_kmers = false;
     let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * min_freq) as usize;
-    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
+    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} filter_ambig_as_missing={filter_ambig_as_missing} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
     ska_array.filter(
         filter_threshold,
         filter_ambig_as_missing,
@@ -257,7 +257,7 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
 
     let filter_threshold = f64::floor(ska_array.nsamples() as f64 * min_freq) as usize;
     if filter_threshold > 0 || *filter != FilterType::NoFilter || ambig_mask || ignore_const_gaps {
-        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
+        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} filter_ambig_as_missing={filter_ambig_as_missing} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
         let update_kmers = true;
         ska_array.filter(
             filter_threshold,
