@@ -368,11 +368,12 @@
 //!
 //! // Apply filters
 //! let min_count = 2;
+//! let filter_ambig_as_missing = false;
 //! let update_kmers = false;
 //! let filter = FilterType::NoConst;
 //! let ignore_const_gaps = false;
 //! let ambig_mask = false;
-//! ska_array.filter(min_count, &filter, ambig_mask, ignore_const_gaps, update_kmers);
+//! ska_array.filter(min_count, filter_ambig_as_missing, &filter, ambig_mask, ignore_const_gaps, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);

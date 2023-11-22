@@ -54,11 +54,12 @@ use crate::cli::FilterType;
 ///
 /// // Remove constant sites and save
 /// let min_count = 1;                          // no filtering by minor allele frequency
+/// let filter_ambig_as_missing = false;        // allow ambiguous bases when counting allele frequency
 /// let filter = FilterType::NoAmbigOrConst;    // remove sites with no minor allele
 /// let mask_ambiguous = false;                 // leave ambiguous sites as IUPAC codes
 /// let ignore_const_gaps = false;              // keep sites with only '-' as variants
 /// let update_counts = true;                   // keep counts updated, as saving
-/// ska_array.filter(min_count, &filter, mask_ambiguous, ignore_const_gaps, update_counts);
+/// ska_array.filter(min_count, filter_ambig_as_missing, &filter, mask_ambiguous, ignore_const_gaps, update_counts);
 /// ska_array.save(&"no_const_sites.skf");
 ///
 /// // Create an iterators
