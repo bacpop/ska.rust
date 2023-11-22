@@ -651,21 +651,39 @@ mod tests {
     use ndarray::array;
 
     fn setup_struct() -> MergeSkaArray<u64> {
-        let example_array = MergeSkaArray::<u64> {
+        // Populate with some initial data.
+        MergeSkaArray::<u64> {
             k: 31,
             rc: true,
-            split_kmers: vec![0, 1],
-            variants: array![[1, 2, 3], [4, 5, 6]],
-            variant_count: vec![3, 3],
-            ska_version: "NA".to_string(),
-            k_bits: 64,
             names: vec![
                 "Sample1".to_string(),
                 "Sample2".to_string(),
                 "Sample3".to_string(),
             ],
-        };
-        example_array
+            split_kmers: vec![1, 2, 3],
+            variants: array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y'], [b'N', b'Y', b'Y']],
+            variant_count: vec![3, 2, 3],
+            ska_version: "NA".to_string(),
+            k_bits: 64,
+        }
+    }
+
+    #[test]
+    fn test_update_counts() {
+        let mut merge_ska_array = setup_struct();
+
+        // Test with filter_ambig_as_missing = true
+        merge_ska_array.update_counts(true);
+
+        // Check if variant counts are updated correctly
+        assert_eq!(merge_ska_array.variant_count, vec![2, 1]); // Expected counts
+
+        // Check if variants are updated correctly
+        // Assuming `variants` should now contain only the non-empty rows
+        assert_eq!(merge_ska_array.variants, array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y']]);
+
+        // Check if split_kmers are updated correctly
+        assert_eq!(merge_ska_array.split_kmers, vec![1, 2]); // Expected kmers
     }
 
     #[test]
@@ -675,13 +693,18 @@ mod tests {
 
         // First iteration
         let (kmer, vars) = iter.next().unwrap();
-        assert_eq!(kmer, 0);
-        assert_eq!(vars, vec![1, 2, 3]);
+        assert_eq!(kmer, 1);
+        assert_eq!(vars, vec![b'A', b'G', b'Y']);
 
         // Second iteration
         let (kmer, vars) = iter.next().unwrap();
-        assert_eq!(kmer, 1);
-        assert_eq!(vars, vec![4, 5, 6]);
+        assert_eq!(kmer, 2);
+        assert_eq!(vars, vec![b'T', b'-', b'Y']);
+
+        // Third iteration
+        let (kmer, vars) = iter.next().unwrap();
+        assert_eq!(kmer, 3);
+        assert_eq!(vars, vec![b'N', b'Y', b'Y']);
 
         // No more items
         assert!(iter.next().is_none());
@@ -695,7 +718,7 @@ mod tests {
 
         // Check that the samples were deleted
         assert_eq!(ska_array.names, vec!["Sample3"]);
-        assert_eq!(ska_array.variants, array![[3], [6]]);
+        assert_eq!(ska_array.variants, array![[b'Y'], [b'Y'], [b'Y']]);
     }
 
     #[test]
