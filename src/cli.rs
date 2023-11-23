@@ -9,6 +9,8 @@ use super::QualFilter;
 pub const DEFAULT_KMER: usize = 17;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default behaviour when min-freq counting ambig sites
+pub const DEFAULT_AMBIGMISSING: bool = false;
 /// Default repeat masking behaviour
 pub const DEFAULT_REPEATMASK: bool = false;
 /// Default ambiguous masking behaviour
@@ -16,11 +18,11 @@ pub const DEFAULT_AMBIGMASK: bool = false;
 /// Default gap ignoring behaviour (at constant sites)
 pub const DEFAULT_CONSTGAPS: bool = false;
 /// Default minimum k-mer count for FASTQ files
-pub const DEFAULT_MINCOUNT: u16 = 10;
+pub const DEFAULT_MINCOUNT: u16 = 5;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
-pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -153,7 +155,7 @@ pub enum Commands {
         min_qual: u8,
 
         /// Quality filtering criteria (with reads)
-        #[arg(long, value_enum, default_value_t = QualFilter::Strict)]
+        #[arg(long, value_enum, default_value_t = DEFAULT_QUALFILTER)]
         qual_filter: QualFilter,
 
         /// Number of CPU threads
@@ -173,6 +175,10 @@ pub enum Commands {
         /// Minimum fraction of samples a k-mer has to appear in
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
+
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
 
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoConst)]
@@ -285,6 +291,10 @@ pub enum Commands {
         /// Minimum fraction of samples a k-mer has to appear in
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
+
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
 
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoFilter)]

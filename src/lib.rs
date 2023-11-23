@@ -368,11 +368,12 @@
 //!
 //! // Apply filters
 //! let min_count = 2;
+//! let filter_ambig_as_missing = false;
 //! let update_kmers = false;
 //! let filter = FilterType::NoConst;
 //! let ignore_const_gaps = false;
 //! let ambig_mask = false;
-//! ska_array.filter(min_count, &filter, ambig_mask, ignore_const_gaps, update_kmers);
+//! ska_array.filter(min_count, filter_ambig_as_missing, &filter, ambig_mask, ignore_const_gaps, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);
@@ -514,6 +515,7 @@ pub fn main() {
             input,
             output,
             min_freq,
+            filter_ambig_as_missing,
             filter,
             ambig_mask,
             no_gap_only_sites,
@@ -530,6 +532,7 @@ pub fn main() {
                     *ambig_mask,
                     *no_gap_only_sites,
                     *min_freq,
+                    *filter_ambig_as_missing,
                 );
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
@@ -541,6 +544,7 @@ pub fn main() {
                     *ambig_mask,
                     *no_gap_only_sites,
                     *min_freq,
+                    *filter_ambig_as_missing,
                 );
             } else {
                 panic!("Could not read input file(s): {input:?}");
@@ -658,6 +662,7 @@ pub fn main() {
             output,
             reverse,
             min_freq,
+            filter_ambig_as_missing,
             ambig_mask,
             no_gap_only_sites,
             filter,
@@ -669,6 +674,7 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
                     *no_gap_only_sites,
@@ -684,6 +690,7 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
                     *no_gap_only_sites,

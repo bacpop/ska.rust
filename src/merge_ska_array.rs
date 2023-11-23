@@ -54,11 +54,12 @@ use crate::cli::FilterType;
 ///
 /// // Remove constant sites and save
 /// let min_count = 1;                          // no filtering by minor allele frequency
+/// let filter_ambig_as_missing = false;        // allow ambiguous bases when counting allele frequency
 /// let filter = FilterType::NoAmbigOrConst;    // remove sites with no minor allele
 /// let mask_ambiguous = false;                 // leave ambiguous sites as IUPAC codes
 /// let ignore_const_gaps = false;              // keep sites with only '-' as variants
 /// let update_counts = true;                   // keep counts updated, as saving
-/// ska_array.filter(min_count, &filter, mask_ambiguous, ignore_const_gaps, update_counts);
+/// ska_array.filter(min_count, filter_ambig_as_missing, &filter, mask_ambiguous, ignore_const_gaps, update_counts);
 /// ska_array.save(&"no_const_sites.skf");
 ///
 /// // Create an iterators
@@ -101,19 +102,31 @@ where
     /// Update `variant_count` after changing `variants`.
     ///
     /// Recalculates counts, and removes any totally empty rows.
-    fn update_counts(&mut self) {
+    ///
+    /// # Arguments
+    ///
+    /// - `filter_ambig_as_missing` -- any non-ACGTU base counts as missing.
+    fn update_counts(&mut self, filter_ambig_as_missing: bool) {
+        log::info!("Updating variant counts");
         let mut new_counts = Vec::with_capacity(self.variant_count.len());
         let mut new_sk = Vec::with_capacity(self.split_kmers.len());
 
+        let mut empty: usize = 0;
         let mut new_variants = Array2::zeros((0, self.names.len()));
         for (var_row, sk) in self.variants.outer_iter().zip(self.split_kmers.iter()) {
-            let count = var_row.iter().filter(|b| **b != b'-').count();
+            let count = var_row
+                .iter()
+                .filter(|b| **b != b'-' && (!filter_ambig_as_missing || !is_ambiguous(**b)))
+                .count();
             if count > 0 {
                 new_counts.push(count);
                 new_sk.push(*sk);
                 new_variants.push_row(var_row).unwrap();
+            } else {
+                empty += 1;
             }
         }
+        log::info!("Removed {empty} empty variants");
         self.split_kmers = new_sk;
         self.variants = new_variants;
         self.variant_count = new_counts;
@@ -224,7 +237,7 @@ where
         }
         self.variants = filtered_variants;
         self.names = new_names;
-        self.update_counts();
+        self.update_counts(false);
     }
 
     /// Filters variants (middle bases) by frequency.
@@ -245,6 +258,7 @@ where
     pub fn filter(
         &mut self,
         min_count: usize,
+        filter_ambig_as_missing: bool,
         filter: &FilterType,
         mask_ambig: bool,
         ignore_const_gaps: bool,
@@ -259,6 +273,11 @@ where
         let mut filtered_counts = Vec::new();
         let mut filtered_kmers = Vec::new();
         let mut removed = 0;
+
+        if filter_ambig_as_missing {
+            self.update_counts(true);
+        }
+
         for count_it in self
             .variant_count
             .iter()
@@ -632,21 +651,39 @@ mod tests {
     use ndarray::array;
 
     fn setup_struct() -> MergeSkaArray<u64> {
-        let example_array = MergeSkaArray::<u64> {
+        // Populate with some initial data.
+        MergeSkaArray::<u64> {
             k: 31,
             rc: true,
-            split_kmers: vec![0, 1],
-            variants: array![[1, 2, 3], [4, 5, 6]],
-            variant_count: vec![3, 3],
-            ska_version: "NA".to_string(),
-            k_bits: 64,
             names: vec![
                 "Sample1".to_string(),
                 "Sample2".to_string(),
                 "Sample3".to_string(),
             ],
-        };
-        example_array
+            split_kmers: vec![1, 2, 3],
+            variants: array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y'], [b'N', b'Y', b'Y']],
+            variant_count: vec![3, 2, 3],
+            ska_version: "NA".to_string(),
+            k_bits: 64,
+        }
+    }
+
+    #[test]
+    fn test_update_counts() {
+        let mut merge_ska_array = setup_struct();
+
+        // Test with filter_ambig_as_missing = true
+        merge_ska_array.update_counts(true);
+
+        // Check if variant counts are updated correctly
+        assert_eq!(merge_ska_array.variant_count, vec![2, 1]); // Expected counts
+
+        // Check if variants are updated correctly
+        // Assuming `variants` should now contain only the non-empty rows
+        assert_eq!(merge_ska_array.variants, array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y']]);
+
+        // Check if split_kmers are updated correctly
+        assert_eq!(merge_ska_array.split_kmers, vec![1, 2]); // Expected kmers
     }
 
     #[test]
@@ -656,13 +693,18 @@ mod tests {
 
         // First iteration
         let (kmer, vars) = iter.next().unwrap();
-        assert_eq!(kmer, 0);
-        assert_eq!(vars, vec![1, 2, 3]);
+        assert_eq!(kmer, 1);
+        assert_eq!(vars, vec![b'A', b'G', b'Y']);
 
         // Second iteration
         let (kmer, vars) = iter.next().unwrap();
-        assert_eq!(kmer, 1);
-        assert_eq!(vars, vec![4, 5, 6]);
+        assert_eq!(kmer, 2);
+        assert_eq!(vars, vec![b'T', b'-', b'Y']);
+
+        // Third iteration
+        let (kmer, vars) = iter.next().unwrap();
+        assert_eq!(kmer, 3);
+        assert_eq!(vars, vec![b'N', b'Y', b'Y']);
 
         // No more items
         assert!(iter.next().is_none());
@@ -676,7 +718,7 @@ mod tests {
 
         // Check that the samples were deleted
         assert_eq!(ska_array.names, vec!["Sample3"]);
-        assert_eq!(ska_array.variants, array![[3], [6]]);
+        assert_eq!(ska_array.variants, array![[b'Y'], [b'Y'], [b'Y']]);
     }
 
     #[test]

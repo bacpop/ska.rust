@@ -183,6 +183,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-ambig")
+        .arg("--filter-ambig-as-missing")
         .arg("-v")
         .output()
         .unwrap()
