@@ -497,23 +497,19 @@ pub fn main() {
 
             // Build, merge
             let rc = !*single_strand;
-            let outfile = if output.ends_with(".skf") {
-                output.clone()
-            } else {
-                format!("{output}.skf")
-            };
+
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
                 let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
-                save_skf(&merged_dict, &outfile);
+                save_skf(&merged_dict, &output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
                 let merged_dict = build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
-                save_skf(&merged_dict, &outfile);
+                save_skf(&merged_dict, &output);
             }
         }
         Commands::Align {
