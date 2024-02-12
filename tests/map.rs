@@ -291,5 +291,7 @@ fn repeat_mask() {
         .arg("--repeat-mask")
         .args(&["--format", "vcf"])
         .assert()
-        .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct));
+        .stdout_matches_path(
+            sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct),
+        );
 }
