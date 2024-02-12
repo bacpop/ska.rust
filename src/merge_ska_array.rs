@@ -680,7 +680,10 @@ mod tests {
 
         // Check if variants are updated correctly
         // Assuming `variants` should now contain only the non-empty rows
-        assert_eq!(merge_ska_array.variants, array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y']]);
+        assert_eq!(
+            merge_ska_array.variants,
+            array![[b'A', b'G', b'Y'], [b'T', b'-', b'Y']]
+        );
 
         // Check if split_kmers are updated correctly
         assert_eq!(merge_ska_array.split_kmers, vec![1, 2]); // Expected kmers

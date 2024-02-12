@@ -39,14 +39,10 @@ use rayon::prelude::*;
 
 use noodles_vcf::{
     self as vcf,
-    header::format::Key,
     header::record::value::{map::Contig, Map},
     record::{
         alternate_bases::Allele,
-        genotypes::{
-            genotype::{field::Value, Field},
-            Genotype, Keys,
-        },
+        genotypes::{keys::key, sample::Value, Keys},
         reference_bases::Base,
         AlternateBases, Genotypes, Position,
     },
@@ -137,7 +133,7 @@ fn u8_to_base(ref_base: u8) -> Base {
 /// These can be used as [`Keys`] in the genotype builder
 #[inline]
 fn gt_keys() -> Keys {
-    "GT".parse().expect("Genotype format error")
+    Keys::try_from(vec![key::GENOTYPE]).unwrap()
 }
 
 impl<IntT> RefSka<IntT>
@@ -180,7 +176,12 @@ where
             if seqrec.format() == Format::Fastq {
                 panic!("Cannot create reference from FASTQ files");
             }
-            chrom_names.push(str::from_utf8(seqrec.id()).unwrap().to_owned());
+            let chrom_name = str::from_utf8(seqrec.id())
+                .unwrap()
+                .split_whitespace()
+                .next()
+                .unwrap();
+            chrom_names.push(chrom_name.to_string());
             split_kmer_pos.reserve(seqrec.num_bases());
 
             let kmer_opt = SplitKmer::new(
@@ -447,9 +448,10 @@ where
         let mut writer = vcf::Writer::new(f);
         let mut header_builder = vcf::Header::builder();
         for contig in &self.chrom_names {
-            header_builder = header_builder.add_contig(Map::<Contig>::new(
+            header_builder = header_builder.add_contig(
                 contig.parse().expect("Could not add contig to header"),
-            ));
+                Map::<Contig>::new(),
+            );
         }
         for name in &self.mapped_names {
             header_builder = header_builder.add_sample_name(name);
@@ -482,9 +484,7 @@ where
                     }
                     (alt_bases.iter().position(|&r| r == alt_base).unwrap() + 1).to_string()
                 };
-                let field = Field::new(Key::Genotype, Some(Value::String(gt)));
-                genotype_vec
-                    .push(Genotype::try_from(vec![field]).expect("Could not construct genotypes"));
+                genotype_vec.push(vec![Some(Value::String(gt))]);
             }
             if variant {
                 let genotypes = Genotypes::new(keys.clone(), genotype_vec);
@@ -502,7 +502,7 @@ where
                     .set_genotypes(genotypes)
                     .build()
                     .expect("Could not construct record");
-                writer.write_record(&record)?;
+                writer.write_record(&header, &record)?;
             }
         }
         Ok(())

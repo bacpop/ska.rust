@@ -98,10 +98,7 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     }
 
     log::info!("Converting and saving merged alignment");
-    let merged_array = MergeSkaArray::new(&merged_dict);
-    merged_array
-        .save(format!("{output}.skf").as_str())
-        .expect("Failed to save output file");
+    save_skf(&merged_dict, output);
 }
 
 /// Apply a constant/ambigbuous filter [`FilterType`] and a minimum frequency
@@ -277,9 +274,16 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
 
 /// Covnvert a dictionary representation to an array and save to file
 pub fn save_skf<IntT: for<'a> UInt<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file: &str) {
+    // Conditionally add suffix
+    let outfile_suffix = if out_file.ends_with(".skf") {
+        out_file.to_string()
+    } else {
+        format!("{out_file}.skf")
+    };
+
     log::info!("Converting to array representation and saving");
     let ska_array = MergeSkaArray::new(ska_dict);
     ska_array
-        .save(out_file)
+        .save(&outfile_suffix)
         .expect("Failed to save output file");
 }

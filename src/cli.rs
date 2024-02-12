@@ -150,7 +150,7 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_MINCOUNT)]
         min_count: u16,
 
-        /// Minimum k-mer count (with reads)
+        /// Minimum k-mer quality (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
         min_qual: u8,
 
