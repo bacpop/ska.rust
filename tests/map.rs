@@ -113,7 +113,7 @@ fn map_u128() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_k41.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_k41.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -153,7 +153,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -164,7 +164,7 @@ fn map_vcf() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_indels.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_indels.stdout", TestDir::Correct));
 }
 
 #[test]
@@ -232,7 +232,7 @@ fn map_rev_comp() {
         .arg("-f")
         .arg("vcf")
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_ss.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_ss.stdout", TestDir::Correct));
 }
 
 // Tests the --repeat-mask option
@@ -259,7 +259,7 @@ fn repeat_mask() {
         .arg("--repeat-mask")
         .args(&["--format", "vcf"])
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_k9.masked.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_k9.masked.stdout", TestDir::Correct));
 
     // Two identical chromosomes. All bases masked
     Command::new(cargo_bin("ska"))
@@ -291,5 +291,5 @@ fn repeat_mask() {
         .arg("--repeat-mask")
         .args(&["--format", "vcf"])
         .assert()
-        .stdout_eq_path(sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct));
+        .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct));
 }
