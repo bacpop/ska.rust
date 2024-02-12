@@ -98,9 +98,14 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     }
 
     log::info!("Converting and saving merged alignment");
+    let outfile = if output.ends_with(".skf") {
+        output.to_string()
+    } else {
+        format!("{output}.skf")
+    };
     let merged_array = MergeSkaArray::new(&merged_dict);
     merged_array
-        .save(format!("{output}.skf").as_str())
+        .save(&outfile)
         .expect("Failed to save output file");
 }
 
