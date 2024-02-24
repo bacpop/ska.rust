@@ -42,6 +42,12 @@ impl NtHashIterator {
             let mut h = 0;
             for (i, v) in seq[0..k].iter().rev().enumerate() {
                 h ^= RC_HASH_LOOKUP[encode_base(*v) as usize].rotate_left((k - i - 1) as u32);
+
+		// Combine forward and reverse hashes; see
+		// https://stackoverflow.com/questions/5889238/why-is-xor-the-default-way-to-combine-hashes
+		// for what's happening here.
+		fh ^= h.wrapping_add(0x517c_c1b7_2722_0a95).wrapping_add(fh << 6).wrapping_add(fh >> 2);
+		h = fh.clone();
             }
             Some(h)
         } else {
@@ -62,7 +68,9 @@ impl NtHashIterator {
                 rev.rotate_right(1)
                     ^ RC_HASH_LOOKUP[old_base as usize].rotate_right(1)
                     ^ RC_HASH_LOOKUP[new_base as usize].rotate_left(self.k as u32 - 1),
-            )
+            );
+	    self.fh ^= self.rh.unwrap();
+	    self.rh = Some(self.fh.clone());
         };
     }
 
