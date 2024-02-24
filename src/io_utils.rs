@@ -59,7 +59,10 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
 ) -> Result<MergeSkaArray<IntT>, Box<dyn Error>> {
     // Obtain a merged ska array
     if input.len() == 1 {
-        log::info!("Single file as input, trying to load as skf");
+        log::info!(
+            "Single file as input, trying to load as skf {}-bits",
+            IntT::n_bits()
+        );
         MergeSkaArray::load(input[0].as_str())
     } else {
         log::info!("Multiple files as input, running ska build with default settings");

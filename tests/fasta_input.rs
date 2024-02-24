@@ -19,7 +19,7 @@ fn align_n() {
         .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("N_test_2.fa", TestDir::Input))
         .arg("-o")
-        .arg("N_test")
+        .arg("N_test.skf") // test no .skf.skf extension
         .assert()
         .success();
 

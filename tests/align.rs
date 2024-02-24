@@ -165,6 +165,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-filter")
+        .arg("--no-gap-only-sites") // adding with no filter produces a warning
         .arg("-v")
         .output()
         .unwrap()
@@ -182,6 +183,7 @@ fn filters() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--filter")
         .arg("no-ambig")
+        .arg("--filter-ambig-as-missing")
         .arg("-v")
         .output()
         .unwrap()
@@ -234,6 +236,85 @@ fn filters() {
 
     let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['N', 'G']]);
     assert_eq!(var_hash(&ambig_filter_align_out), correct_aln);
+
+    // Output everything by using min-freq 0, check for behaviour on gap only sites
+    let unfilt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-const")
+        .arg("--min-freq")
+        .arg("0")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let full_length = 33;
+    let lengths = aln_length(&unfilt_align_out);
+    for length in lengths {
+        assert_eq!(full_length, length);
+    }
+
+    let filt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-const")
+        .arg("--min-freq")
+        .arg("0")
+        .arg("--no-gap-only-sites")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let full_length = 3;
+    let lengths = aln_length(&filt_align_out);
+    for length in lengths {
+        assert_eq!(full_length, length);
+    }
+
+    let unfilt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-ambig-or-const")
+        .arg("--min-freq")
+        .arg("0")
+        .arg("-v")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let full_length = 32;
+    let lengths = aln_length(&unfilt_align_out);
+    for length in lengths {
+        assert_eq!(full_length, length);
+    }
+
+    let filt_align_out = Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("align")
+        .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--filter")
+        .arg("no-ambig-or-const")
+        .arg("--min-freq")
+        .arg("0")
+        .arg("-v")
+        .arg("--no-gap-only-sites")
+        .output()
+        .unwrap()
+        .stdout;
+
+    let full_length = 2;
+    let lengths = aln_length(&filt_align_out);
+    for length in lengths {
+        assert_eq!(full_length, length);
+    }
 }
 
 #[test]

@@ -9,16 +9,20 @@ use super::QualFilter;
 pub const DEFAULT_KMER: usize = 17;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default behaviour when min-freq counting ambig sites
+pub const DEFAULT_AMBIGMISSING: bool = false;
 /// Default repeat masking behaviour
 pub const DEFAULT_REPEATMASK: bool = false;
 /// Default ambiguous masking behaviour
 pub const DEFAULT_AMBIGMASK: bool = false;
+/// Default gap ignoring behaviour (at constant sites)
+pub const DEFAULT_CONSTGAPS: bool = false;
 /// Default minimum k-mer count for FASTQ files
-pub const DEFAULT_MINCOUNT: u16 = 10;
+pub const DEFAULT_MINCOUNT: u16 = 5;
 /// Default minimum base quality (PHRED score) for FASTQ files
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
-pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Middle;
+pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -146,12 +150,12 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_MINCOUNT)]
         min_count: u16,
 
-        /// Minimum k-mer count (with reads)
+        /// Minimum k-mer quality (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
         min_qual: u8,
 
         /// Quality filtering criteria (with reads)
-        #[arg(long, value_enum, default_value_t = QualFilter::Middle)]
+        #[arg(long, value_enum, default_value_t = DEFAULT_QUALFILTER)]
         qual_filter: QualFilter,
 
         /// Number of CPU threads
@@ -172,6 +176,10 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
         min_freq: f64,
 
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
+
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoConst)]
         filter: FilterType,
@@ -179,6 +187,10 @@ pub enum Commands {
         /// Mask any ambiguous bases in the alignment with 'N'
         #[arg(long, default_value_t = DEFAULT_AMBIGMASK)]
         ambig_mask: bool,
+
+        /// Ignore gaps '-' in constant sites (for low coverage samples)
+        #[arg(long, default_value_t = DEFAULT_CONSTGAPS)]
+        no_gap_only_sites: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
@@ -280,6 +292,10 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
 
+        /// With min_freq, only count non-ambiguous sites
+        #[arg(long, default_value_t = DEFAULT_AMBIGMISSING)]
+        filter_ambig_as_missing: bool,
+
         /// Filter for constant middle base sites
         #[arg(long, value_enum, default_value_t = FilterType::NoFilter)]
         filter: FilterType,
@@ -287,6 +303,10 @@ pub enum Commands {
         /// Mask any ambiguous bases in the alignment with 'N'
         #[arg(long, default_value_t = DEFAULT_AMBIGMASK)]
         ambig_mask: bool,
+
+        /// Ignore gaps '-' in constant sites
+        #[arg(long, default_value_t = DEFAULT_CONSTGAPS)]
+        no_gap_only_sites: bool,
     },
     /// Get the number of k-mers in a split k-mer file, and other information
     Nk {

@@ -33,6 +33,9 @@
 //! possibly introducing a SNP across samples. This version uses an ambiguous middle
 //! base (W for A/T; S for C/G) to represent this case.*
 //!
+//! Tutorials:
+//! - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+//!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
 //! # Usage
@@ -365,10 +368,12 @@
 //!
 //! // Apply filters
 //! let min_count = 2;
+//! let filter_ambig_as_missing = false;
 //! let update_kmers = false;
 //! let filter = FilterType::NoConst;
+//! let ignore_const_gaps = false;
 //! let ambig_mask = false;
-//! ska_array.filter(min_count, &filter, update_kmers, ambig_mask);
+//! ska_array.filter(min_count, filter_ambig_as_missing, &filter, ambig_mask, ignore_const_gaps, update_kmers);
 //!
 //! // Write out to stdout
 //! let mut out_stream = set_ostream(&None);
@@ -492,37 +497,56 @@ pub fn main() {
 
             // Build, merge
             let rc = !*single_strand;
+
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
                 let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
-                save_skf(&merged_dict, format!("{output}.skf").as_str());
+                save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
                 let merged_dict = build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads);
 
                 // Save
-                save_skf(&merged_dict, format!("{output}.skf").as_str());
+                save_skf(&merged_dict, output);
             }
         }
         Commands::Align {
             input,
             output,
             min_freq,
+            filter_ambig_as_missing,
             filter,
             ambig_mask,
+            no_gap_only_sites,
             threads,
         } => {
             check_threads(*threads);
             if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
+                align(
+                    &mut ska_array,
+                    output,
+                    filter,
+                    *ambig_mask,
+                    *no_gap_only_sites,
+                    *min_freq,
+                    *filter_ambig_as_missing,
+                );
             } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                align(&mut ska_array, output, filter, *ambig_mask, *min_freq);
+                align(
+                    &mut ska_array,
+                    output,
+                    filter,
+                    *ambig_mask,
+                    *no_gap_only_sites,
+                    *min_freq,
+                    *filter_ambig_as_missing,
+                );
             } else {
                 panic!("Could not read input file(s): {input:?}");
             }
@@ -539,7 +563,7 @@ pub fn main() {
             check_threads(*threads);
 
             log::info!("Loading skf as dictionary");
-            if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
+            if let Ok(ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),
@@ -552,8 +576,8 @@ pub fn main() {
                     *ambig_mask,
                     *repeat_mask,
                 );
-                map(&mut ska_array, &mut ska_ref, output, format, *threads);
-            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
+                map(&ska_array, &mut ska_ref, output, format, *threads);
+            } else if let Ok(ska_array) = load_array::<u128>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),
@@ -566,7 +590,7 @@ pub fn main() {
                     *ambig_mask,
                     *repeat_mask,
                 );
-                map(&mut ska_array, &mut ska_ref, output, format, *threads);
+                map(&ska_array, &mut ska_ref, output, format, *threads);
             } else {
                 panic!("Could not read input file(s): {input:?}");
             }
@@ -609,10 +633,10 @@ pub fn main() {
             }
 
             log::info!("Loading first alignment");
-            if let Ok(mut first_array) = MergeSkaArray::<u64>::load(&skf_files[0]) {
-                merge(&mut first_array, &skf_files[1..], output);
-            } else if let Ok(mut first_array) = MergeSkaArray::<u128>::load(&skf_files[0]) {
-                merge(&mut first_array, &skf_files[1..], output);
+            if let Ok(first_array) = MergeSkaArray::<u64>::load(&skf_files[0]) {
+                merge(&first_array, &skf_files[1..], output);
+            } else if let Ok(first_array) = MergeSkaArray::<u128>::load(&skf_files[0]) {
+                merge(&first_array, &skf_files[1..], output);
             } else {
                 panic!("Could not read input file: {}", skf_files[0]);
             }
@@ -639,7 +663,9 @@ pub fn main() {
             output,
             reverse,
             min_freq,
+            filter_ambig_as_missing,
             ambig_mask,
+            no_gap_only_sites,
             filter,
         } => {
             log::info!("Loading skf file");
@@ -649,9 +675,15 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
-                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
+                    *no_gap_only_sites,
+                    if output.is_none() {
+                        skf_file
+                    } else {
+                        output.as_ref().unwrap().as_str()
+                    },
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 weed(
@@ -659,9 +691,15 @@ pub fn main() {
                     weed_file,
                     *reverse,
                     *min_freq,
+                    *filter_ambig_as_missing,
                     filter,
                     *ambig_mask,
-                    if output.is_none() { skf_file } else { output.as_ref().unwrap().as_str() },
+                    *no_gap_only_sites,
+                    if output.is_none() {
+                        skf_file
+                    } else {
+                        output.as_ref().unwrap().as_str()
+                    },
                 );
             } else {
                 panic!("Could not read input file: {skf_file}");

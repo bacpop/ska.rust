@@ -1,13 +1,15 @@
 [package]
 name = "ska"
-version = "0.3.3"
+version = "0.3.6"
 authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
-    "Johanna von Wachsmann <j.vwachsmann@web.de>",
+    "Johanna von Wachsmann <wachsmannj@ebi.ac.uk>",
     "Tommi Maklin <tommi.maklin@helsinki.fi>",
     "Joel Hellewell <joel@ebi.ac.uk>",
-    "Timothy Russell <timothy.russell@lshtm.ac.uk>"
+    "Timothy Russell <timothy.russell@lshtm.ac.uk>",
+    "Romain Derelle <r.derelle@imperial.ac.uk>",
+    "Nicholas Croucher <n.croucher@imperial.ac.uk>"
 ]
 edition = "2021"
 description = "Split k-mer analysis"
@@ -27,30 +29,30 @@ categories = ["command-line-utilities", "science"]
 
 [dependencies]
 # i/o
-needletail = { version = "0.4.1", features = ["compression"] }
-serde = { version = "1.0.147", features = ["derive"] }
-ciborium = "0.2.0"
-noodles-vcf = "0.22.0"
-snap = "1.1.0"
+needletail = { version = "0.5.1", features = ["compression"] }
+serde = { version = "1.0", features = ["derive"] }
+ciborium = "0.2"
+noodles-vcf = "0.49"
+snap = "1.1"
 # logging
-log = "0.4.17"
-simple_logger = { version = "4.0.0", features = ["stderr"] }
-indicatif = {version = "0.17.2", features = ["rayon"]}
+log = "0.4"
+simple_logger = { version = "4", features = ["stderr"] }
+indicatif = { version = "0.17", features = ["rayon"]}
 # cli
-clap = { version = "4.0.27", features = ["derive"] }
-regex = "1.7.0"
+clap = { version = "4.5", features = ["derive"] }
+regex = "1.10"
 # parallelisation
-rayon = "1.5.3"
+rayon = "1.8"
 num_cpus = "1.0"
 # data structures
-hashbrown = "0.12"
-ahash = "0.8.2"
-ndarray = { version = "0.15.6", features = ["serde", "rayon"] }
-num-traits = "0.2.15"
+hashbrown = "0.14"
+ahash = ">=0.8.7"
+ndarray = { version = "0.15", features = ["serde", "rayon"] }
+num-traits = "0.2"
 # coverage model
-libm = "0.2.7"
-argmin = { version = "0.8.1", features = ["slog-logger"] }
-argmin-math = "0.3.0"
+libm = "0.2"
+argmin = { version = "0.9", features = ["slog-logger"] }
+argmin-math = "0.3"
 
 [dev-dependencies]
 # testing

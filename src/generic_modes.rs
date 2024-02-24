@@ -20,13 +20,22 @@ pub fn align<IntT: for<'a> UInt<'a>>(
     output: &Option<String>,
     filter: &FilterType,
     mask_ambig: bool,
+    ignore_const_gaps: bool,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
 
     // Apply filters
-    apply_filters(ska_array, min_freq, filter, mask_ambig);
+    apply_filters(
+        ska_array,
+        min_freq,
+        filter_ambig_as_missing,
+        filter,
+        mask_ambig,
+        ignore_const_gaps,
+    );
 
     // Write out to file/stdout
     log::info!("Writing alignment");
@@ -41,7 +50,7 @@ pub fn align<IntT: for<'a> UInt<'a>>(
 /// Convert array to dictionary representation, runs map against a reference,
 /// prints out in requested format.
 pub fn map<IntT: for<'a> UInt<'a>>(
-    ska_array: &mut MergeSkaArray<IntT>,
+    ska_array: &MergeSkaArray<IntT>,
     ska_ref: &mut RefSka<IntT>,
     output: &Option<String>,
     format: &FileType,
@@ -75,7 +84,7 @@ pub fn map<IntT: for<'a> UInt<'a>>(
 ///
 /// Subsequent files are most easily passed as a slice with `[1..]`
 pub fn merge<IntT: for<'a> UInt<'a>>(
-    first_array: &mut MergeSkaArray<IntT>,
+    first_array: &MergeSkaArray<IntT>,
     skf_files: &[String],
     output: &str,
 ) {
@@ -89,10 +98,7 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     }
 
     log::info!("Converting and saving merged alignment");
-    let merged_array = MergeSkaArray::new(&merged_dict);
-    merged_array
-        .save(format!("{output}.skf").as_str())
-        .expect("Failed to save output file");
+    save_skf(&merged_dict, output);
 }
 
 /// Apply a constant/ambigbuous filter [`FilterType`] and a minimum frequency
@@ -102,13 +108,22 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
 pub fn apply_filters<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
     filter: &FilterType,
     ambig_mask: bool,
+    ignore_const_gaps: bool,
 ) -> i32 {
     let update_kmers = false;
     let filter_threshold = f64::ceil(ska_array.nsamples() as f64 * min_freq) as usize;
-    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask}");
-    ska_array.filter(filter_threshold, filter, ambig_mask, update_kmers)
+    log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} filter_ambig_as_missing={filter_ambig_as_missing} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
+    ska_array.filter(
+        filter_threshold,
+        filter_ambig_as_missing,
+        filter,
+        ambig_mask,
+        ignore_const_gaps,
+        update_kmers,
+    )
 }
 
 /// Calculate distances between samples
@@ -125,12 +140,35 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     log::debug!("{ska_array}");
 
     let mask_ambig = false;
-    let constant = apply_filters(ska_array, min_freq, &FilterType::NoConst, mask_ambig);
+    let ignore_const_gaps = false;
+    let filter_ambig_as_missing = false;
+    let constant = apply_filters(
+        ska_array,
+        min_freq,
+        filter_ambig_as_missing,
+        &FilterType::NoConst,
+        mask_ambig,
+        ignore_const_gaps,
+    );
     if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
         if filt_ambig {
-            apply_filters(ska_array, min_freq, &FilterType::NoAmbigOrConst, mask_ambig);
+            apply_filters(
+                ska_array,
+                min_freq,
+                filter_ambig_as_missing,
+                &FilterType::NoAmbigOrConst,
+                mask_ambig,
+                ignore_const_gaps,
+            );
         } else {
-            apply_filters(ska_array, min_freq, &FilterType::NoFilter, mask_ambig);
+            apply_filters(
+                ska_array,
+                min_freq,
+                filter_ambig_as_missing,
+                &FilterType::NoFilter,
+                mask_ambig,
+                ignore_const_gaps,
+            );
         }
     }
 
@@ -178,13 +216,16 @@ pub fn delete<IntT: for<'a> UInt<'a>>(
 }
 
 /// Remove k-mers, and optionally apply filters to an array
+#[allow(clippy::too_many_arguments)]
 pub fn weed<IntT: for<'a> UInt<'a>>(
     ska_array: &mut MergeSkaArray<IntT>,
     weed_file: &Option<String>,
     reverse: bool,
     min_freq: f64,
+    filter_ambig_as_missing: bool,
     filter: &FilterType,
     ambig_mask: bool,
+    ignore_const_gaps: bool,
     out_file: &str,
 ) {
     if let Some(weed_fasta) = weed_file {
@@ -212,10 +253,17 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
     }
 
     let filter_threshold = f64::floor(ska_array.nsamples() as f64 * min_freq) as usize;
-    if filter_threshold > 0 || *filter != FilterType::NoFilter || ambig_mask {
-        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} ambig_mask={ambig_mask}");
+    if filter_threshold > 0 || *filter != FilterType::NoFilter || ambig_mask || ignore_const_gaps {
+        log::info!("Applying filters: threshold={filter_threshold} constant_site_filter={filter} filter_ambig_as_missing={filter_ambig_as_missing} ambig_mask={ambig_mask} no_gap_only_sites={ignore_const_gaps}");
         let update_kmers = true;
-        ska_array.filter(filter_threshold, filter, ambig_mask, update_kmers);
+        ska_array.filter(
+            filter_threshold,
+            filter_ambig_as_missing,
+            filter,
+            ambig_mask,
+            ignore_const_gaps,
+            update_kmers,
+        );
     }
 
     log::info!("Saving modified skf file");
@@ -226,9 +274,16 @@ pub fn weed<IntT: for<'a> UInt<'a>>(
 
 /// Covnvert a dictionary representation to an array and save to file
 pub fn save_skf<IntT: for<'a> UInt<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file: &str) {
+    // Conditionally add suffix
+    let outfile_suffix = if out_file.ends_with(".skf") {
+        out_file.to_string()
+    } else {
+        format!("{out_file}.skf")
+    };
+
     log::info!("Converting to array representation and saving");
     let ska_array = MergeSkaArray::new(ska_dict);
     ska_array
-        .save(out_file)
+        .save(&outfile_suffix)
         .expect("Failed to save output file");
 }
