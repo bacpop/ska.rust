@@ -50,12 +50,6 @@ pub struct SplitKmer<'a, IntT> {
     middle_base: u8,
     /// Whether reverse complements are being used
     rc: bool,
-    /// Current upper part of split k-mer, reverse complemented
-    rc_upper: IntT,
-    /// Current lower part of split k-mer, reverse complemented
-    rc_lower: IntT,
-    /// Current middle base, reverse complemented
-    rc_middle_base: u8,
     /// Hash generator for reads
     hash_gen: Option<NtHashIterator>,
 }
@@ -142,14 +136,13 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     /// Checks if the split k-mer arms are palindromes, i.e. k-mer is its own reverse complement
     /// In this case the middle base needs ambiguity with its rc added.
     pub fn self_palindrome(&mut self) -> bool {
-        self.rc && self.upper == self.rc_upper && self.lower == self.rc_lower
-    }
-
-    /// Update the stored reverse complement using the stored split-k and middle base
-    fn update_rc(&mut self) {
-        self.rc_upper = self.lower.rev_comp(self.k - 1) & self.upper_mask;
-        self.rc_middle_base = rc_base(self.middle_base);
-        self.rc_lower = self.upper.rev_comp(self.k - 1) & self.lower_mask;
+	if (self.rc) {
+	    let rc_upper = self.lower.rev_comp(self.k - 1) & self.upper_mask;
+	    let rc_lower = self.upper.rev_comp(self.k - 1) & self.lower_mask;
+            self.upper == rc_upper && self.lower == rc_lower
+	} else {
+	    false
+	}
     }
 
     /// Move forward to the next valid split k-mer
@@ -176,13 +169,10 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 &self.qual_filter,
                 self.min_qual,
                 self.hash_gen.is_some(),
-                self.rc,
+		self.rc
             );
             if let Some(kmer_tuple) = new_kmer {
                 (self.upper, self.lower, self.middle_base, self.hash_gen) = kmer_tuple;
-                if self.rc {
-                    self.update_rc();
-                }
                 success = true;
             }
         } else {
@@ -202,15 +192,6 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
             self.middle_base = (self.lower >> (2 * (half_k - 1))).as_u8();
             self.lower =
                 ((self.lower << 2) | (IntT::from_encoded_base(new_base))) & self.lower_mask;
-            if self.rc {
-                self.rc_lower = (self.rc_lower >> 2
-                    | ((IntT::from_encoded_base(self.rc_middle_base)) << (2 * (half_k - 1))))
-                    & self.lower_mask;
-                self.rc_middle_base = rc_base(self.middle_base);
-                self.rc_upper = (self.rc_upper >> 2
-                    | (IntT::from_encoded_base(rc_base(new_base))) << (2 * ((half_k * 2) - 1)))
-                    & self.upper_mask;
-            }
             success = true;
         }
         success
@@ -260,15 +241,9 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
                 lower,
                 middle_base,
                 rc,
-                rc_upper: IntT::zero_init(),
-                rc_lower: IntT::zero_init(),
-                rc_middle_base: 0,
                 index,
                 hash_gen,
             };
-            if rc {
-                split_kmer.update_rc();
-            }
             Some(split_kmer)
         } else {
             None
@@ -283,14 +258,6 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         // Some of the most useful prints for debugging left as comments here
         //let (upper, lower) = decode_kmer(self.k, split_kmer, self.upper_mask, self.lower_mask);
         //println!("{} {} {}", upper, lower, self.middle_base);
-        if self.rc {
-            let rc_split_kmer = self.rc_upper | self.rc_lower;
-            //let (upper_rc, lower_rc) = decode_kmer(self.k, rc_split_kmer, self.upper_mask, self.lower_mask);
-            //println!("{} {} {}", upper_rc, lower_rc, self.rc_middle_base);
-            if split_kmer > rc_split_kmer {
-                return (rc_split_kmer, self.rc_middle_base, true);
-            }
-        }
         (split_kmer, self.middle_base, false)
     }
 
