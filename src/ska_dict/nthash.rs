@@ -28,6 +28,7 @@ pub struct NtHashIterator {
     k: usize,
     fh: u64,
     rh: Option<u64>,
+    pub is_palindrome: bool,
 }
 
 impl NtHashIterator {
@@ -38,10 +39,12 @@ impl NtHashIterator {
             fh ^= HASH_LOOKUP[encode_base(*v) as usize].rotate_left((k - i - 1) as u32);
         }
 
-        let rh = if rc {
+        let (rh, is_palindrome) = if rc {
             let mut h = 0;
+	    let mut palindrome = false;
             for (i, v) in seq[0..k].iter().rev().enumerate() {
                 h ^= RC_HASH_LOOKUP[encode_base(*v) as usize].rotate_left((k - i - 1) as u32);
+		palindrome = fh == h;
 
 		// Combine forward and reverse hashes; see
 		// https://stackoverflow.com/questions/5889238/why-is-xor-the-default-way-to-combine-hashes
@@ -49,12 +52,12 @@ impl NtHashIterator {
 		fh ^= h.wrapping_add(0x517c_c1b7_2722_0a95).wrapping_add(fh << 6).wrapping_add(fh >> 2);
 		h = fh.clone();
             }
-            Some(h)
+            (Some(h), palindrome)
         } else {
-            None
+            (None, false)
         };
 
-        Self { k, fh, rh }
+        Self { k, fh, rh, is_palindrome }
     }
 
     /// Move to the next k-mer by adding a new base, removing a base from the end, efficiently updating the hash.

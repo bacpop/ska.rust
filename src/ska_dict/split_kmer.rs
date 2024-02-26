@@ -136,13 +136,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
     /// Checks if the split k-mer arms are palindromes, i.e. k-mer is its own reverse complement
     /// In this case the middle base needs ambiguity with its rc added.
     pub fn self_palindrome(&mut self) -> bool {
-	if (self.rc) {
-	    let rc_upper = self.lower.rev_comp(self.k - 1) & self.upper_mask;
-	    let rc_lower = self.upper.rev_comp(self.k - 1) & self.lower_mask;
-            self.upper == rc_upper && self.lower == rc_lower
-	} else {
-	    false
-	}
+	self.hash_gen.as_ref().unwrap_or(return false).is_palindrome
     }
 
     /// Move forward to the next valid split k-mer
