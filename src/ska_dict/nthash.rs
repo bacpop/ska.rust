@@ -74,12 +74,8 @@ impl NtHashIterator {
         };
     }
 
-    /// Retrieve the current hash (minimum of forward and reverse complement hashes)
+    /// Retrieve the current hash
     pub fn curr_hash(&self) -> u64 {
-        if let Some(rev) = self.rh {
-            u64::min(self.fh, rev)
-        } else {
-            self.fh
-        }
+        self.fh
     }
 }
