@@ -41,8 +41,8 @@ pub struct AlnWriter<'a> {
     repeat_regions: &'a Vec<usize>,
     /// Whether to treat all ambiguous bases as Ns
     mask_ambig: bool,
-    /// Buffer for amibguous bases, which are written at finalisation.
-    _ambig_out: Vec<(u8, usize)>,
+    /// Buffer for middle bases, which are written at finalisation.
+    _middle_out: Vec<(u8, usize)>,
 }
 
 impl<'a> AlnWriter<'a> {
@@ -68,7 +68,7 @@ impl<'a> AlnWriter<'a> {
             finalised: false,
             repeat_regions,
             mask_ambig,
-            _ambig_out: Vec::new(),
+            _middle_out: Vec::new(),
         }
     }
 
@@ -125,14 +125,13 @@ impl<'a> AlnWriter<'a> {
         while mapped_chrom > self.curr_chrom {
             self.fill_contig();
         }
-        // Ambiguous bases may clash with the flanks, which are copied from
-        // reference. Deal with these in `finalise`.
-        if is_ambiguous(base) {
-            self._ambig_out.push((
-                if self.mask_ambig { b'N' } else { base },
-                mapped_pos + self.chrom_offset,
-            ));
-        }
+        // Middle bases may clash with the flanks in complex repeats, which then
+        // are copied from reference. Deal with these in `finalise`.
+        self._middle_out.push((
+            if is_ambiguous(base) && self.mask_ambig { b'N' } else { base },
+            mapped_pos + self.chrom_offset,
+        ));
+
         if mapped_pos < self.next_pos {
             self.last_mapped = mapped_pos;
         } else {
@@ -146,8 +145,6 @@ impl<'a> AlnWriter<'a> {
             let end = mapped_pos;
             self.seq_out[(start + self.chrom_offset)..(end + self.chrom_offset)]
                 .copy_from_slice(&self.ref_seq[self.curr_chrom][start..end]);
-            // Middle base
-            self.seq_out[mapped_pos + self.chrom_offset] = base;
 
             // update indices
             self.next_pos = mapped_pos + self.half_split_len + 1;
@@ -164,8 +161,8 @@ impl<'a> AlnWriter<'a> {
                 self.fill_contig();
             }
             // Make sure any ambiguous bases are correct
-            for (ambig_base, ambig_pos) in &self._ambig_out {
-                self.seq_out[*ambig_pos] = *ambig_base;
+            for (middle_base, middle_pos) in &self._middle_out {
+                self.seq_out[*middle_pos] = *middle_base;
             }
             // Mask repeats
             for repeat_idx in self.repeat_regions {
