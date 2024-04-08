@@ -161,6 +161,10 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
+
+        /// Number of reads before stopping
+        #[arg(long)]
+        max_reads: Option<usize>,
     },
     /// Write an unordered alignment
     Align {
@@ -195,6 +199,10 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
+
+        /// Number of reads before stopping
+        #[arg(long)]
+        max_reads: Option<usize>,
     },
     /// Write an ordered alignment using a reference sequence
     Map {
@@ -223,6 +231,10 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
+
+        /// Number of reads before stopping
+        #[arg(long)]
+        max_reads: Option<usize>,
     },
     /// Calculate SNP distances and k-mer mismatches
     Distance {

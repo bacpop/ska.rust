@@ -23,7 +23,7 @@ fn build_cli() {
         .arg(rfile_name)
         .arg("-o")
         .arg("basic_build_opts")
-        .args(&["-v", "--threads", "2", "-k", "31"])
+        .args(&["-v", "--threads", "2", "-k", "31", "--max-reads", "10000"])
         .assert()
         .success();
 

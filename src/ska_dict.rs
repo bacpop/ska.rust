@@ -97,10 +97,28 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
+    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts, max_reads: Option<usize>) {
+
+        // Go through the file once to count the number of reads
+        /* 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
-        while let Some(record) = reader.next() {
+        
+        let mut nb_reads = 0;
+        while let Some(record) = reader.next(){
+            nb_reads = nb_reads + 1
+        }
+        */
+
+        let mut reader =
+            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
+
+        let mut iter = 0;
+        while let Some(record) = reader.next(){
+            if max_reads.is_some(){
+                if iter == max_reads.unwrap() {break};
+            }
+
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
                 seqrec.seq(),
@@ -137,6 +155,7 @@ where
                     }
                 }
             }
+            iter = iter + 1;
         }
     }
 
@@ -155,7 +174,7 @@ where
     /// let k = 31;
     /// let sample_idx = 0;
     /// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
-    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality);
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality, None);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
@@ -170,7 +189,7 @@ where
     /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
     ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
     ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
-    ///                             "sample1", true, &quality);
+    ///                             "sample1", true, &quality, None);
     /// ```
     ///
     /// # Panics
@@ -188,6 +207,7 @@ where
         name: &str,
         rc: bool,
         qual: &QualOpts,
+        max_reads: Option<usize>,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -216,9 +236,9 @@ where
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(files.0, is_reads, qual);
+        sk_dict.add_file_kmers(files.0, is_reads, qual, max_reads);
         if let Some(second_filename) = files.1 {
-            sk_dict.add_file_kmers(second_filename, is_reads, qual);
+            sk_dict.add_file_kmers(second_filename, is_reads, qual, max_reads);
         }
 
         if sk_dict.ksize() == 0 {

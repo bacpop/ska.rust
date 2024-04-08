@@ -17,7 +17,7 @@
 //! let threads = 1;
 //! // If you don't know whether u64 or u128, try one and handle the error
 //! // see lib.rs for examples
-//! let ska_dict = load_array::<u64>(&["tests/test_files_in/merge.skf".to_string()], threads).unwrap().to_dict();
+//! let ska_dict = load_array::<u64>(&["tests/test_files_in/merge.skf".to_string()], threads, None).unwrap().to_dict();
 //!
 //! // Index a reference sequence
 //! let mask_repeats = false;

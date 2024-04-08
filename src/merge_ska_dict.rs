@@ -230,6 +230,7 @@ fn multi_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
+    max_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -243,6 +244,7 @@ where
             name,
             rc,
             qual,
+            max_reads,
         );
         merged_dict.append(&ska_dict);
     }
@@ -261,6 +263,7 @@ fn parallel_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
+    max_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -269,14 +272,14 @@ where
     let (bottom, top) = file_list.split_at(split_point);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || multi_append(bottom, offset, total_size, k, rc, qual),
-            || multi_append(top, offset + split_point, total_size, k, rc, qual),
+            || multi_append(bottom, offset, total_size, k, rc, qual, max_reads),
+            || multi_append(top, offset + split_point, total_size, k, rc, qual, max_reads),
         );
         bottom_merge.merge(&mut top_merge);
         bottom_merge
     } else {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || parallel_append(depth - 1, offset, bottom, total_size, k, rc, qual),
+            || parallel_append(depth - 1, offset, bottom, total_size, k, rc, qual, max_reads),
             || {
                 parallel_append(
                     depth - 1,
@@ -286,6 +289,7 @@ where
                     k,
                     rc,
                     qual,
+                    max_reads,
                 )
             },
         );
@@ -313,7 +317,7 @@ where
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, &quality, 1);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, &quality, 1, None);
 /// ```
 ///
 /// # Panics
@@ -325,6 +329,7 @@ pub fn build_and_merge<IntT>(
     rc: bool,
     qual: &QualOpts,
     threads: usize,
+    max_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -358,11 +363,11 @@ where
                 1 << max_depth
             )
         );
-        merged_dict = parallel_append(max_depth, 0, input_files, total_size, k, rc, qual);
+        merged_dict = parallel_append(max_depth, 0, input_files, total_size, k, rc, qual, max_reads);
     } else {
         log::info!("Build and merge serially");
         for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
-            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual);
+            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual, max_reads);
             merged_dict.append(&ska_dict);
         }
     }

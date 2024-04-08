@@ -56,6 +56,7 @@ pub fn read_input_fastas(seq_files: &[String]) -> Vec<InputFastx> {
 pub fn load_array<IntT: for<'a> UInt<'a>>(
     input: &[String],
     threads: usize,
+    max_reads: Option<usize>,
 ) -> Result<MergeSkaArray<IntT>, Box<dyn Error>> {
     // Obtain a merged ska array
     if input.len() == 1 {
@@ -78,6 +79,7 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
             !DEFAULT_STRAND,
             &default_qual,
             threads,
+            max_reads,
         );
         Ok(MergeSkaArray::new(&merged_dict))
     }
