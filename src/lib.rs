@@ -345,10 +345,10 @@
 //! let k = 17;
 //! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
-//! let max_reads = None;
+//! let proportion_reads = None;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads, max_reads);
+//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads, proportion_reads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -485,7 +485,7 @@ pub fn main() {
             min_qual,
             qual_filter,
             threads,
-            max_reads,
+            proportion_reads,
         } => {
             check_threads(*threads);
 
@@ -503,14 +503,14 @@ pub fn main() {
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
                 let merged_dict =
-                    build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads, *max_reads);
+                    build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads, *proportion_reads);
 
                 // Save
                 save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
                 let merged_dict =
-                    build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads, *max_reads);
+                    build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads, *proportion_reads);
 
                 // Save
                 save_skf(&merged_dict, output);

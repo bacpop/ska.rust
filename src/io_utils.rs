@@ -16,7 +16,7 @@ use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
 
 use crate::cli::{
-    DEFAULT_KMER, DEFAULT_MAX_READS, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_QUALFILTER,
+    DEFAULT_KMER, DEFAULT_PROPORTION_READS, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_QUALFILTER,
     DEFAULT_STRAND,
 };
 
@@ -79,7 +79,7 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
             !DEFAULT_STRAND,
             &default_qual,
             threads,
-            DEFAULT_MAX_READS,
+            DEFAULT_PROPORTION_READS,
         );
         Ok(MergeSkaArray::new(&merged_dict))
     }

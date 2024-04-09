@@ -102,14 +102,24 @@ where
         filename: &str,
         is_reads: bool,
         qual: &QualOpts,
-        max_reads: Option<usize>,
+        proportion_reads: Option<usize>,
     ) {
+
+        // Going though the file once to count the number of reads
+        let mut reader =
+            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
+
+        let mut nb_reads = 0;
+        while let Some(_record) = reader.next() {
+            nb_reads += 1;
+        }
+
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
         let mut iter = 0;
         while let Some(record) = reader.next() {
-            if max_reads.is_some() && iter == max_reads.unwrap() {
+            if proportion_reads.is_some() && iter == (nb_reads as f32 * (proportion_reads.unwrap() as f32/100.0)) as usize {
                 break;
             };
 
@@ -168,8 +178,8 @@ where
     /// let k = 31;
     /// let sample_idx = 0;
     /// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
-    /// let max_reads = None;
-    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality, max_reads);
+    /// let proportion_reads = None;
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality, proportion_reads);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
@@ -181,11 +191,11 @@ where
     /// let quality = QualOpts {min_count: 2, min_qual: 20, qual_filter: QualFilter::Middle};
     /// let k = 9;
     /// let sample_idx = 0;
-    /// let max_reads = None;
+    /// let proportion_reads = None;
     /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
     ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
     ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
-    ///                             "sample1", true, &quality, max_reads);
+    ///                             "sample1", true, &quality, proportion_reads);
     /// ```
     ///
     /// # Panics
@@ -203,7 +213,7 @@ where
         name: &str,
         rc: bool,
         qual: &QualOpts,
-        max_reads: Option<usize>,
+        proportion_reads: Option<usize>,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
@@ -232,9 +242,9 @@ where
         }
 
         // Build the dict
-        sk_dict.add_file_kmers(files.0, is_reads, qual, max_reads);
+        sk_dict.add_file_kmers(files.0, is_reads, qual, proportion_reads);
         if let Some(second_filename) = files.1 {
-            sk_dict.add_file_kmers(second_filename, is_reads, qual, max_reads);
+            sk_dict.add_file_kmers(second_filename, is_reads, qual, proportion_reads);
         }
 
         if sk_dict.ksize() == 0 {

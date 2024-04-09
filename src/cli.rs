@@ -8,7 +8,7 @@ use super::QualFilter;
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
 /// Defualt maximum number of reads
-pub const DEFAULT_MAX_READS: Option<usize> = None;
+pub const DEFAULT_PROPORTION_READS: Option<usize> = None;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
 /// Default behaviour when min-freq counting ambig sites
@@ -146,7 +146,7 @@ pub enum Commands {
 
         /// Number of reads before stopping
         #[arg(long)]
-        max_reads: Option<usize>,
+        proportion_reads: Option<usize>,
 
         /// Ignore reverse complement (all contigs are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]

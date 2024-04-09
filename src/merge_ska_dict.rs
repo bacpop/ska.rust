@@ -230,7 +230,7 @@ fn multi_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
-    max_reads: Option<usize>,
+    proportion_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -244,7 +244,7 @@ where
             name,
             rc,
             qual,
-            max_reads,
+            proportion_reads,
         );
         merged_dict.append(&ska_dict);
     }
@@ -255,6 +255,7 @@ where
 ///
 /// Depth sets number of splits into two
 /// i.e. depth 1 splits in 2, depth 2 splits in 4
+#[allow(clippy::too_many_arguments)]
 fn parallel_append<IntT>(
     depth: usize,
     offset: usize,
@@ -263,7 +264,7 @@ fn parallel_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
-    max_reads: Option<usize>,
+    proportion_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -272,7 +273,7 @@ where
     let (bottom, top) = file_list.split_at(split_point);
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || multi_append(bottom, offset, total_size, k, rc, qual, max_reads),
+            || multi_append(bottom, offset, total_size, k, rc, qual, proportion_reads),
             || {
                 multi_append(
                     top,
@@ -281,7 +282,7 @@ where
                     k,
                     rc,
                     qual,
-                    max_reads,
+                    proportion_reads,
                 )
             },
         );
@@ -298,7 +299,7 @@ where
                     k,
                     rc,
                     qual,
-                    max_reads,
+                    proportion_reads,
                 )
             },
             || {
@@ -310,7 +311,7 @@ where
                     k,
                     rc,
                     qual,
-                    max_reads,
+                    proportion_reads,
                 )
             },
         );
@@ -350,7 +351,7 @@ pub fn build_and_merge<IntT>(
     rc: bool,
     qual: &QualOpts,
     threads: usize,
-    max_reads: Option<usize>,
+    proportion_reads: Option<usize>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -392,7 +393,7 @@ where
             k,
             rc,
             qual,
-            max_reads,
+            proportion_reads,
         );
     } else {
         log::info!("Build and merge serially");
@@ -404,7 +405,7 @@ where
                 name,
                 rc,
                 qual,
-                max_reads,
+                proportion_reads,
             );
             merged_dict.append(&ska_dict);
         }
