@@ -345,9 +345,10 @@
 //! let k = 17;
 //! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
+//! let max_reads = None;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads, None);
+//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads, max_reads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -364,8 +365,7 @@
 //! // Load an .skf file
 //! let threads = 4;
 //! let input = vec!["tests/test_files_in/merge.skf".to_string()];
-//! let max_reads = None;
-//! let mut ska_array = load_array::<u64>(&input, threads, max_reads).expect("Could not open input as u64");
+//! let mut ska_array = load_array::<u64>(&input, threads).expect("Could not open input as u64");
 //!
 //! // Apply filters
 //! let min_count = 2;
@@ -502,13 +502,15 @@ pub fn main() {
 
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads, *max_reads);
+                let merged_dict =
+                    build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads, *max_reads);
 
                 // Save
                 save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict = build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads, *max_reads);
+                let merged_dict =
+                    build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads, *max_reads);
 
                 // Save
                 save_skf(&merged_dict, output);
@@ -523,10 +525,9 @@ pub fn main() {
             ambig_mask,
             no_gap_only_sites,
             threads,
-            max_reads,
         } => {
             check_threads(*threads);
-            if let Ok(mut ska_array) = load_array::<u64>(input, *threads, *max_reads) {
+            if let Ok(mut ska_array) = load_array::<u64>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
                 align(
@@ -538,7 +539,7 @@ pub fn main() {
                     *min_freq,
                     *filter_ambig_as_missing,
                 );
-            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads, *max_reads) {
+            } else if let Ok(mut ska_array) = load_array::<u128>(input, *threads) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
                 align(
@@ -562,12 +563,11 @@ pub fn main() {
             ambig_mask,
             repeat_mask,
             threads,
-            max_reads,
         } => {
             check_threads(*threads);
 
             log::info!("Loading skf as dictionary");
-            if let Ok(ska_array) = load_array::<u64>(input, *threads, *max_reads) {
+            if let Ok(ska_array) = load_array::<u64>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),
@@ -581,7 +581,7 @@ pub fn main() {
                     *repeat_mask,
                 );
                 map(&ska_array, &mut ska_ref, output, format, *threads);
-            } else if let Ok(ska_array) = load_array::<u128>(input, *threads, *max_reads) {
+            } else if let Ok(ska_array) = load_array::<u128>(input, *threads) {
                 log::info!(
                     "Making skf of reference k={} rc={}",
                     ska_array.kmer_len(),

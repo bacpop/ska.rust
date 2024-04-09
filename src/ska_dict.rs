@@ -97,27 +97,21 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts, max_reads: Option<usize>) {
-
-        // Go through the file once to count the number of reads
-        /* 
-        let mut reader =
-            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
-        
-        let mut nb_reads = 0;
-        while let Some(record) = reader.next(){
-            nb_reads = nb_reads + 1
-        }
-        */
-
+    fn add_file_kmers(
+        &mut self,
+        filename: &str,
+        is_reads: bool,
+        qual: &QualOpts,
+        max_reads: Option<usize>,
+    ) {
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
         let mut iter = 0;
-        while let Some(record) = reader.next(){
-            if max_reads.is_some(){
-                if iter == max_reads.unwrap() {break};
-            }
+        while let Some(record) = reader.next() {
+            if max_reads.is_some() && iter == max_reads.unwrap() {
+                break;
+            };
 
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
@@ -155,7 +149,7 @@ where
                     }
                 }
             }
-            iter = iter + 1;
+            iter += 1;
         }
     }
 
@@ -174,7 +168,8 @@ where
     /// let k = 31;
     /// let sample_idx = 0;
     /// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
-    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality, None);
+    /// let max_reads = None;
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality, max_reads);
     /// ```
     ///
     /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
@@ -186,10 +181,11 @@ where
     /// let quality = QualOpts {min_count: 2, min_qual: 20, qual_filter: QualFilter::Middle};
     /// let k = 9;
     /// let sample_idx = 0;
+    /// let max_reads = None;
     /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
     ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
     ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
-    ///                             "sample1", true, &quality, None);
+    ///                             "sample1", true, &quality, max_reads);
     /// ```
     ///
     /// # Panics

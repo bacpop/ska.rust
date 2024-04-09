@@ -7,6 +7,8 @@ use super::QualFilter;
 
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
+/// Defualt maximum number of reads
+pub const DEFAULT_MAX_READS: Option<usize> = None;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
 /// Default behaviour when min-freq counting ambig sites
@@ -142,6 +144,10 @@ pub enum Commands {
         #[arg(short, value_parser = valid_kmer, default_value_t = DEFAULT_KMER)]
         k: usize,
 
+        /// Number of reads before stopping
+        #[arg(long)]
+        max_reads: Option<usize>,
+
         /// Ignore reverse complement (all contigs are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
@@ -161,10 +167,6 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
-
-        /// Number of reads before stopping
-        #[arg(long)]
-        max_reads: Option<usize>,
     },
     /// Write an unordered alignment
     Align {
@@ -199,10 +201,6 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
-
-        /// Number of reads before stopping
-        #[arg(long)]
-        max_reads: Option<usize>,
     },
     /// Write an ordered alignment using a reference sequence
     Map {
@@ -231,10 +229,6 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
-
-        /// Number of reads before stopping
-        #[arg(long)]
-        max_reads: Option<usize>,
     },
     /// Calculate SNP distances and k-mer mismatches
     Distance {

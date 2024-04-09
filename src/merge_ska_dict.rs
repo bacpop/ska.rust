@@ -273,13 +273,34 @@ where
     if depth == 1 {
         let (mut bottom_merge, mut top_merge) = rayon::join(
             || multi_append(bottom, offset, total_size, k, rc, qual, max_reads),
-            || multi_append(top, offset + split_point, total_size, k, rc, qual, max_reads),
+            || {
+                multi_append(
+                    top,
+                    offset + split_point,
+                    total_size,
+                    k,
+                    rc,
+                    qual,
+                    max_reads,
+                )
+            },
         );
         bottom_merge.merge(&mut top_merge);
         bottom_merge
     } else {
         let (mut bottom_merge, mut top_merge) = rayon::join(
-            || parallel_append(depth - 1, offset, bottom, total_size, k, rc, qual, max_reads),
+            || {
+                parallel_append(
+                    depth - 1,
+                    offset,
+                    bottom,
+                    total_size,
+                    k,
+                    rc,
+                    qual,
+                    max_reads,
+                )
+            },
             || {
                 parallel_append(
                     depth - 1,
@@ -363,11 +384,28 @@ where
                 1 << max_depth
             )
         );
-        merged_dict = parallel_append(max_depth, 0, input_files, total_size, k, rc, qual, max_reads);
+        merged_dict = parallel_append(
+            max_depth,
+            0,
+            input_files,
+            total_size,
+            k,
+            rc,
+            qual,
+            max_reads,
+        );
     } else {
         log::info!("Build and merge serially");
         for (idx, (name, filename, second_file)) in input_files.iter().progress().enumerate() {
-            let ska_dict = SkaDict::new(k, idx, (filename, second_file.as_ref()), name, rc, qual, max_reads);
+            let ska_dict = SkaDict::new(
+                k,
+                idx,
+                (filename, second_file.as_ref()),
+                name,
+                rc,
+                qual,
+                max_reads,
+            );
             merged_dict.append(&ska_dict);
         }
     }
