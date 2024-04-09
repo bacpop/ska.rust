@@ -1,0 +1,12 @@
+ska_version=[..]
+k=17
+k_bits=64
+rc=false
+k-mers=2
+samples=1
+sample_names=["max_reads"]
+sample_kmers=[2]
+
+[..]
+[..]
+

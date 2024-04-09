@@ -31,6 +31,33 @@ fn build_cli() {
 }
 
 #[test]
+fn build_max_reads() {
+    let sandbox = TestSetup::setup();
+    
+    Command::new(cargo_bin("ska"))
+    .current_dir(sandbox.get_wd())
+    .arg("build")
+    .arg("--single-strand")
+    .arg("-o")
+    .arg("build_max_reads")
+    .arg(sandbox.file_string("max_reads.fa", TestDir::Input))
+    .arg("--max-reads")
+    .arg("1")
+    .arg("-v")
+    .assert()
+    .success();
+
+Command::new(cargo_bin("ska"))
+    .current_dir(sandbox.get_wd())
+    .arg("nk")
+    .arg("build_max_reads.skf")
+    .arg("--full-info")
+    .arg("-v")
+    .assert()
+    .stdout_matches_path(sandbox.file_string("max_reads.stdout", TestDir::Correct));
+}
+
+#[test]
 fn align_cli() {
     let sandbox = TestSetup::setup();
 
