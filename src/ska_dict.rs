@@ -104,24 +104,39 @@ where
         qual: &QualOpts,
         proportion_reads: Option<usize>,
     ) {
-
         // Going though the file once to count the number of reads
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
-        let mut nb_reads = 0;
+        let mut nb_reads_total = 0;
         while let Some(_record) = reader.next() {
-            nb_reads += 1;
+            nb_reads_total += 1;
+        }
+
+        let mut nb_reads = nb_reads_total;
+        if proportion_reads.is_some() {
+            nb_reads = (nb_reads as f32 * (proportion_reads.unwrap() as f32 / 100.0)) as usize;
+        }
+
+        let ordered = true;
+        //let ordered: bool = is_ordered(filename);
+        let mut step = 0.0;
+        if ordered {
+            step = nb_reads_total as f64 / nb_reads as f64;
         }
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
-        let mut iter = 0;
+        let mut iter_reads = 0;
+        let mut iter_nb_visited = 0;
         while let Some(record) = reader.next() {
-            if proportion_reads.is_some() && iter == (nb_reads as f32 * (proportion_reads.unwrap() as f32/100.0)) as usize {
+            if ordered && (iter_reads as f64 % step) as usize != 0 {
+                iter_reads += 1;
+                continue;
+            } else if iter_nb_visited >= nb_reads {
                 break;
-            };
+            }
 
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
@@ -159,7 +174,8 @@ where
                     }
                 }
             }
-            iter += 1;
+            iter_reads += 1;
+            iter_nb_visited += 1;
         }
     }
 

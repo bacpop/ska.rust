@@ -502,15 +502,27 @@ pub fn main() {
 
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads, *proportion_reads);
+                let merged_dict = build_and_merge::<u64>(
+                    &input_files,
+                    *k,
+                    rc,
+                    &quality,
+                    *threads,
+                    *proportion_reads,
+                );
 
                 // Save
                 save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict =
-                    build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads, *proportion_reads);
+                let merged_dict = build_and_merge::<u128>(
+                    &input_files,
+                    *k,
+                    rc,
+                    &quality,
+                    *threads,
+                    *proportion_reads,
+                );
 
                 // Save
                 save_skf(&merged_dict, output);

@@ -16,7 +16,7 @@ use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
 
 use crate::cli::{
-    DEFAULT_KMER, DEFAULT_PROPORTION_READS, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_QUALFILTER,
+    DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_PROPORTION_READS, DEFAULT_QUALFILTER,
     DEFAULT_STRAND,
 };
 
