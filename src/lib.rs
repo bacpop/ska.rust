@@ -110,6 +110,8 @@
 //! to be included. This is an effective way of filtering sequencing errors if set
 //! to at least three, but higher may be appropriate for higher coverage data.
 //! A two-step blocked bloom and hash table filter is used for memory efficiency.
+//! - `--proportion-reads`. Specify a proportion of reads to use to build the .skf file.
+//! The value of this parameter must be between 0 and 1.
 //! - `--qual-filter`. `none` do not filter based on quality scores.
 //! `middle` (default) filter k-mers where the middle base is below the minimum quality.
 //! `strict` filter k-mers where any base is below the minimum quality.
@@ -345,9 +347,10 @@
 //! let k = 17;
 //! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
+//! let proportion_reads = None;
 //! // NB u64 for k<=31, u128 for k<=63
 //! let merged_dict =
-//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads);
+//!     build_and_merge::<u64>(&input_files, k, rc, &quality, threads, proportion_reads);
 //!
 //! // Save
 //! let ska_array = MergeSkaArray::new(&merged_dict);
@@ -484,6 +487,7 @@ pub fn main() {
             min_qual,
             qual_filter,
             threads,
+            proportion_reads,
         } => {
             check_threads(*threads);
 
@@ -500,13 +504,27 @@ pub fn main() {
 
             if *k <= 31 {
                 log::info!("k={}: using 64-bit representation", *k);
-                let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads);
+                let merged_dict = build_and_merge::<u64>(
+                    &input_files,
+                    *k,
+                    rc,
+                    &quality,
+                    *threads,
+                    *proportion_reads,
+                );
 
                 // Save
                 save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
-                let merged_dict = build_and_merge::<u128>(&input_files, *k, rc, &quality, *threads);
+                let merged_dict = build_and_merge::<u128>(
+                    &input_files,
+                    *k,
+                    rc,
+                    &quality,
+                    *threads,
+                    *proportion_reads,
+                );
 
                 // Save
                 save_skf(&merged_dict, output);

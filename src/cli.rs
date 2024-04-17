@@ -7,6 +7,8 @@ use super::QualFilter;
 
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
+/// Defualt maximum number of reads
+pub const DEFAULT_PROPORTION_READS: Option<f64> = None;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
 /// Default behaviour when min-freq counting ambig sites
@@ -30,9 +32,21 @@ fn valid_kmer(s: &str) -> Result<usize, String> {
         .parse()
         .map_err(|_| format!("`{s}` isn't a valid k-mer"))?;
     if !(5..=63).contains(&k) || k % 2 == 0 {
-        Err("K-mer must an odd number between 5 and 63 (inclusive)".to_string())
+        Err("K-mer must be an odd number between 5 and 63 (inclusive)".to_string())
     } else {
         Ok(k)
+    }
+}
+
+#[doc(hidden)]
+fn valid_proportion(s: &str) -> Result<f64, String> {
+    let p: f64 = s
+        .parse()
+        .map_err(|_| format!("`{s}` isn't a valid proportion"))?;
+    if !(0.0..=1.0).contains(&p) {
+        Err("K-mer must be between 0 and 1 (inclusive)".to_string())
+    } else {
+        Ok(p)
     }
 }
 
@@ -141,6 +155,10 @@ pub enum Commands {
         /// K-mer size
         #[arg(short, value_parser = valid_kmer, default_value_t = DEFAULT_KMER)]
         k: usize,
+
+        /// Number of reads before stopping
+        #[arg(long, value_parser = valid_proportion)]
+        proportion_reads: Option<f64>,
 
         /// Ignore reverse complement (all contigs are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]

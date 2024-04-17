@@ -128,7 +128,11 @@ impl<'a> AlnWriter<'a> {
         // Middle bases may clash with the flanks in complex repeats, which then
         // are copied from reference. Deal with these in `finalise`.
         self._middle_out.push((
-            if is_ambiguous(base) && self.mask_ambig { b'N' } else { base },
+            if is_ambiguous(base) && self.mask_ambig {
+                b'N'
+            } else {
+                base
+            },
             mapped_pos + self.chrom_offset,
         ));
 

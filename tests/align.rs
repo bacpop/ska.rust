@@ -31,6 +31,33 @@ fn build_cli() {
 }
 
 #[test]
+fn build_proportion_reads() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("--single-strand")
+        .arg("-o")
+        .arg("build_proportion_reads")
+        .arg(sandbox.file_string("proportion_reads.fa", TestDir::Input))
+        .arg("--proportion-reads")
+        .arg("0.5")
+        .arg("-v")
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("nk")
+        .arg("build_proportion_reads.skf")
+        .arg("--full-info")
+        .arg("-v")
+        .assert()
+        .stdout_matches_path(sandbox.file_string("proportion_reads.stdout", TestDir::Correct));
+}
+
+#[test]
 fn align_cli() {
     let sandbox = TestSetup::setup();
 
