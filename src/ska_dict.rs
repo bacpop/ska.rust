@@ -102,7 +102,7 @@ where
         filename: &str,
         is_reads: bool,
         qual: &QualOpts,
-        proportion_reads: Option<usize>,
+        proportion_reads: Option<f64>,
     ) {
         // Going though the file once to count the number of reads
         let mut reader =
@@ -115,7 +115,7 @@ where
 
         let mut nb_reads = nb_reads_total;
         if proportion_reads.is_some() {
-            nb_reads = (nb_reads as f32 * (proportion_reads.unwrap() as f32 / 100.0)) as usize;
+            nb_reads = (nb_reads as f64 * proportion_reads.unwrap()) as usize;
         }
 
         let step = nb_reads_total as f64 / nb_reads as f64;
@@ -220,7 +220,7 @@ where
         name: &str,
         rc: bool,
         qual: &QualOpts,
-        proportion_reads: Option<usize>,
+        proportion_reads: Option<f64>,
     ) -> Self {
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");

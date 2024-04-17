@@ -230,7 +230,7 @@ fn multi_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
-    proportion_reads: Option<usize>,
+    proportion_reads: Option<f64>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -264,7 +264,7 @@ fn parallel_append<IntT>(
     k: usize,
     rc: bool,
     qual: &QualOpts,
-    proportion_reads: Option<usize>,
+    proportion_reads: Option<f64>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
@@ -351,7 +351,7 @@ pub fn build_and_merge<IntT>(
     rc: bool,
     qual: &QualOpts,
     threads: usize,
-    proportion_reads: Option<usize>,
+    proportion_reads: Option<f64>,
 ) -> MergeSkaDict<IntT>
 where
     IntT: for<'a> UInt<'a>,
