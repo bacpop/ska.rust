@@ -108,17 +108,19 @@ where
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
-        let mut nb_reads_total = 0;
-        while let Some(_record) = reader.next() {
-            nb_reads_total += 1;
-        }
+        let mut step: f64 = 1.0;
 
-        let mut nb_reads = nb_reads_total;
         if proportion_reads.is_some() {
-            nb_reads = (nb_reads as f64 * proportion_reads.unwrap()) as usize;
-        }
+            let mut nb_reads_total = 0;
+            while let Some(_record) = reader.next() {
+                nb_reads_total += 1;
+            }
 
-        let step = nb_reads_total as f64 / nb_reads as f64;
+            let mut nb_reads = nb_reads_total;
+            nb_reads = (nb_reads as f64 * proportion_reads.unwrap()) as usize;
+
+            step = nb_reads_total as f64 / nb_reads as f64;
+        }
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
@@ -128,6 +130,8 @@ where
             if (iter_reads as f64 % step) as usize != 0 {
                 iter_reads += 1;
                 continue;
+            } else {
+                iter_reads += 1;
             }
 
             let seqrec = record.expect("Invalid FASTA/Q record");
@@ -166,7 +170,6 @@ where
                     }
                 }
             }
-            iter_reads += 1;
         }
     }
 
