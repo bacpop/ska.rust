@@ -108,7 +108,7 @@ where
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
-        let mut step: f64 = 1.0;
+        let mut step: usize = 1;
 
         if proportion_reads.is_some() {
             let mut nb_reads_total = 0;
@@ -119,7 +119,7 @@ where
             let mut nb_reads = nb_reads_total;
             nb_reads = (nb_reads as f64 * proportion_reads.unwrap()) as usize;
 
-            step = nb_reads_total as f64 / nb_reads as f64;
+            step = (nb_reads_total as f64 / nb_reads as f64).round() as usize;
         }
 
         let mut reader =
@@ -127,7 +127,7 @@ where
 
         let mut iter_reads = 0;
         while let Some(record) = reader.next() {
-            if (iter_reads as f64 % step) as usize != 0 {
+            if iter_reads % step != 0 {
                 iter_reads += 1;
                 continue;
             } else {
