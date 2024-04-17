@@ -110,6 +110,8 @@
 //! to be included. This is an effective way of filtering sequencing errors if set
 //! to at least three, but higher may be appropriate for higher coverage data.
 //! A two-step blocked bloom and hash table filter is used for memory efficiency.
+//! - `--proportion-reads`. Specify a proportion of reads to use to build the .skf file.
+//! The value of this parameter must be between 0 and 1.
 //! - `--qual-filter`. `none` do not filter based on quality scores.
 //! `middle` (default) filter k-mers where the middle base is below the minimum quality.
 //! `strict` filter k-mers where any base is below the minimum quality.
