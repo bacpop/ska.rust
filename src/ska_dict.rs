@@ -104,22 +104,10 @@ where
         qual: &QualOpts,
         proportion_reads: Option<f64>,
     ) {
-        // Going though the file once to count the number of reads
-        let mut reader =
-            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
-
         let mut step: usize = 1;
 
         if proportion_reads.is_some() {
-            let mut nb_reads_total = 0;
-            while let Some(_record) = reader.next() {
-                nb_reads_total += 1;
-            }
-
-            let mut nb_reads = nb_reads_total;
-            nb_reads = (nb_reads as f64 * proportion_reads.unwrap()) as usize;
-
-            step = (nb_reads_total as f64 / nb_reads as f64).round() as usize;
+            step = (1.0 / proportion_reads.unwrap()).round() as usize;
         }
 
         let mut reader =
