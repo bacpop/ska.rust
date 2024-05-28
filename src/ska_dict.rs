@@ -107,7 +107,7 @@ where
         let mut step: usize = 1;
 
         if proportion_reads.is_some() {
-            step = (1 as f64 / proportion_reads.unwrap()).round() as usize;
+            step = (1.0 / proportion_reads.unwrap()).round() as usize;
         }
 
         let mut reader =
