@@ -8,9 +8,12 @@ mpl.rcParams.update({"font.size": 18})
 import matplotlib.pyplot as plt
 
 import argparse
+from math import exp
 
+# Space at the top
+y_padding = 1.1
 
-def norm_series(series: list()):
+def norm_series(series: list):
     norm = max(series)
     series = [item / norm for item in series]
     return series
@@ -54,7 +57,7 @@ def main():
 
     ax1.set_xlabel("K-mer count")
     ax1.set_ylabel("Frequency")
-    ax1.set_ylim(0, k_norm[1])
+    ax1.set_ylim(0, max(k_norm[1:]) * y_padding)
     ax1.plot(
         idx_xseries, k_norm, color="black", linewidth=2, label="K-mer count frequency"
     )
@@ -79,7 +82,7 @@ def main():
     ax2.set_yscale("log")
     ax2.set_xlabel("K-mer count")
     ax2.set_ylabel("log(Frequency)")
-    ax2.set_ylim(min(k_norm), k_norm[1])
+    ax2.set_ylim(min(k_norm), max(k_norm[1:]) * exp(y_padding))
     ax2.plot(
         idx_xseries, k_norm, color="black", linewidth=2, label="K-mer count frequency"
     )

@@ -148,6 +148,7 @@ where
     ///
     /// # Panics
     /// - If the fit has already been run
+    #[allow(clippy::map_clone)]
     pub fn fit_histogram(&mut self) -> Result<usize, Error> {
         if self.fitted {
             panic!("Model already fitted");
@@ -163,15 +164,15 @@ where
         }
 
         // Truncate count vec and covert to float
-        let mut counts_f64: Vec<f64> = Vec::new();
-        for hist_bin in &self.counts {
-            if *hist_bin < MIN_FREQ {
-                break;
-            } else {
-                counts_f64.push(*hist_bin as f64);
-            }
-        }
-        let count_len = counts_f64.len();
+        self.counts = self
+            .counts
+            .iter()
+            .rev()
+            .skip_while(|x| **x < MIN_FREQ)
+            .map(|x| *x)
+            .collect();
+        self.counts.reverse();
+        let counts_f64: Vec<f64> = self.counts.iter().map(|x| *x as f64).collect();
 
         // Fit with maximum likelihood. Using BFGS optimiser and simple line search
         // seems to work fine
@@ -182,13 +183,13 @@ where
         // and it gave very poor results for the c optimisation
         let init_hessian: Vec<Vec<f64>> = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         let linesearch = BacktrackingLineSearch::new(ArmijoCondition::new(0.0001f64)?);
-        let solver = BFGS::new(linesearch);
+        let solver = BFGS::new(linesearch).with_tolerance_cost(1e-6)?;
         // Usually around 10 iterations should be enough
         let mut exec = Executor::new(mixture_fit, solver).configure(|state| {
             state
                 .param(init_param)
                 .inv_hessian(init_hessian)
-                .max_iters(100)
+                .max_iters(20)
         });
         if self.verbose {
             exec = exec.add_observer(SlogLogger::term(), ObserverMode::Always);
@@ -205,7 +206,7 @@ where
                 self.c = best[1];
 
                 // calculate the coverage cutoff
-                self.cutoff = find_cutoff(best, count_len);
+                self.cutoff = find_cutoff(best, self.counts.len());
                 self.fitted = true;
                 Ok(self.cutoff)
             } else {
@@ -232,13 +233,10 @@ where
         log::info!("Calculating and printing count series");
         println!("Count\tK_mers\tMixture_density\tComponent");
         for (idx, count) in self.counts.iter().enumerate() {
-            if *count < MIN_FREQ {
-                break;
-            }
             println!(
                 "{}\t{}\t{:e}\t{}",
                 idx + 1,
-                *count,
+                *count as usize,
                 f64::exp(lse(
                     a(self.w0, idx as f64 + 1.0),
                     b(self.w0, self.c, idx as f64 + 1.0)

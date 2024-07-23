@@ -1,6 +1,6 @@
 [package]
 name = "ska"
-version = "0.3.8"
+version = "0.3.9"
 authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
