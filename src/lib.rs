@@ -56,14 +56,14 @@
 //! ## Important notes
 //!
 //! - In this version of ska the k-mer length is the _total_ split k-mer size,
-//! whereas in ska1 the k-mer length is half the split length. So the default of
-//! k=15 in ska1 corresponds to choosing `-k 31` in this version.
+//!     whereas in ska1 the k-mer length is half the split length. So the default of
+//!     k=15 in ska1 corresponds to choosing `-k 31` in this version.
 //! - If you are using FASTQ input files (reads), these must be provided as two
-//! deinterleaved files using the `-f` option to `ska build`. Providing them as
-//! a single file will treat them as FASTA, and not correct sequencing errors.
+//!     deinterleaved files using the `-f` option to `ska build`. Providing them as
+//!     a single file will treat them as FASTA, and not correct sequencing errors.
 //! - If you are running `ska map`, it is more memory efficient to run these one at
-//! a time, rather than merging a single `.skf` file. A command for doing this
-//! in parallel is listed below.
+//!     a time, rather than merging a single `.skf` file. A command for doing this
+//!     in parallel is listed below.
 //!
 //! ## Common options
 //!
@@ -107,14 +107,15 @@
 //! ```
 //! Options for filtering/error correction are:
 //! - `--min-count`. Specify a minimum number of appearances a k-mer must have
-//! to be included. This is an effective way of filtering sequencing errors if set
-//! to at least three, but higher may be appropriate for higher coverage data.
-//! A two-step blocked bloom and hash table filter is used for memory efficiency.
+//!     to be included. This is an effective way of filtering sequencing errors if set
+//!     to at least three, but higher may be appropriate for higher coverage data.
+//!     A two-step blocked bloom and hash table filter is used for memory efficiency.
 //! - `--proportion-reads`. Specify a proportion of reads to use to build the .skf file.
-//! The value of this parameter must be between 0 and 1.
+//!     The value of this parameter must be between 0 and 1. If you have high coverage samples
+//!     this can be used to reduce the build time.
 //! - `--qual-filter`. `none` do not filter based on quality scores.
-//! `middle` (default) filter k-mers where the middle base is below the minimum quality.
-//! `strict` filter k-mers where any base is below the minimum quality.
+//!     `middle` (default) filter k-mers where the middle base is below the minimum quality.
+//!     `strict` filter k-mers where any base is below the minimum quality.
 //! - `--min-qual`. Specify a minimum PHRED score to use in the filter.
 //!
 //! FASTQ files must be paired end. If you'd like to request more flexibility in
