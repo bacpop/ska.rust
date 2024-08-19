@@ -148,7 +148,6 @@ where
     ///
     /// # Panics
     /// - If the fit has already been run
-    #[allow(clippy::map_clone)]
     pub fn fit_histogram(&mut self) -> Result<usize, Error> {
         if self.fitted {
             panic!("Model already fitted");
@@ -169,7 +168,7 @@ where
             .iter()
             .rev()
             .skip_while(|x| **x < MIN_FREQ)
-            .map(|x| *x)
+            .copied()
             .collect();
         self.counts.reverse();
         let counts_f64: Vec<f64> = self.counts.iter().map(|x| *x as f64).collect();
