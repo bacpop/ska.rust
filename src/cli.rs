@@ -280,7 +280,12 @@ pub enum Commands {
     /// Remove samples from a split k-mer file
     Delete {
         /// Split-kmer (.skf) file to operate on
+        #[arg(short, long, required = true)]
         skf_file: String,
+
+        /// Output name. If not provided, will overwrite the input file
+        #[arg(short)]
+        output: Option<String>,
 
         /// File listing sample names to remove
         #[arg(short, group = "input")]

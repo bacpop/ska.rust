@@ -53,8 +53,8 @@ fn merge_delete() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
+        .args(&["-s", "merge.skf"])
         .arg("test_3")
-        .arg("merge.skf")
         .assert()
         .failure();
 
@@ -69,7 +69,7 @@ fn merge_delete() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .arg("merge.skf")
+        .args(&["-s", "merge.skf"])
         .arg("test_2")
         .assert()
         .success();
@@ -125,8 +125,8 @@ fn merge_delete_u128() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .arg("test_3")
-        .arg("merge.skf")
+        .args(&["-s", "merge.skf"])
+        .args(&["-f", &sandbox.file_string("missing_delete.txt", TestDir::Input)])
         .arg("-v")
         .assert()
         .failure();
@@ -142,7 +142,8 @@ fn merge_delete_u128() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .arg("merge.skf")
+        .args(&["-s", "merge.skf"])
+        .args(&["-o", "merge_delete"])
         .arg("test_2")
         .arg("-v")
         .assert()
@@ -151,7 +152,7 @@ fn merge_delete_u128() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
-        .arg("merge.skf")
+        .arg("merge_delete.skf")
         .assert()
         .stdout_eq(test1_nk.stdout);
 }

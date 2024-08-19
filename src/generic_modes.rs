@@ -209,9 +209,15 @@ pub fn delete<IntT: for<'a> UInt<'a>>(
     log::info!("Deleting samples");
     ska_array.delete_samples(delete_names);
 
-    log::info!("Saving modified skf file");
+    // Conditionally add suffix
+    let outfile_suffix = if out_file.ends_with(".skf") {
+        out_file.to_string()
+    } else {
+        format!("{out_file}.skf")
+    };
+    log::info!("Saving modified skf file to {outfile_suffix}");
     ska_array
-        .save(out_file)
+        .save(&outfile_suffix)
         .expect("Could not save modified array");
 }
 

@@ -236,11 +236,12 @@
 //! ## ska delete
 //!
 //! Remove samples by name from an `.skf` file. All sample names must exist in the
-//! file, or an error will be thrown. After removing samples, the input `.skf` file will be overwritten.
+//! file, or an error will be thrown. After removing samples, the input `.skf` file will be overwritten,
+//! unless you provide a new one with `-o`.
 //! Any split k-mers which have no observed missing bases after removal will also be deleted.
 //!
 //! ```bash
-//! ska delete all_samples.skf sample_1 sample_3
+//! ska delete --skf-file all_samples.skf sample_1 sample_3
 //! ```
 //! If you wish to delete many samples, you can use `-f` to provide their names
 //! by line via an input file.
@@ -662,16 +663,18 @@ pub fn main() {
         }
         Commands::Delete {
             skf_file,
+            output,
             file_list,
             names,
         } => {
             let input_files = get_input_list(file_list, names);
             let input_names: Vec<&str> = input_files.iter().map(|t| &*t.0).collect();
+            let output_file = output.clone().unwrap_or(skf_file.to_string());
             log::info!("Loading skf file");
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
-                delete(&mut ska_array, &input_names, skf_file);
+                delete(&mut ska_array, &input_names, &output_file);
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
-                delete(&mut ska_array, &input_names, skf_file);
+                delete(&mut ska_array, &input_names, &output_file);
             } else {
                 panic!("Could not read input file: {skf_file}");
             }
