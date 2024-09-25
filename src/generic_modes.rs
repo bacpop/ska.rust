@@ -152,6 +152,8 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     );
     if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
         if filt_ambig {
+            let filter_ambig_as_missing = true;
+            let mask_ambig = true;
             apply_filters(
                 ska_array,
                 min_freq,

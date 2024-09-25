@@ -26,11 +26,18 @@ Split k-mer analysis (version 2) uses exact matching of split k-mer sequences to
 
 SKA can only align SNPs further than the k-mer length apart, and does not use a gap penalty approach or give alignment scores. But the advantages are speed and flexibility, particularly the ability to run on a reference-free manner (i.e. including accessory genome variation) on both assemblies and reads.
 
+### Citation
+
+Romain Derelle, Johanna von Wachsmann, Tommi M&auml;klin, Joel Hellewell, Timothy Russell, Ajit Lalvani, Leonid Chindelevitch, Nicholas J. Croucher, Simon R. Harris, John A. Lees (2024).
+**Seamless, rapid and accurate analyses of outbreak genomic data using Split _k_-mer Analysis**
+*Genome Research*
+
 ## Documentation
 
 Can be found at https://docs.rs/ska. We also have some tutorials available:
 
 - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+- [Filtering options](https://www.bacpop.org/guides/snp_alignment_with_ska/).
 
 ## Installation
 

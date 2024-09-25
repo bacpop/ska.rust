@@ -50,6 +50,7 @@ fn dist_filter() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--allow-ambiguous")
         .arg("-v")
         .args(&["--threads", "2"])
         .assert()
@@ -60,7 +61,6 @@ fn dist_filter() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
-        .arg("--filter-ambiguous")
         .arg("-v")
         .assert()
         .stdout_eq_path(sandbox.file_string("merge_k9_no_ambig.dist.stdout", TestDir::Correct));
@@ -97,21 +97,24 @@ fn multisample_dists() {
         .assert()
         .success();
 
+    // Test with filters off
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
+        .args(&["--min-freq", "0"])
+        .arg("--allow-ambiguous")
         .args(&["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
 
+    // Test with default filters
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
-        .args(&["--min-freq", "0.5"])
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.filter.stdout", TestDir::Correct));
 }

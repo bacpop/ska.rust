@@ -342,6 +342,8 @@ where
                 } else {
                     removed += 1;
                 }
+            } else {
+                removed += 1;
             }
         }
         self.variants = filtered_variants;

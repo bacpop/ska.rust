@@ -11,6 +11,8 @@ pub const DEFAULT_KMER: usize = 17;
 pub const DEFAULT_PROPORTION_READS: Option<f64> = None;
 /// Default single strand (which is equivalent to !rc)
 pub const DEFAULT_STRAND: bool = false;
+/// Default minimum frequency filter threshold
+pub const DEFAULT_MINFREQ: f64 = 0.9;
 /// Default behaviour when min-freq counting ambig sites
 pub const DEFAULT_AMBIGMISSING: bool = false;
 /// Default repeat masking behaviour
@@ -191,7 +193,7 @@ pub enum Commands {
         output: Option<String>,
 
         /// Minimum fraction of samples a k-mer has to appear in
-        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.9)]
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = DEFAULT_MINFREQ)]
         min_freq: f64,
 
         /// With min_freq, only count non-ambiguous sites
@@ -255,9 +257,9 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
 
-        /// Filter for ambiguous bases
+        /// Filter out ambiguous bases ('N' still a mismatch)
         #[arg(long, default_value_t = false)]
-        filter_ambiguous: bool,
+        allow_ambiguous: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
@@ -312,7 +314,7 @@ pub enum Commands {
         reverse: bool,
 
         /// Minimum fraction of samples a k-mer has to appear in
-        #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
+        #[arg(short, long, value_parser = zero_to_one, default_value_t = DEFAULT_MINFREQ)]
         min_freq: f64,
 
         /// With min_freq, only count non-ambiguous sites

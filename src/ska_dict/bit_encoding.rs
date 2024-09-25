@@ -76,7 +76,7 @@ pub fn base_to_prob(base: u8) -> [f64; 4] {
         b'D' => [1.0 / 3.0, 0.0, 1.0 / 3.0, 1.0 / 3.0],
         b'H' => [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 0.0],
         b'V' => [1.0 / 3.0, 1.0 / 3.0, 0.0, 1.0 / 3.0],
-        b'N' => [0.25, 0.25, 0.25, 0.25],
+        b'N' => [0.0, 0.0, 0.0, 0.0], // This gives more expected behaviour than 0.25 in each entry
         _ => [0.0, 0.0, 0.0, 0.0],
     }
 }
@@ -494,7 +494,7 @@ mod tests {
 
         assert_eq!(overlap(&k, &b), 1.0 / 3.0);
         assert_eq!(overlap(&d, &h), 2.0 / 9.0);
-        assert_eq!(overlap(&v, &n), 0.25);
+        assert_eq!(overlap(&v, &n), 0.0);
 
         assert_eq!(overlap(&n, &empty), 0.0);
     }

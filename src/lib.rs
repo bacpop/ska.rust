@@ -35,6 +35,7 @@
 //!
 //! Tutorials:
 //! - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+//! - [Filtering options](https://www.bacpop.org/guides/snp_alignment_with_ska/).
 //!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
@@ -208,9 +209,12 @@
 //! ska distance -o distances.txt seqs.skf
 //! ```
 //!
-//! Ignore ambiguous bases by adding `--filter-ambiguous` flag, and `--min-freq` to
-//! ignore k-mers only found in some samples. Multiple threads
-//! can be used, but this will only be effective with large numbers of samples.
+//! Consider ambiguous bases by adding `--allow-ambiguous` flag, and change `--min-freq` to
+//! ignore more/less k-mers only found in some samples (default = 0.9). Note that ambiguous bases may overestimate
+//! distances due to repeat k-mers. For finer control over filtering, first run `ska weed`
+//! on the input .skf.
+//!
+//! Multiple threads can be used, but this will only be effective with large numbers of samples.
 //!
 //! The companion script in `scripts/cluster_dists.py` (requires `networkx`) can
 //! be used to make single linkage clusters from these distances at given thresholds,
@@ -619,10 +623,11 @@ pub fn main() {
             skf_file,
             output,
             min_freq,
-            filter_ambiguous,
+            allow_ambiguous,
             threads,
         } => {
             check_threads(*threads);
+            let filter_ambiguous = !*allow_ambiguous;
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
@@ -630,7 +635,7 @@ pub fn main() {
                     &mut ska_array,
                     output,
                     *min_freq,
-                    *filter_ambiguous,
+                    filter_ambiguous,
                     *threads,
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
@@ -640,7 +645,7 @@ pub fn main() {
                     &mut ska_array,
                     output,
                     *min_freq,
-                    *filter_ambiguous,
+                    filter_ambiguous,
                     *threads,
                 );
             } else {
