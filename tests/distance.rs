@@ -111,6 +111,7 @@ fn multisample_dists() {
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
+        .arg("--allow-ambiguous")
         .args(&["--min-freq", "0.5"])
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.filter.stdout", TestDir::Correct));

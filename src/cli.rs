@@ -255,7 +255,7 @@ pub enum Commands {
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
 
-        /// Filter for ambiguous bases
+        /// Filter out ambiguous bases ('N' still a mismatch)
         #[arg(long, default_value_t = false)]
         allow_ambiguous: bool,
 
