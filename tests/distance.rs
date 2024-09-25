@@ -50,6 +50,7 @@ fn dist_filter() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
+        .arg("--allow-ambiguous")
         .arg("-v")
         .args(&["--threads", "2"])
         .assert()
@@ -60,7 +61,6 @@ fn dist_filter() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
-        .arg("--filter-ambiguous")
         .arg("-v")
         .assert()
         .stdout_eq_path(sandbox.file_string("merge_k9_no_ambig.dist.stdout", TestDir::Correct));
