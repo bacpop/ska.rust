@@ -45,7 +45,7 @@ jobs:
 
       - name: Upload package
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ska-${{ github.ref_name }}-${{ matrix.config.os }}-${{ matrix.config.toolchain }}
           path: ska-${{ github.ref_name }}-${{ matrix.config.os }}-${{ matrix.config.toolchain }}.tar.gz
@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           path: build
 
