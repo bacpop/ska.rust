@@ -209,8 +209,8 @@
 //! ska distance -o distances.txt seqs.skf
 //! ```
 //!
-//! Consider ambiguous bases by adding `--allow-ambiguous` flag, and `--min-freq` to
-//! ignore k-mers only found in some samples. Note that ambiguous bases may overestimate
+//! Consider ambiguous bases by adding `--allow-ambiguous` flag, and change `--min-freq` to
+//! ignore more/less k-mers only found in some samples (default = 0.9). Note that ambiguous bases may overestimate
 //! distances due to repeat k-mers. For finer control over filtering, first run `ska weed`
 //! on the input .skf.
 //!
