@@ -257,7 +257,7 @@ pub enum Commands {
 
         /// Filter for ambiguous bases
         #[arg(long, default_value_t = false)]
-        filter_ambiguous: bool,
+        allow_ambiguous: bool,
 
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
