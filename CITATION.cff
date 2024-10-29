@@ -42,7 +42,7 @@ preferred-citation:
   title: Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis
   doi: 10.1101/gr.279449.124
   url: http://genome.cshlp.org/content/34/10/1661.abstract
-  type: article-journal
+  type: article
   pages: 1661-1673
   year: '2024'
   conference: {}
