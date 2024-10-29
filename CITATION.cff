@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: If you use this software, please cite both the article from preferred-citation and the software itself.
+authors:
+  - family-names: Derelle
+    given-names: Romain
+  - family-names: von Wachsmann
+    given-names: Johanna
+  - family-names: Mäklin
+    given-names: Tommi
+  - family-names: Croucher
+    given-names: Nicholas J.
+  - family-names: Harris
+    given-names: Simon R.
+  - family-names: Lees
+    given-names: John A.
+title: Split K-mer Analysis (version 2)
+version: 0.3.11
+url: https://github.com/bacpop/ska.rust
+date-released: '2024-09-25'
+preferred-citation:
+  authors:
+    - family-names: Derelle
+      given-names: Romain
+    - family-names: von Wachsmann
+      given-names: Johanna
+    - family-names: Mäklin
+      given-names: Tommi
+    - family-names: Hellewell
+      given-names: Joel
+    - family-names: Russell
+      given-names: Timothy
+    - family-names: Lalvani
+      given-names: Ajit
+    - family-names: Chindelevitch
+      given-names: Leonid
+    - family-names: Croucher
+      given-names: Nicholas J.
+    - family-names: Harris
+      given-names: Simon R.
+    - family-names: Lees
+      given-names: John A.
+  title: Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis
+  doi: 10.1101/gr.279449.124
+  url: http://genome.cshlp.org/content/34/10/1661.abstract
+  type: article-journal
+  pages: 1661-1673
+  year: '2024'
+  conference: {}
+  publisher: {}

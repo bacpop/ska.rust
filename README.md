@@ -28,9 +28,9 @@ SKA can only align SNPs further than the k-mer length apart, and does not use a 
 
 ### Citation
 
-Romain Derelle, Johanna von Wachsmann, Tommi M&auml;klin, Joel Hellewell, Timothy Russell, Ajit Lalvani, Leonid Chindelevitch, Nicholas J. Croucher, Simon R. Harris, John A. Lees (2024).
-**Seamless, rapid and accurate analyses of outbreak genomic data using Split _k_-mer Analysis**
-*Genome Research*
+Romain Derelle, Johanna von Wachsmann, Tommi M&auml;klin, Joel Hellewell, Timothy Russell, Ajit Lalvani, Leonid Chindelevitch, Nicholas J. Croucher, Simon R. Harris, John A. Lees (2024). Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis. Genome Research, 34(10), 1661–1673.
+
+https://genome.cshlp.org/content/34/10/1661.abstract
 
 ## Documentation
 

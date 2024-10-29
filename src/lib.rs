@@ -1,4 +1,4 @@
-//! Split k-mer analysis (version 2)  uses exact matching of split k-mer sequences to align closely related
+//! Split k-mer analysis (version 2) uses exact matching of split k-mer sequences to align closely related
 //! sequences, typically small haploid genomes such as bacteria and viruses.
 //!
 //! SKA can only align SNPs further than the k-mer length apart,
@@ -36,6 +36,10 @@
 //! Tutorials:
 //! - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
 //! - [Filtering options](https://www.bacpop.org/guides/snp_alignment_with_ska/).
+//!
+//! Papers:
+//! - [Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis ](https://genome.cshlp.org/content/34/10/1661.abstract).
+//! - [skalo: using SKA split k-mers with coloured de Brujin graphs to genotype indels](https://www.biorxiv.org/content/10.1101/2024.10.02.616334v1).
 //!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
