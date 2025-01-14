@@ -358,6 +358,24 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
     },
+    /// Run the skalo graph-based algorithm to infer indels from a provided .skf file
+    Indel {
+        /// input SKA2 file [required]
+        #[arg(short = 'i', long)]
+        skf_file: String,
+
+        /// ignore indels occuring after homopolymers of size n+
+        #[arg(short = 'n', long)]
+        n_poly: Option<u32>,
+
+        /// maximum fraction of unknown states per position
+        #[arg(short = 'm', long, default_value_t = 0.2)]
+        max_missing: f32,
+
+        /// name of output files
+        #[arg(short = 'o', long, default_value_t = ("skalo").to_string())]
+        output_name: String,
+    },
 }
 
 /// Function to parse command line args into [`Args`] struct

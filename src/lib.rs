@@ -431,6 +431,9 @@ use crate::io_utils::*;
 pub mod coverage;
 use crate::coverage::CoverageHistogram;
 
+// pub mod skalo;
+use crate::skalo::read_input_file;
+
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum QualFilter {
@@ -779,6 +782,15 @@ pub fn main() {
                 cov.plot_hist();
             }
             eprintln!("Estimated cutoff\t{cutoff}");
+        }
+        Commands::Indel {
+            skf_file,
+            n_poly,
+            max_missing,
+            output_name,
+        } => {
+            // read input file
+            // let (len_kmer, l_sample_names, all_kmers, index_map) = read_input_file(skf_file);
         }
     }
     let end = Instant::now();
