@@ -13,8 +13,7 @@ use regex::Regex;
 use super::QualOpts;
 use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
-use crate::ska_dict::bit_encoding::{decode_kmer, UInt};
-use hashbrown::HashMap;
+use crate::ska_dict::bit_encoding::UInt;
 
 use crate::cli::{
     DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_PROPORTION_READS, DEFAULT_QUALFILTER,

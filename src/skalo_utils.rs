@@ -153,8 +153,7 @@ pub fn calculate_ratio_missing(nb_total: usize, vec_variants: Vec<VariantInfo>) 
     let missing_samples = ref_samples.iter().filter(|&&count| count != 1).count() as f32;
 
     // calculate ratio of missing samples
-    let ratio_missing = missing_samples / nb_total as f32;
-    ratio_missing
+    missing_samples / nb_total as f32
 }
 
 pub fn collect_middle_bases(
@@ -271,7 +270,7 @@ pub fn check_homopolymer(limit_n: u32, first_kmer: String, l_middle_bases: Vec<S
 pub fn jaccard_similarity(set1: &HashSet<&str>, set2: &HashSet<&str>) -> f32 {
     // returns the Jaccard similarity value between 2 sets
     let intersection_size = set1.intersection(set2).count() as f32;
-    let union_size = (set1.len() as f32 + set2.len() as f32 - intersection_size) as f32;
+    let union_size = (set1.len() + set2.len()) as f32 - intersection_size;
     intersection_size / union_size
 }
 

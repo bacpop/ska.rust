@@ -794,6 +794,7 @@ pub fn main() {
             threads,
         } => {
             check_threads(*threads);
+            println!("{:?}", input);
             if let Ok(ska_array) = load_array::<u128>(input, *threads) {
                 // Process ska array
                 let (len_kmer, l_sample_names, all_kmers, index_map) =

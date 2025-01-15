@@ -542,8 +542,8 @@ pub fn filter_output_sequences(
                     // update binary alignment ('-' = missing data; '?' = both states (= 'unknown'))
                     // only consider the 2 most frequent variants in cases of 3+
                     let mut sample_done: HashSet<String> = HashSet::new();
-                    let mut state = 0;
-                    for variant in vec_variants.iter().take(2) {
+                    // let mut state = 0;
+                    for (state, variant) in vec_variants.iter().take(2).enumerate() {
                         // collect sample names for this sequence and update its vector in binary_seq
                         for sample_id in &variant.maj_samples {
                             let full_name = d_samples.get(sample_id.to_owned()).unwrap();
@@ -557,7 +557,7 @@ pub fn filter_output_sequences(
                             }
                         }
                         // update number of character states
-                        state += 1;
+                        // state += 1;
                     }
 
                     // update binary alignment with missing samples
