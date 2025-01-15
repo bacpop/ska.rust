@@ -431,11 +431,11 @@ use crate::io_utils::*;
 pub mod coverage;
 use crate::coverage::CoverageHistogram;
 
+pub mod skalo;
 pub mod skalo_utils;
-use crate::skalo_utils::{filter_output_sequences, identify_good_kmers};
-
-pub mod skalo_read_graph;
-use crate::skalo_read_graph::build_sequences;
+use crate::skalo::{
+    build_sequences, filter_output_sequences, identify_good_kmers, ska_array_to_dbgraph,
+};
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -787,31 +787,39 @@ pub fn main() {
             eprintln!("Estimated cutoff\t{cutoff}");
         }
         Commands::Indel {
-            skf_file,
+            input,
             n_poly,
             max_missing,
             output_name,
+            threads,
         } => {
-            // read input file
-            let (len_kmer, l_sample_names, all_kmers, index_map) = read_skalo_input(skf_file);
+            check_threads(*threads);
+            if let Ok(ska_array) = load_array::<u128>(input, *threads) {
+                // Process ska array
+                let (len_kmer, l_sample_names, all_kmers, index_map) =
+                    ska_array_to_dbgraph(ska_array);
 
-            // identify 'good' kmers in De Bruijn graph
-            let (start_kmers, end_kmers) = identify_good_kmers(len_kmer, &all_kmers, &index_map);
+                // identify 'good' kmers in De Bruijn graph
+                let (start_kmers, end_kmers) =
+                    identify_good_kmers(len_kmer, &all_kmers, &index_map);
 
-            // build sequences
-            let sequences =
-                build_sequences(len_kmer, &all_kmers, &start_kmers, &end_kmers, &index_map);
+                // build sequences
+                let sequences =
+                    build_sequences(len_kmer, &all_kmers, &start_kmers, &end_kmers, &index_map);
 
-            // filter and output sequences
-            filter_output_sequences(
-                sequences,
-                len_kmer,
-                l_sample_names.clone(),
-                *n_poly,
-                *max_missing,
-                output_name,
-                skf_file,
-            );
+                let input_name: String = input.join(" ").to_string();
+
+                // filter and output sequences
+                filter_output_sequences(
+                    sequences,
+                    len_kmer,
+                    l_sample_names.clone(),
+                    *n_poly,
+                    *max_missing,
+                    output_name,
+                    &input_name,
+                );
+            }
         }
     }
     let end = Instant::now();

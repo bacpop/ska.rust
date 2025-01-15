@@ -360,9 +360,8 @@ pub enum Commands {
     },
     /// Run the skalo graph-based algorithm to infer indels from a provided .skf file
     Indel {
-        /// input SKA2 file [required]
-        #[arg(short = 'i', long)]
-        skf_file: String,
+        /// A .skf file, or list of .fasta files
+        input: Vec<String>,
 
         /// ignore indels occuring after homopolymers of size n+
         #[arg(short = 'n', long)]
@@ -375,6 +374,10 @@ pub enum Commands {
         /// name of output files
         #[arg(short = 'o', long, default_value_t = ("skalo").to_string())]
         output_name: String,
+
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
+        threads: usize,
     },
 }
 
