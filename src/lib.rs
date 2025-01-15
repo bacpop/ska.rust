@@ -819,6 +819,8 @@ pub fn main() {
                     output_name,
                     &input_name,
                 );
+            } else {
+                panic!("Could not read input file(s)");
             }
         }
     }
