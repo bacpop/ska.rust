@@ -1,8 +1,8 @@
 mod compaction;
-mod extremities;
-mod input;
+pub mod extremities;
+pub mod input;
 mod output;
 mod positioning;
 mod process_variants;
-mod read_graph;
-mod utils;
+pub mod read_graph;
+pub mod utils;

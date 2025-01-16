@@ -1,9 +1,9 @@
 //! Command line interface, built using [`crate::clap` with `Derive`](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html)
 use std::fmt;
 
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
-
 use super::QualFilter;
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
@@ -357,6 +357,40 @@ pub enum Commands {
         /// Ignore reverse complement (all reads are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
+    },
+    Indel {
+        /// input SKA2 file
+        #[arg(short = 'i', long, help_heading = "input")]
+        input_skf: String,
+
+        /// reference genome for SNP positioning
+        #[arg(short = 'r', long, help_heading = "input")]
+        reference: Option<PathBuf>,
+
+        /// prefix of output files
+        #[arg(short = 'o', long, default_value_t = ("skalo").to_string(), help_heading = "output")]
+        output: String,
+
+        /// maximum fraction of missing data
+        #[arg(short = 'm', long, default_value_t = 0.2, help_heading = "output")]
+        missing: f32,
+
+        /// maximum depth of recursive paths
+        #[arg(
+            short = 'd',
+            long,
+            default_value_t = 4,
+            help_heading = "graph traversal"
+        )]
+        depth: usize,
+
+        /// maximum number of internal indel k-mers
+        #[arg(short = 'n', long, default_value_t = 2, help_heading = "other")]
+        indel_kmers: usize,
+
+        /// number of threads
+        #[arg(short = 't', long, default_value_t = 1, help_heading = "other")]
+        threads: usize,
     },
 }
 
