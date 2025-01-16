@@ -431,6 +431,8 @@ use crate::io_utils::*;
 pub mod coverage;
 use crate::coverage::CoverageHistogram;
 
+pub mod skalo;
+
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum QualFilter {
