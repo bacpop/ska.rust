@@ -7,7 +7,7 @@ pub fn identify_good_kmers(
     all_kmers: &HashMap<u128, Vec<u128>>,
     kmer_2_samples: &HashMap<u128, BitSet>,
 ) -> (HashSet<u128>, HashSet<u128>) {
-    println!(" # identify bubble extremities");
+    log::info!(" # identify bubble extremities");
 
     let data_info = DATA_INFO.get().unwrap();
 
@@ -48,11 +48,11 @@ pub fn identify_good_kmers(
 
     // exit program if no extremity found (eg, cases of weeded skf files)
     if start_kmers.is_empty() {
-        eprintln!("\n      Error: there is no entry node in this graph, hence no variant.\n");
+        log::info!("\n      Error: there is no entry node in this graph, hence no variant.\n");
         std::process::exit(1);
     }
 
-    println!("     . {} entry nodes", start_kmers.len());
+    log::info!("     . {} entry nodes", start_kmers.len());
 
     (start_kmers, end_kmers)
 }

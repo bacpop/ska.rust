@@ -16,7 +16,7 @@ type KmerSamples = HashMap<u128, BitSet>;
 pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     let arguments = CONFIG.get().unwrap();
 
-    println!(" # read file {}", arguments.input_file);
+    log::info!(" # read file {}", arguments.input_file);
 
     // read the skf file and load split-kmers (ska_array), kmer length and sample names
     let ska_array = load_array::<u128>(&[arguments.input_file.to_string()], arguments.nb_threads)
@@ -25,10 +25,10 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     let len_kmer = ska_array.kmer_len();
     let mask = (1 << (len_kmer * 2)) - 1;
 
-    println!("     . {}-mers", len_kmer);
-    println!("     . {} samples", sample_names.len());
+    log::info!("     . {}-mers", len_kmer);
+    log::info!("     . {} samples", sample_names.len());
 
-    println!(" # build colored de Bruijn graph");
+    log::info!(" # build colored de Bruijn graph");
 
     // build De Bruijn graph
     let degenerate_code: HashMap<u8, Vec<char>> = [
@@ -121,7 +121,7 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     let all_kmers: KmerGraph = all_kmers.into_iter().collect();
     let kmer_samples: KmerSamples = kmer_samples.into_iter().collect();
 
-    println!("     . {} nodes", all_kmers.len());
+    log::info!("     . {} nodes", all_kmers.len());
 
     (len_kmer, sample_names, all_kmers, kmer_samples)
 }

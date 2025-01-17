@@ -24,11 +24,11 @@ pub fn build_variant_groups(
     let arguments = CONFIG.get().unwrap();
     let data_info = DATA_INFO.get().unwrap();
 
-    println!(" # compact graph");
+    log::info!(" # compact graph");
 
     let compacted = compact_graph(&mut all_kmers, &start_kmers, &end_kmers);
 
-    println!(" # explore graph");
+    log::info!(" # explore graph");
 
     let built_groups = Arc::new(Mutex::new(HashMap::<(u128, u128), Vec<VariantInfo>>::new()));
 
@@ -239,7 +239,7 @@ pub fn build_variant_groups(
 
     let built_groups_end = built_groups.lock().unwrap();
 
-    println!("     . {} variant groups", built_groups_end.len());
+    log::info!("     . {} variant groups", built_groups_end.len());
 
     // at least one of the 2 branches of an indel should have a size below or equal to this (indel and other >= (1 + 2 * data_info.k_graph))
     let min_indel = 2 * data_info.k_graph;

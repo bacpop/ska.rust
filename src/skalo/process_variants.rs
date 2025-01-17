@@ -20,7 +20,7 @@ pub fn analyse_variant_groups(
     // check if the optional reference genome file argument is provided -> extract kmers
     let (do_postioning, kmer_map, genome_name, genome_seq) =
         if let Some(path) = &arguments.reference_genome {
-            println!(" # read reference genome");
+            log::info!(" # read reference genome");
             let (extracted_kmer_map, seq, name) =
                 extract_genomic_kmers(path.clone(), data_info.k_graph);
             (true, extracted_kmer_map, name, seq)
@@ -33,11 +33,11 @@ pub fn analyse_variant_groups(
             )
         };
 
-    println!(" # process indels");
+    log::info!(" # process indels");
 
     // collect entry kmers of indels
     let (final_indels, entries_indels) = process_indels(indel_groups, data_info.k_graph);
-    println!("     -> {} indels", final_indels.len());
+    log::info!("     -> {} indels", final_indels.len());
 
     // remove variants having  internal indels from each variant group
     for (_, vec_variant) in variant_groups.iter_mut() {
@@ -53,7 +53,7 @@ pub fn analyse_variant_groups(
         }
     }
 
-    println!(" # process SNPs");
+    log::info!(" # process SNPs");
 
     // create a vector of keys sorted by the ratio of size of Vec<VariantInfo> to the length of the first sequence
     // and sort the keys by decreasing order -> we consider first for snp calling variant group with lot of variants
@@ -197,16 +197,16 @@ pub fn analyse_variant_groups(
     }
 
     if do_postioning {
-        println!(
+        log::info!(
             "     -> {} SNPs (+ {} w/o position)",
             final_snps.len(),
             not_postioned
         );
     } else {
-        println!("     -> {} SNPs", final_snps.len());
+        log::info!("     -> {} SNPs", final_snps.len());
     }
 
-    println!(" # write output");
+    log::info!(" # write output");
     // write output
     create_fasta_and_vcf(
         genome_name,
