@@ -358,7 +358,7 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
     },
-    Indel {
+    Lo {
         /// input SKA2 file
         #[arg(short = 'i', long, help_heading = "input")]
         input_skf: String,
