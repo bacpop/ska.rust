@@ -1,6 +1,5 @@
-use hashbrown::{HashMap, HashSet};
-//use std::time::Instant;
 use bit_set::BitSet;
+use hashbrown::{HashMap, HashSet};
 
 use crate::skalo::output::create_fasta_and_vcf;
 use crate::skalo::positioning::{extract_genomic_kmers, scan_variants};
@@ -36,8 +35,6 @@ pub fn analyse_variant_groups(
 
     println!(" # process indels");
 
-    //let start = Instant::now();
-
     // collect entry kmers of indels
     let (final_indels, entries_indels) = process_indels(indel_groups, data_info.k_graph);
     println!("     -> {} indels", final_indels.len());
@@ -56,9 +53,6 @@ pub fn analyse_variant_groups(
         }
     }
 
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
-
     println!(" # process SNPs");
 
     // create a vector of keys sorted by the ratio of size of Vec<VariantInfo> to the length of the first sequence
@@ -75,8 +69,6 @@ pub fn analyse_variant_groups(
         })
         .collect();
     sorted_keys.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); // Sort by ratio, descending
-
-    //let start = Instant::now();
 
     // start processing SNPs
     let mut entries_done: HashSet<u128> = HashSet::new();
@@ -102,7 +94,6 @@ pub fn analyse_variant_groups(
 
             // get SNP column and kmers
             let mut kmers_to_save: HashSet<u128> = HashSet::new();
-            //let mut found_snp_pos: HashMap<usize, Vec<char>> = HashMap::new();
             let mut found_snp_pos: HashMap<usize, Vec<char>> =
                 HashMap::with_capacity(real_snp_pos.len());
 
@@ -172,8 +163,6 @@ pub fn analyse_variant_groups(
 
                         // adjust position with SNP pos in variant group and orientation
                         for (pos, column) in found_snp_pos {
-                            //println!("{}", seq_length);
-
                             let final_position = if is_forward {
                                 position + (pos - data_info.k_graph) as u32
                             } else {
@@ -206,9 +195,6 @@ pub fn analyse_variant_groups(
             }
         }
     }
-
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
 
     if do_postioning {
         println!(

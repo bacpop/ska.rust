@@ -132,11 +132,6 @@ pub fn scan_variants(
     let mut vec_position_forward: Vec<u32> = Vec::new();
     let mut vec_position_reverse: Vec<u32> = Vec::new();
 
-    // process only the 1st and last variants
-    //let first = &vec_variants[0];
-    //let last = &vec_variants[vec_variants.len() - 1];
-
-    //for variant in [first, last] {
     for variant in vec_variants {
         let seq = variant.sequence.decode();
         let rc_seq = rev_compl(&seq);

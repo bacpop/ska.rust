@@ -1,6 +1,5 @@
-use hashbrown::HashMap;
-//use std::time::Instant;
 use bit_set::BitSet;
+use hashbrown::HashMap;
 
 use dashmap::DashMap;
 use rayon::prelude::*;
@@ -19,8 +18,6 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
 
     println!(" # read file {}", arguments.input_file);
 
-    //let start = Instant::now();
-
     // read the skf file and load split-kmers (ska_array), kmer length and sample names
     let ska_array = load_array::<u128>(&[arguments.input_file.to_string()], arguments.nb_threads)
         .expect("\nerror: could not read the skf file\n\n");
@@ -31,12 +28,7 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     println!("     . {}-mers", len_kmer);
     println!("     . {} samples", sample_names.len());
 
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
-
     println!(" # build colored de Bruijn graph");
-
-    //let start = Instant::now();
 
     // build De Bruijn graph
     let degenerate_code: HashMap<u8, Vec<char>> = [
@@ -129,8 +121,6 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     let all_kmers: KmerGraph = all_kmers.into_iter().collect();
     let kmer_samples: KmerSamples = kmer_samples.into_iter().collect();
 
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
     println!("     . {} nodes", all_kmers.len());
 
     (len_kmer, sample_names, all_kmers, kmer_samples)

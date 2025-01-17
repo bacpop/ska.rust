@@ -1,6 +1,5 @@
-use hashbrown::{HashMap, HashSet};
-//use std::time::Instant;
 use bit_set::BitSet;
+use hashbrown::{HashMap, HashSet};
 
 use crate::skalo::utils::{rev_compl_u128, DATA_INFO};
 
@@ -14,8 +13,6 @@ pub fn identify_good_kmers(
 
     let mut start_kmers: HashSet<u128> = HashSet::new();
     let mut end_kmers: HashSet<u128> = HashSet::new();
-
-    //let start = Instant::now();
 
     // iterate over all_kmers
     for (kmer, next_kmers) in all_kmers.iter() {
@@ -56,9 +53,6 @@ pub fn identify_good_kmers(
     }
 
     println!("     . {} entry nodes", start_kmers.len());
-
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
 
     (start_kmers, end_kmers)
 }

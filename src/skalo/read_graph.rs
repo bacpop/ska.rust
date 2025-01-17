@@ -1,6 +1,5 @@
-use hashbrown::{HashMap, HashSet};
-//use std::time::Instant;
 use bit_set::BitSet;
+use hashbrown::{HashMap, HashSet};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -30,8 +29,6 @@ pub fn build_variant_groups(
     let compacted = compact_graph(&mut all_kmers, &start_kmers, &end_kmers);
 
     println!(" # explore graph");
-
-    //let start = Instant::now();
 
     let built_groups = Arc::new(Mutex::new(HashMap::<(u128, u128), Vec<VariantInfo>>::new()));
 
@@ -239,9 +236,6 @@ pub fn build_variant_groups(
             }
         });
     });
-
-    //let duration = start.elapsed();
-    //println!("time taken: {:?}", duration);
 
     let built_groups_end = built_groups.lock().unwrap();
 
