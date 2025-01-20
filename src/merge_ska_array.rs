@@ -625,7 +625,7 @@ pub struct KmerIter<'a, IntT> {
     index: usize,
 }
 
-impl<'a, IntT> Iterator for KmerIter<'a, IntT>
+impl<IntT> Iterator for KmerIter<'_, IntT>
 where
     IntT: for<'b> UInt<'b>,
 {
