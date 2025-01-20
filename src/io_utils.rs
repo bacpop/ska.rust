@@ -140,12 +140,5 @@ pub fn get_input_list(
 
 /// Checks if any input files are fastq
 pub fn any_fastq(files: &[InputFastx]) -> bool {
-    let mut fastq = false;
-    for file in files {
-        if file.2.is_some() {
-            fastq = true;
-            break;
-        }
-    }
-    fastq
+    files.iter().any(|file| file.2.is_some())
 }
