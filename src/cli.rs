@@ -167,8 +167,8 @@ pub enum Commands {
         single_strand: bool,
 
         /// Minimum k-mer count (with reads)
-        #[arg(long, default_value_t = DEFAULT_MINCOUNT)]
-        min_count: u16,
+        #[arg(long)]
+        min_count: Option<u16>,
 
         /// Minimum k-mer quality (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]

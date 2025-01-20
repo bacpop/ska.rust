@@ -503,17 +503,73 @@ pub fn main() {
 
             // Read input
             let input_files = get_input_list(file_list, seq_files);
+            let rc = !*single_strand;
+
+            // Are there >=2 fastq files?
+            let enough_fastq = input_files
+                .iter()
+                .filter(|file| file.2.is_some())
+                .count()
+                .ge(&2);
+
+            // Is min_count provided by the user?
+            let not_provided = min_count.is_none();
+
+            // Minimum kmer count logic
+            let min_kmer_count: u16 = if enough_fastq & not_provided {
+                // Calculate cutoff
+                // Get first two fastq files
+                let mut files_iter = input_files
+                    .iter()
+                    .filter(|file| file.2.is_some())
+                    .take(2)
+                    .map(|x| x.1.clone());
+                let fastq_fwd: String = files_iter.next().unwrap();
+                let fastq_rev: String = files_iter.next().unwrap();
+
+                let cutoff;
+                if *k <= 31 {
+                    log::info!("k={}: using 64-bit representation", *k);
+                    let mut cov =
+                        CoverageHistogram::<u64>::new(&fastq_fwd, &fastq_rev, *k, rc, args.verbose);
+                    cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                    cov.plot_hist();
+                } else {
+                    log::info!("k={}: using 128-bit representation", *k);
+                    let mut cov = CoverageHistogram::<u128>::new(
+                        &fastq_fwd,
+                        &fastq_rev,
+                        *k,
+                        rc,
+                        args.verbose,
+                    );
+                    cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                    cov.plot_hist();
+                }
+                cutoff as u16
+            } else if !not_provided {
+                // check provided value and use
+                let val = min_count.unwrap();
+                if val.ge(&1) {
+                    val
+                } else {
+                    panic!("Minimum k-mer count cannot be less than 1");
+                }
+            } else {
+                // Use default
+                log::info!("Not enough fastq files, using default kmer count of 5");
+                DEFAULT_MINCOUNT
+            };
+
             let quality = QualOpts {
-                min_count: *min_count,
+                min_count: min_kmer_count,
                 min_qual: *min_qual,
                 qual_filter: *qual_filter,
             };
 
             // Build, merge
-            let rc = !*single_strand;
-
             if *k <= 31 {
-                log::info!("k={}: using 64-bit representation", *k);
+                // log::info!("k={}: using 64-bit representation", *k);
                 let merged_dict = build_and_merge::<u64>(
                     &input_files,
                     *k,
@@ -526,7 +582,7 @@ pub fn main() {
                 // Save
                 save_skf(&merged_dict, output);
             } else {
-                log::info!("k={}: using 128-bit representation", *k);
+                // log::info!("k={}: using 128-bit representation", *k);
                 let merged_dict = build_and_merge::<u128>(
                     &input_files,
                     *k,
