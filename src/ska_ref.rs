@@ -99,7 +99,6 @@ where
     ambig_mask: bool,
 
     /// Input sequence
-
     /// Chromosome names
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
@@ -108,7 +107,6 @@ where
     repeat_coors: Vec<usize>,
 
     /// Mapping information
-
     /// Positions of mapped bases as (chrom, pos)
     mapped_pos: Vec<(usize, usize)>,
     /// Array of mapped bases, rows loci, columns samples
