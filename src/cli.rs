@@ -84,22 +84,6 @@ pub fn check_threads(threads: usize) {
     }
 }
 
-#[doc(hidden)]
-fn valid_kmer_min(s: &str) -> Result<u16, String> {
-    if s.eq("auto") {
-        Ok(0)
-    } else {
-        let k: u16 = s
-            .parse()
-            .map_err(|_| format!("`{s}` isn't a valid minimum kmer count"))?;
-        if k.ge(&5) {
-            Ok(k)
-        } else {
-            Err("minimum kmer count must be >= 5".to_string())
-        }
-    }
-}
-
 /// Possible output file types
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum FileType {

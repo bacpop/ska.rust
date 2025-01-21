@@ -562,11 +562,11 @@ pub fn main() {
                 // User has provided something other than auto, attempt to parse to u16
                 Some(s) => {
                     let k: u16 = s.parse().expect("Invalid minimum kmer count");
-                    if k.ge(&5) {
+                    if k.ge(&1) {
                         log::info!("Using provided minimum kmer value of {}", k);
                         k
                     } else {
-                        panic!("Minimum kmer count must be >= 5");
+                        panic!("Minimum kmer count must be >= 1");
                     }
                 }
                 // Value not provided, use default
