@@ -505,11 +505,19 @@ pub fn main() {
             let input_files = get_input_list(file_list, seq_files);
             let rc = !*single_strand;
 
-            // Is min_count provided by the user?
+            // Are using 64 or 128 bit representation
+            let rep_64: bool = k.le(&31);
+            if rep_64 {
+                log::info!("k={}: using 64-bit representation", *k);
+            } else {
+                log::info!("k={}: using 128-bit representation", *k);
+            }
+
+            // Minimum kmer cutoff logic
             let min_kmer_count: u16 = match min_count {
-                // If auto attempt to calculate using mixture model
+                // If user specifies auto we run ska cov code
                 Some(s) if s.eq(&String::from("auto")) => {
-                    // Are there >=2 fastq files?
+                    // Are there >=2 fastq files we can fit mixture model to?
                     let enough_fastq = input_files
                         .iter()
                         .filter(|file| file.2.is_some())
@@ -528,8 +536,7 @@ pub fn main() {
                         let fastq_rev: String = files_iter.next().unwrap();
 
                         let cutoff;
-                        if *k <= 31 {
-                            log::info!("k={}: using 64-bit representation", *k);
+                        if rep_64 {
                             let mut cov = CoverageHistogram::<u64>::new(
                                 &fastq_fwd,
                                 &fastq_rev,
@@ -540,7 +547,6 @@ pub fn main() {
                             cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
                             cov.plot_hist();
                         } else {
-                            log::info!("k={}: using 128-bit representation", *k);
                             let mut cov = CoverageHistogram::<u128>::new(
                                 &fastq_fwd,
                                 &fastq_rev,
@@ -555,13 +561,15 @@ pub fn main() {
                         cutoff as u16
                     } else {
                         // Not enough fastq files, use default and warn user
-                        log::info!("Not enough fastq files, using default kmer count of 5");
+                        log::info!("Not enough fastq files to fit mixture model, using default kmer count of 5");
                         DEFAULT_MINCOUNT
                     }
                 }
-                // User has provided something other than auto, attempt to parse to u16
+                // User has provided a value other than auto, attempt to parse to u16
                 Some(s) => {
+                    // Throw error if it cannot be parsed to u16
                     let k: u16 = s.parse().expect("Invalid minimum kmer count");
+                    // Check provided value is >= 1
                     if k.ge(&1) {
                         log::info!("Using provided minimum kmer value of {}", k);
                         k
@@ -569,7 +577,7 @@ pub fn main() {
                         panic!("Minimum kmer count must be >= 1");
                     }
                 }
-                // Value not provided, use default
+                // Value not provided, use default and warn user
                 None => {
                     log::info!("No minimum kmer value provided, using default kmer count of 5");
                     DEFAULT_MINCOUNT
@@ -583,8 +591,7 @@ pub fn main() {
             };
 
             // Build, merge
-            if *k <= 31 {
-                // log::info!("k={}: using 64-bit representation", *k);
+            if rep_64 {
                 let merged_dict = build_and_merge::<u64>(
                     &input_files,
                     *k,
@@ -597,7 +604,6 @@ pub fn main() {
                 // Save
                 save_skf(&merged_dict, output);
             } else {
-                // log::info!("k={}: using 128-bit representation", *k);
                 let merged_dict = build_and_merge::<u128>(
                     &input_files,
                     *k,
