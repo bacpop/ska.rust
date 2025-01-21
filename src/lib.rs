@@ -505,60 +505,75 @@ pub fn main() {
             let input_files = get_input_list(file_list, seq_files);
             let rc = !*single_strand;
 
-            // Are there >=2 fastq files?
-            let enough_fastq = input_files
-                .iter()
-                .filter(|file| file.2.is_some())
-                .count()
-                .ge(&2);
-
             // Is min_count provided by the user?
-            let not_provided = min_count.is_none();
+            let min_kmer_count: u16 = match min_count {
+                // If auto attempt to calculate using mixture model
+                Some(s) if s.eq(&String::from("auto")) => {
+                    // Are there >=2 fastq files?
+                    let enough_fastq = input_files
+                        .iter()
+                        .filter(|file| file.2.is_some())
+                        .count()
+                        .ge(&2);
 
-            // Minimum kmer count logic
-            let min_kmer_count: u16 = if enough_fastq & not_provided {
-                // Calculate cutoff
-                // Get first two fastq files
-                let mut files_iter = input_files
-                    .iter()
-                    .filter(|file| file.2.is_some())
-                    .take(2)
-                    .map(|x| x.1.clone());
-                let fastq_fwd: String = files_iter.next().unwrap();
-                let fastq_rev: String = files_iter.next().unwrap();
+                    if enough_fastq {
+                        // Calculate cutoff
+                        // Get first two fastq files
+                        let mut files_iter = input_files
+                            .iter()
+                            .filter(|file| file.2.is_some())
+                            .take(2)
+                            .map(|x| x.1.clone());
+                        let fastq_fwd: String = files_iter.next().unwrap();
+                        let fastq_rev: String = files_iter.next().unwrap();
 
-                let cutoff;
-                if *k <= 31 {
-                    log::info!("k={}: using 64-bit representation", *k);
-                    let mut cov =
-                        CoverageHistogram::<u64>::new(&fastq_fwd, &fastq_rev, *k, rc, args.verbose);
-                    cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
-                    cov.plot_hist();
-                } else {
-                    log::info!("k={}: using 128-bit representation", *k);
-                    let mut cov = CoverageHistogram::<u128>::new(
-                        &fastq_fwd,
-                        &fastq_rev,
-                        *k,
-                        rc,
-                        args.verbose,
-                    );
-                    cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
-                    cov.plot_hist();
+                        let cutoff;
+                        if *k <= 31 {
+                            log::info!("k={}: using 64-bit representation", *k);
+                            let mut cov = CoverageHistogram::<u64>::new(
+                                &fastq_fwd,
+                                &fastq_rev,
+                                *k,
+                                rc,
+                                args.verbose,
+                            );
+                            cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                            cov.plot_hist();
+                        } else {
+                            log::info!("k={}: using 128-bit representation", *k);
+                            let mut cov = CoverageHistogram::<u128>::new(
+                                &fastq_fwd,
+                                &fastq_rev,
+                                *k,
+                                rc,
+                                args.verbose,
+                            );
+                            cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
+                            cov.plot_hist();
+                        }
+                        log::info!("Using inferred minimum kmer value of {}", cutoff);
+                        cutoff as u16
+                    } else {
+                        // Not enough fastq files, use default and warn user
+                        log::info!("Not enough fastq files, using default kmer count of 5");
+                        DEFAULT_MINCOUNT
+                    }
                 }
-                cutoff as u16
-            } else if !not_provided {
-                // check provided value and use
-                let val = min_count.unwrap();
-                if val.ge(&1) {
-                    val
-                } else {
-                    panic!("Minimum k-mer count cannot be less than 1");
+                // User has provided something other than auto, attempt to parse to u16
+                Some(s) => {
+                    let k: u16 = s.parse().expect("Invalid minimum kmer count");
+                    if k.ge(&5) {
+                        log::info!("Using provided minimum kmer value of {}", k);
+                        k
+                    } else {
+                        panic!("Minimum kmer count must be >= 5");
+                    }
                 }
-            } else {
-                // Use default
-                log::info!("Not enough fastq files, using default kmer count of 5");
-                DEFAULT_MINCOUNT
+                // Value not provided, use default
+                None => {
+                    log::info!("No minimum kmer value provided, using default kmer count of 5");
+                    DEFAULT_MINCOUNT
+                }
             };
 
             let quality = QualOpts {

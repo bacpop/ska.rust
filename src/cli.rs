@@ -84,6 +84,22 @@ pub fn check_threads(threads: usize) {
     }
 }
 
+#[doc(hidden)]
+fn valid_kmer_min(s: &str) -> Result<u16, String> {
+    if s.eq("auto") {
+        Ok(0)
+    } else {
+        let k: u16 = s
+            .parse()
+            .map_err(|_| format!("`{s}` isn't a valid minimum kmer count"))?;
+        if k.ge(&5) {
+            Ok(k)
+        } else {
+            Err("minimum kmer count must be >= 5".to_string())
+        }
+    }
+}
+
 /// Possible output file types
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum FileType {
@@ -116,6 +132,11 @@ impl fmt::Display for FilterType {
             Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
         }
     }
+}
+
+pub enum KmerMin {
+    Auto,
+    Value(u16),
 }
 
 /// Options that apply to all subcommands
@@ -168,7 +189,7 @@ pub enum Commands {
 
         /// Minimum k-mer count (with reads)
         #[arg(long)]
-        min_count: Option<u16>,
+        min_count: Option<String>,
 
         /// Minimum k-mer quality (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
