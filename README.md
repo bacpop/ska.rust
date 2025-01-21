@@ -37,6 +37,7 @@ https://genome.cshlp.org/content/34/10/1661.abstract
 Can be found at https://docs.rs/ska. We also have some tutorials available:
 
 - [From genomes to trees](https://www.bacpop.org/guides/building_trees_with_ska/).
+- [From genomes to trees - Interactive tutorial in sandbox.bio](https://sandbox.bio/tutorials/ska2-intro).
 - [Filtering options](https://www.bacpop.org/guides/snp_alignment_with_ska/).
 
 ## Installation
