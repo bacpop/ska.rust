@@ -524,4 +524,15 @@ fn build_auto_check() {
         .args(["--min-count", "auto", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(["--min-count", "-1", "-v", "-k", "9", "--min-qual", "2"])
+        .assert()
+        .failure();
 }
