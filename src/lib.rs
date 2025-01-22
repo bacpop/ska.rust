@@ -405,7 +405,6 @@
 
 #![warn(missing_docs)]
 use std::fmt;
-use std::ops::Deref;
 use std::time::Instant;
 
 use clap::ValueEnum;
