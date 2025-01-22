@@ -405,6 +405,7 @@
 
 #![warn(missing_docs)]
 use std::fmt;
+use std::ops::Deref;
 use std::time::Instant;
 
 use clap::ValueEnum;
@@ -513,79 +514,11 @@ pub fn main() {
                 log::info!("k={}: using 128-bit representation", *k);
             }
 
-            // Minimum kmer cutoff logic
-            let min_kmer_count: u16 = match min_count {
-                // If user specifies auto we run ska cov code
-                Some(s) if s.eq(&String::from("auto")) => {
-                    // Are there >=2 fastq files we can fit mixture model to?
-                    let enough_fastq = input_files
-                        .iter()
-                        .filter(|file| file.2.is_some())
-                        .count()
-                        .ge(&2);
-
-                    if enough_fastq {
-                        // Calculate cutoff
-                        // Get first two fastq files
-                        let mut files_iter = input_files
-                            .iter()
-                            .filter(|file| file.2.is_some())
-                            .take(2)
-                            .map(|x| x.1.clone());
-                        let fastq_fwd: String = files_iter.next().unwrap();
-                        let fastq_rev: String = files_iter.next().unwrap();
-
-                        let cutoff;
-                        if rep_64 {
-                            let mut cov = CoverageHistogram::<u64>::new(
-                                &fastq_fwd,
-                                &fastq_rev,
-                                *k,
-                                rc,
-                                args.verbose,
-                            );
-                            cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
-                            cov.plot_hist();
-                        } else {
-                            let mut cov = CoverageHistogram::<u128>::new(
-                                &fastq_fwd,
-                                &fastq_rev,
-                                *k,
-                                rc,
-                                args.verbose,
-                            );
-                            cutoff = cov.fit_histogram().expect("Couldn't fit coverage model");
-                            cov.plot_hist();
-                        }
-                        log::info!("Using inferred minimum kmer value of {}", cutoff);
-                        cutoff as u16
-                    } else {
-                        // Not enough fastq files, use default and warn user
-                        log::info!("Not enough fastq files to fit mixture model, using default kmer count of 5");
-                        DEFAULT_MINCOUNT
-                    }
-                }
-                // User has provided a value other than auto, attempt to parse to u16
-                Some(s) => {
-                    // Throw error if it cannot be parsed to u16
-                    let k: u16 = s.parse().expect("Invalid minimum kmer count");
-                    // Check provided value is >= 1
-                    if k.ge(&1) {
-                        log::info!("Using provided minimum kmer value of {}", k);
-                        k
-                    } else {
-                        panic!("Minimum kmer count must be >= 1");
-                    }
-                }
-                // Value not provided, use default and warn user
-                None => {
-                    log::info!("No minimum kmer value provided, using default kmer count of 5");
-                    DEFAULT_MINCOUNT
-                }
-            };
+            // Calculate minimum kmer cutoff
+            let cutoff = kmer_min_cutoff(min_count, &input_files, rep_64, k, rc, args.verbose);
 
             let quality = QualOpts {
-                min_count: min_kmer_count,
+                min_count: cutoff,
                 min_qual: *min_qual,
                 qual_filter: *qual_filter,
             };

@@ -1,7 +1,7 @@
 //! Command line interface, built using [`crate::clap` with `Derive`](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html)
 use std::fmt;
 
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
+use clap::{ArgGroup, Error, Parser, Subcommand, ValueEnum};
 
 use super::QualFilter;
 
@@ -84,6 +84,31 @@ pub fn check_threads(threads: usize) {
     }
 }
 
+#[doc(hidden)]
+pub fn valid_min_kmer(s: &str) -> Result<ValidMinKmer, String> {
+    match s {
+        s if s.eq(&String::from("auto")) => Ok(ValidMinKmer::Auto),
+        s => {
+            // Throw error if it cannot be parsed to u16
+            let x: u16 = s.parse().expect("Invalid minimum kmer count");
+            if x.ge(&1) {
+                log::info!("Using provided minimum kmer count of {}", x);
+                Ok(ValidMinKmer::Val(x))
+            } else {
+                Err("Minimum kmer count must be >= 1".to_string())
+            }
+        }
+    }
+}
+/// Possible user input for minimum kmer count threshold
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ValidMinKmer {
+    /// Attempt to calculate using cov command
+    Auto,
+    /// User provided u16 value for threshold
+    Val(u16),
+}
+
 /// Possible output file types
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum FileType {
@@ -116,11 +141,6 @@ impl fmt::Display for FilterType {
             Self::NoAmbigOrConst => write!(f, "No constant sites or ambiguous bases"),
         }
     }
-}
-
-pub enum KmerMin {
-    Auto,
-    Value(u16),
 }
 
 /// Options that apply to all subcommands
@@ -172,8 +192,8 @@ pub enum Commands {
         single_strand: bool,
 
         /// Minimum k-mer count (with reads)
-        #[arg(long)]
-        min_count: Option<String>,
+        #[arg(long, value_parser = valid_min_kmer)]
+        min_count: Option<ValidMinKmer>,
 
         /// Minimum k-mer quality (with reads)
         #[arg(long, default_value_t = DEFAULT_MINQUAL)]
