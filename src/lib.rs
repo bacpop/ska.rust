@@ -504,26 +504,16 @@ pub fn main() {
             // Read input
             let input_files = get_input_list(file_list, seq_files);
             let rc = !*single_strand;
-
-            // Are using 64 or 128 bit representation
-            let rep_64: bool = k.le(&31);
-            if rep_64 {
-                log::info!("k={}: using 64-bit representation", *k);
-            } else {
-                log::info!("k={}: using 128-bit representation", *k);
-            }
-
-            // Calculate minimum kmer cutoff
-            let cutoff = kmer_min_cutoff(min_count, &input_files, rep_64, k, rc, args.verbose);
-
-            let quality = QualOpts {
-                min_count: cutoff,
-                min_qual: *min_qual,
-                qual_filter: *qual_filter,
-            };
-
             // Build, merge
-            if rep_64 {
+            // check for 64 or 128 bit representation
+            if k.le(&31) {
+                log::info!("k={}: using 64-bit representation", *k);
+                let cutoff = kmer_min_cutoff::<u64>(min_count, &input_files, k, rc, args.verbose);
+                let quality = QualOpts {
+                    min_count: cutoff,
+                    min_qual: *min_qual,
+                    qual_filter: *qual_filter,
+                };
                 let merged_dict = build_and_merge::<u64>(
                     &input_files,
                     *k,
@@ -536,6 +526,13 @@ pub fn main() {
                 // Save
                 save_skf(&merged_dict, output);
             } else {
+                log::info!("k={}: using 128-bit representation", *k);
+                let cutoff = kmer_min_cutoff::<u128>(min_count, &input_files, k, rc, args.verbose);
+                let quality = QualOpts {
+                    min_count: cutoff,
+                    min_qual: *min_qual,
+                    qual_filter: *qual_filter,
+                };
                 let merged_dict = build_and_merge::<u128>(
                     &input_files,
                     *k,

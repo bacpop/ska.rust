@@ -167,10 +167,9 @@ pub fn get_2_fastq_path(files: &[InputFastx]) -> (String, String) {
 }
 
 /// Calculates minimum kmer cutoff depending on user provided argument
-pub fn kmer_min_cutoff(
+pub fn kmer_min_cutoff<IntT: for<'a> UInt<'a>>(
     v: &Option<ValidMinKmer>,
     files: &[InputFastx],
-    rep_64: bool,
     k: &usize,
     rc: bool,
     verbose: bool,
@@ -192,18 +191,10 @@ pub fn kmer_min_cutoff(
             // auto-calculate & there are enough fastq files
             ValidMinKmer::Auto if count_fastq(files).ge(&2) => {
                 let (fastq_fwd, fastq_rev) = get_2_fastq_path(files);
-                let out: u16;
-                if rep_64 {
-                    let mut cov =
-                        CoverageHistogram::<u64>::new(&fastq_fwd, &fastq_rev, *k, rc, verbose);
-                    out = cov.fit_histogram().expect("Couldn't fit coverage model") as u16;
-                    cov.plot_hist();
-                } else {
-                    let mut cov =
-                        CoverageHistogram::<u128>::new(&fastq_fwd, &fastq_rev, *k, rc, verbose);
-                    out = cov.fit_histogram().expect("Couldn't fit coverage model") as u16;
-                    cov.plot_hist();
-                }
+                let mut cov =
+                    CoverageHistogram::<IntT>::new(&fastq_fwd, &fastq_rev, *k, rc, verbose);
+                let out = cov.fit_histogram().expect("Couldn't fit coverage model") as u16;
+                cov.plot_hist();
                 log::info!("Using inferred minimum kmer value of {}", out);
                 out
             }
