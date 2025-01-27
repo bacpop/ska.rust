@@ -5,11 +5,8 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
-use crate::io_utils::load_array;
 use crate::merge_ska_array::MergeSkaArray;
 use crate::ska_dict::bit_encoding::{decode_kmer, UInt};
-
-use crate::skalo::utils::Config;
 
 type KmerGraph<IntT> = HashMap<IntT, Vec<IntT>>;
 type KmerSamples<IntT> = HashMap<IntT, BitSet>;

@@ -16,7 +16,7 @@ use crate::ska_ref::RefSka;
 use crate::skalo::extremities::identify_good_kmers;
 use crate::skalo::input::build_graph;
 use crate::skalo::read_graph::build_variant_groups;
-use crate::skalo::utils::{Config, DataInfo, DATA_INFO};
+use crate::skalo::utils::{Config, DataInfo};
 
 /// Filters alignment, and prints it out
 pub fn align<IntT: for<'a> UInt<'a>>(

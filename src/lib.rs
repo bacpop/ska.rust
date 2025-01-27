@@ -451,10 +451,7 @@ use crate::coverage::CoverageHistogram;
 
 pub mod skalo;
 use crate::io_utils::load_array;
-use crate::skalo::extremities::identify_good_kmers;
-// use crate::skalo::input::read_input_file;
-use crate::skalo::read_graph::build_variant_groups;
-use crate::skalo::utils::{Config, DataInfo, CONFIG, DATA_INFO};
+use crate::skalo::utils::Config;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

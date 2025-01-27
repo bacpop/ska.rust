@@ -47,7 +47,7 @@ pub struct IdxCheckIter<'a> {
     idx: usize,
 }
 
-impl<'a> Iterator for IdxCheckIter<'a> {
+impl Iterator for IdxCheckIter<'_> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<(usize, usize)> {
