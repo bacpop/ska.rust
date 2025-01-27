@@ -124,7 +124,7 @@ pub trait UInt<'a>:
     fn hash_val(self, hash_fn: &RandomState) -> u64;
 }
 
-impl<'a> UInt<'a> for u64 {
+impl UInt<'_> for u64 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> Self {
         // This part reverses the bases by shuffling them using an on/off pattern
@@ -182,7 +182,7 @@ impl<'a> UInt<'a> for u64 {
     }
 }
 
-impl<'a> UInt<'a> for u128 {
+impl UInt<'_> for u128 {
     #[inline(always)]
     fn rev_comp(mut self, k_size: usize) -> u128 {
         // This part reverses the bases by shuffling them using an on/off pattern

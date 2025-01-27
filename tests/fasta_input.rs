@@ -185,7 +185,7 @@ fn repeats() {
         .arg("dup_ss.skf")
         .arg("--filter")
         .arg("no-const")
-        .args(&["--min-freq", "1"])
+        .args(["--min-freq", "1"])
         .assert()
         .success();
 
@@ -241,7 +241,7 @@ fn palindromes() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("otto.skf")
-        .args(&["--filter", "no-filter"])
+        .args(["--filter", "no-filter"])
         .assert()
         .stdout_eq_path(sandbox.file_string("palindrome.stdout", TestDir::Correct));
 
@@ -285,7 +285,7 @@ fn palindromes() {
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("ottootto.skf")
-        .args(&["--filter", "no-filter"])
+        .args(["--filter", "no-filter"])
         .assert()
         .stdout_eq_path(sandbox.file_string("palindrome_reps.stdout", TestDir::Correct));
 }

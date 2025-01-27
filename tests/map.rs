@@ -30,7 +30,7 @@ fn map_aln() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
-        .args(&["-v", "--threads", "2"])
+        .args(["-v", "--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln.stdout", TestDir::Correct));
 
@@ -100,7 +100,7 @@ fn map_u128() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
-        .args(&["-v", "--threads", "2"])
+        .args(["-v", "--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_k41.stdout", TestDir::Correct));
 
@@ -109,7 +109,7 @@ fn map_u128() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
-        .args(&["-v", "--threads", "2"])
+        .args(["-v", "--threads", "2"])
         .arg("-f")
         .arg("vcf")
         .assert()
@@ -257,7 +257,7 @@ fn repeat_mask() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("-v")
         .arg("--repeat-mask")
-        .args(&["--format", "vcf"])
+        .args(["--format", "vcf"])
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf_k9.masked.stdout", TestDir::Correct));
 
@@ -289,7 +289,7 @@ fn repeat_mask() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("-v")
         .arg("--repeat-mask")
-        .args(&["--format", "vcf"])
+        .args(["--format", "vcf"])
         .assert()
         .stdout_matches_path(
             sandbox.file_string("map_vcf_two_chrom.masked.stdout", TestDir::Correct),

@@ -503,17 +503,18 @@ pub fn main() {
 
             // Read input
             let input_files = get_input_list(file_list, seq_files);
-            let quality = QualOpts {
-                min_count: *min_count,
+            let rc = !*single_strand;
+            // Build, merge
+            // check for 64 or 128 bit representation
+            let mut quality = QualOpts {
+                min_count: 0,
                 min_qual: *min_qual,
                 qual_filter: *qual_filter,
             };
-
-            // Build, merge
-            let rc = !*single_strand;
-
-            if *k <= 31 {
+            if k.le(&31) {
                 log::info!("k={}: using 64-bit representation", *k);
+                quality.min_count =
+                    kmer_min_cutoff::<u64>(min_count, &input_files, k, rc, args.verbose);
                 let merged_dict = build_and_merge::<u64>(
                     &input_files,
                     *k,
@@ -527,6 +528,8 @@ pub fn main() {
                 save_skf(&merged_dict, output);
             } else {
                 log::info!("k={}: using 128-bit representation", *k);
+                quality.min_count =
+                    kmer_min_cutoff::<u128>(min_count, &input_files, k, rc, args.verbose);
                 let merged_dict = build_and_merge::<u128>(
                     &input_files,
                     *k,

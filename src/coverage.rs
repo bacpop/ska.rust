@@ -392,7 +392,7 @@ mod tests {
         };
 
         let cutoff = test_obj.fit_histogram();
-        assert_eq!(cutoff.is_ok(), true);
+        assert!(cutoff.is_ok());
         assert_eq!(cutoff.unwrap(), 9);
 
         // The other template

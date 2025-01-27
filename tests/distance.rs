@@ -16,7 +16,7 @@ fn basic_dists() {
         .arg("distance")
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
         .arg("-v")
-        .args(&["--threads", "2"])
+        .args(["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("merge.dist.stdout", TestDir::Correct));
 
@@ -24,7 +24,7 @@ fn basic_dists() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
-        .args(&["-o", "dists.txt"])
+        .args(["-o", "dists.txt"])
         .assert()
         .success();
     sandbox.file_check("dists.txt", "merge.dist.stdout");
@@ -35,7 +35,7 @@ fn basic_dists() {
         .arg("distance")
         .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
         .arg("-v")
-        .args(&["--threads", "2"])
+        .args(["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("merge_k41.dist.stdout", TestDir::Correct));
 }
@@ -52,7 +52,7 @@ fn dist_filter() {
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
         .arg("--allow-ambiguous")
         .arg("-v")
-        .args(&["--threads", "2"])
+        .args(["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("merge_k9.dist.stdout", TestDir::Correct));
 
@@ -70,7 +70,7 @@ fn dist_filter() {
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
-        .args(&["--min-freq", "1"])
+        .args(["--min-freq", "1"])
         .arg("-v")
         .assert()
         .stdout_eq_path(sandbox.file_string("merge_k9_min_freq.dist.stdout", TestDir::Correct));
@@ -103,9 +103,9 @@ fn multisample_dists() {
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
-        .args(&["--min-freq", "0"])
+        .args(["--min-freq", "0"])
         .arg("--allow-ambiguous")
-        .args(&["--threads", "2"])
+        .args(["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
 

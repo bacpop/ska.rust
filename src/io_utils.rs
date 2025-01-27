@@ -14,11 +14,13 @@ use super::QualOpts;
 use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
+use crate::CoverageHistogram;
 
 use crate::cli::{
     DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_PROPORTION_READS, DEFAULT_QUALFILTER,
     DEFAULT_STRAND,
 };
+use crate::ValidMinKmer;
 
 /// Given a list of input files, parses them into triples of name, filename and
 /// [`None`] to be used with [SkaDict](`crate::ska_dict::SkaDict::new()`).
@@ -140,12 +142,69 @@ pub fn get_input_list(
 
 /// Checks if any input files are fastq
 pub fn any_fastq(files: &[InputFastx]) -> bool {
-    let mut fastq = false;
-    for file in files {
-        if file.2.is_some() {
-            fastq = true;
-            break;
+    files.iter().any(|file| file.2.is_some())
+}
+
+/// Counts number of fastq files
+pub fn count_fastq(files: &[InputFastx]) -> usize {
+    files.iter().filter(|file| file.2.is_some()).count()
+}
+
+/// Collects filepaths to the first 2 fastq files into a tuple
+pub fn get_2_fastq_path(files: &[InputFastx]) -> (String, String) {
+    let out: Vec<String> = files
+        .iter()
+        .filter(|file| file.2.is_some())
+        .take(2)
+        .map(|x| x.1.clone())
+        .collect();
+
+    if out.len().gt(&1) {
+        (out[0].clone(), out[1].clone())
+    } else {
+        panic!("Trying to get 2 fastq files from a vector with <2 elements");
+    }
+}
+
+/// Calculates minimum kmer cutoff depending on user provided argument
+pub fn kmer_min_cutoff<IntT: for<'a> UInt<'a>>(
+    v: &Option<ValidMinKmer>,
+    files: &[InputFastx],
+    k: &usize,
+    rc: bool,
+    verbose: bool,
+) -> u16 {
+    // Minimum kmer cutoff logic
+    if v.is_none() {
+        log::info!(
+            "Using user-provided minimum kmer value of {}",
+            DEFAULT_MINCOUNT
+        );
+        DEFAULT_MINCOUNT
+    } else {
+        match v.unwrap() {
+            // User-provided value (already checked by cli parser)
+            ValidMinKmer::Val(x) => {
+                log::info!("Using user-provided minimum kmer value of {}", x);
+                x
+            }
+            // auto-calculate & there are enough fastq files
+            ValidMinKmer::Auto if count_fastq(files).ge(&2) => {
+                let (fastq_fwd, fastq_rev) = get_2_fastq_path(files);
+                let mut cov =
+                    CoverageHistogram::<IntT>::new(&fastq_fwd, &fastq_rev, *k, rc, verbose);
+                let out = cov.fit_histogram().expect("Couldn't fit coverage model") as u16;
+                cov.plot_hist();
+                log::info!("Using inferred minimum kmer value of {}", out);
+                out
+            }
+            // Not enough fastq files, use default and warn user
+            ValidMinKmer::Auto => {
+                log::info!(
+                    "Not enough fastq files to fit mixture model, using default kmer count of 5"
+                );
+                DEFAULT_MINCOUNT
+            }
         }
     }
-    fastq
 }
