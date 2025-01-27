@@ -2,12 +2,14 @@ use dashmap::DashMap;
 use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
 
-pub fn compact_graph(
-    all_kmers: &mut HashMap<u128, Vec<u128>>,
-    start_kmers: &HashSet<u128>,
-    end_kmers: &HashSet<u128>,
-) -> DashMap<u128, Vec<u128>> {
-    let compacted: DashMap<u128, Vec<u128>> = DashMap::new();
+use crate::ska_dict::bit_encoding::UInt;
+
+pub fn compact_graph<IntT: for<'a> UInt<'a>>(
+    all_kmers: &mut HashMap<IntT, Vec<IntT>>,
+    start_kmers: &HashSet<IntT>,
+    end_kmers: &HashSet<IntT>,
+) -> DashMap<IntT, Vec<IntT>> {
+    let compacted: DashMap<IntT, Vec<IntT>> = DashMap::new();
 
     // from start k-mers
     start_kmers.par_iter().for_each(|kmer| {
@@ -15,8 +17,8 @@ pub fn compact_graph(
             for starting_kmer in starting_kmers.iter() {
                 let mut current_kmer = *starting_kmer;
 
-                let mut visited: HashSet<u128> = HashSet::new();
-                let mut vec_visited: Vec<u128> = Vec::new();
+                let mut visited: HashSet<IntT> = HashSet::new();
+                let mut vec_visited: Vec<IntT> = Vec::new();
 
                 let mut walking_along_path = true;
 
@@ -52,8 +54,8 @@ pub fn compact_graph(
             for starting_kmer in starting_kmers.iter() {
                 let mut current_kmer = *starting_kmer;
 
-                let mut visited: HashSet<u128> = HashSet::new();
-                let mut vec_visited: Vec<u128> = Vec::new();
+                let mut visited: HashSet<IntT> = HashSet::new();
+                let mut vec_visited: Vec<IntT> = Vec::new();
 
                 let mut walking_along_path = true;
 

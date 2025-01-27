@@ -9,31 +9,29 @@ use std::sync::{
     Arc, Mutex,
 };
 
+use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::compaction::compact_graph;
 use crate::skalo::process_variants::analyse_variant_groups;
-use crate::skalo::utils::{
-    decode_kmer, get_last_nucl, DnaSequence, VariantInfo, CONFIG, DATA_INFO,
-};
+use crate::skalo::utils::{Config, DataInfo, DnaSequence, VariantInfo};
 
-pub fn build_variant_groups(
-    mut all_kmers: HashMap<u128, Vec<u128>>,
-    start_kmers: HashSet<u128>,
-    end_kmers: HashSet<u128>,
-    kmer_2_samples: HashMap<u128, BitSet>,
+pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
+    mut all_kmers: HashMap<IntT, Vec<IntT>>,
+    start_kmers: HashSet<IntT>,
+    end_kmers: HashSet<IntT>,
+    kmer_2_samples: HashMap<IntT, BitSet>,
+    config: &Config,
+    data_info: &DataInfo,
 ) {
-    let arguments = CONFIG.get().unwrap();
-    let data_info = DATA_INFO.get().unwrap();
-
     log::info!(" # compact graph");
 
     let compacted = compact_graph(&mut all_kmers, &start_kmers, &end_kmers);
 
     log::info!(" # explore graph");
 
-    let built_groups = Arc::new(Mutex::new(HashMap::<(u128, u128), Vec<VariantInfo>>::new()));
+    let built_groups = Arc::new(Mutex::new(HashMap::<(IntT, IntT), Vec<VariantInfo>>::new()));
 
     let pool = ThreadPoolBuilder::new()
-        .num_threads(arguments.nb_threads)
+        .num_threads(config.nb_threads)
         .build()
         .unwrap();
 
@@ -50,9 +48,9 @@ pub fn build_variant_groups(
                 pb.inc(1000);
             }
 
-            let mut tmp_container: HashMap<u128, Vec<Vec<u128>>> = HashMap::new();
+            let mut tmp_container: HashMap<IntT, Vec<Vec<IntT>>> = HashMap::new();
 
-            let mut good_next: Vec<u128> = Vec::with_capacity(2);
+            let mut good_next: Vec<IntT> = Vec::with_capacity(2);
 
             for starting_kmer in all_kmers.get(kmer).unwrap().iter() {
                 let mut visited = HashSet::new();
@@ -84,7 +82,7 @@ pub fn build_variant_groups(
                         depth,
                     } = path_state;
 
-                    if depth > arguments.max_depth {
+                    if depth > config.max_depth {
                         continue;
                     }
 
@@ -171,13 +169,13 @@ pub fn build_variant_groups(
             // save variants if at least a vector with 2+ elements for one exit k-mer
             if tmp_container.values().any(|v| v.len() > 1) {
                 // prepare variant container
-                let mut tmp_container_2: HashMap<(u128, u128), Vec<VariantInfo>> = HashMap::new();
+                let mut tmp_container_2: HashMap<(IntT, IntT), Vec<VariantInfo>> = HashMap::new();
 
                 // check-filter-build variant groups
                 for (exit_kmer, vec_variants) in tmp_container.iter() {
                     // collect second to last kmer of each variant in a hashset -> test if at least 2 (ie, the variants end on a difference)
-                    let second_set: HashSet<u128> = vec_variants.iter().map(|v| v[1]).collect();
-                    let second_to_last_set: HashSet<u128> =
+                    let second_set: HashSet<IntT> = vec_variants.iter().map(|v| v[1]).collect();
+                    let second_to_last_set: HashSet<IntT> =
                         vec_variants.iter().map(|v| v[v.len() - 2]).collect();
 
                     if second_set.len() > 1 && second_to_last_set.len() > 1 {
@@ -192,7 +190,7 @@ pub fn build_variant_groups(
                                     .collect()
                             };
 
-                            let combined_ends: (u128, u128) = (*kmer, *exit_kmer);
+                            let combined_ends: (IntT, IntT) = (*kmer, *exit_kmer);
 
                             // build variants 1 by 1
                             for vec_visited in filtered_variants {
@@ -200,12 +198,13 @@ pub fn build_variant_groups(
                                 let mut sequence = String::with_capacity(
                                     vec_visited.len() + data_info.k_graph - 1,
                                 );
-                                sequence.push_str(&decode_kmer(*kmer, data_info.k_graph));
+                                sequence
+                                    .push_str(&IntT::skalo_decode_kmer(*kmer, data_info.k_graph));
                                 let mut vec_snps: Vec<usize> = Vec::new();
                                 for (i, next) in vec_visited.iter().enumerate() {
                                     if i != 0 {
                                         // 1st corresponds to entry k-mer
-                                        sequence.push(get_last_nucl(*next));
+                                        sequence.push(IntT::get_last_nucl(*next));
                                     }
                                     if start_kmers.contains(next)
                                         && i <= (vec_visited.len() - data_info.k_graph)
@@ -245,8 +244,8 @@ pub fn build_variant_groups(
     let min_indel = 2 * data_info.k_graph;
 
     // separate indels from the other variants
-    let mut final_groups: HashMap<(u128, u128), Vec<VariantInfo>> = HashMap::new();
-    let mut final_indels: HashMap<(u128, u128), Vec<VariantInfo>> = HashMap::new();
+    let mut final_groups: HashMap<(IntT, IntT), Vec<VariantInfo>> = HashMap::new();
+    let mut final_indels: HashMap<(IntT, IntT), Vec<VariantInfo>> = HashMap::new();
 
     for (extremities_combined, vec_variant) in built_groups_end.iter() {
         // test if variant is an indel
@@ -270,11 +269,17 @@ pub fn build_variant_groups(
     }
 
     // infer variants
-    analyse_variant_groups(final_groups, final_indels, kmer_2_samples);
+    analyse_variant_groups(
+        final_groups,
+        final_indels,
+        kmer_2_samples,
+        config,
+        data_info,
+    );
 }
 
 // find the most abundant length in a vector of variants
-fn most_abundant_length(vec_variants: &[Vec<u128>]) -> Option<usize> {
+fn most_abundant_length<IntT: for<'a> UInt<'a>>(vec_variants: &[Vec<IntT>]) -> Option<usize> {
     let mut length_counts = std::collections::HashMap::new();
 
     // count the frequency of each length
@@ -290,9 +295,9 @@ fn most_abundant_length(vec_variants: &[Vec<u128>]) -> Option<usize> {
 }
 
 // structure to hold state for each path in the stack
-pub struct PathState {
-    current_kmer: u128,
-    visited: HashSet<u128>,
-    vec_visited: Vec<u128>,
+pub struct PathState<T> {
+    current_kmer: T,
+    visited: HashSet<T>,
+    vec_visited: Vec<T>,
     depth: usize,
 }

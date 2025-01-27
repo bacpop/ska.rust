@@ -1,25 +1,26 @@
 use bit_set::BitSet;
 use hashbrown::{HashMap, HashSet};
 
+use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::output::create_fasta_and_vcf;
 use crate::skalo::positioning::{extract_genomic_kmers, scan_variants};
-use crate::skalo::utils::{
-    encode_u8_kmer, get_last_nucl, rev_compl_u128, DataInfo, VariantInfo, CONFIG, DATA_INFO,
-};
+use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 
-type VariantGroups = HashMap<(u128, u128), Vec<VariantInfo>>;
+type VariantGroups<IntT: for<'a> UInt<'a>> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
 
-pub fn analyse_variant_groups(
-    mut variant_groups: VariantGroups,
-    indel_groups: VariantGroups,
-    kmer_2_samples: HashMap<u128, BitSet>,
+pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
+    mut variant_groups: VariantGroups<IntT>,
+    indel_groups: VariantGroups<IntT>,
+    kmer_2_samples: HashMap<IntT, BitSet>,
+    config: &Config,
+    data_info: &DataInfo,
 ) {
-    let arguments = CONFIG.get().unwrap();
-    let data_info = DATA_INFO.get().unwrap();
+    // let arguments = CONFIG.get().unwrap();
+    // let data_info = DATA_INFO.get().unwrap();
 
     // check if the optional reference genome file argument is provided -> extract kmers
     let (do_postioning, kmer_map, genome_name, genome_seq) =
-        if let Some(path) = &arguments.reference_genome {
+        if let Some(path) = &config.reference_genome {
             log::info!(" # read reference genome");
             let (extracted_kmer_map, seq, name) =
                 extract_genomic_kmers(path.clone(), data_info.k_graph);
@@ -45,7 +46,7 @@ pub fn analyse_variant_groups(
         while i < vec_variant.len() {
             let nb_indel_kmers = find_internal_indels(&vec_variant[i], &entries_indels, data_info);
             // there has to be 4 ends for 2 indels, but reducing the threshold to 3 half the numbers of FPs
-            if nb_indel_kmers > arguments.max_indel_kmers {
+            if nb_indel_kmers > config.max_indel_kmers {
                 vec_variant.remove(i);
             } else {
                 i += 1;
@@ -71,7 +72,7 @@ pub fn analyse_variant_groups(
     sorted_keys.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); // Sort by ratio, descending
 
     // start processing SNPs
-    let mut entries_done: HashSet<u128> = HashSet::new();
+    let mut entries_done: HashSet<IntT> = HashSet::new();
 
     // to store SNPs, with genomic position as key (or counter if no positioning)
     let mut final_snps: HashMap<u32, Vec<char>> = HashMap::new();
@@ -80,7 +81,7 @@ pub fn analyse_variant_groups(
 
     for (key, _) in sorted_keys {
         if !entries_indels.contains(&key.0)
-            && !entries_indels.contains(&rev_compl_u128(key.1, data_info.k_graph))
+            && !entries_indels.contains(&IntT::rev_compl(key.1, data_info.k_graph))
         {
             let vec_variants = variant_groups.get(key).unwrap();
 
@@ -93,13 +94,13 @@ pub fn analyse_variant_groups(
             let real_snp_pos = get_potential_snp(vec_variants);
 
             // get SNP column and kmers
-            let mut kmers_to_save: HashSet<u128> = HashSet::new();
+            let mut kmers_to_save: HashSet<IntT> = HashSet::new();
             let mut found_snp_pos: HashMap<usize, Vec<char>> =
                 HashMap::with_capacity(real_snp_pos.len());
 
             for &pos in &real_snp_pos {
                 let mut snp_column = vec!['-'; data_info.sample_names.len()];
-                let mut tmp_kmers: HashSet<u128> = HashSet::new();
+                let mut tmp_kmers: HashSet<IntT> = HashSet::new();
 
                 let mut new_snp = true;
 
@@ -108,14 +109,14 @@ pub fn analyse_variant_groups(
 
                     // Extract k-mers directly from the packed DNA sequence
                     let full_before =
-                        encode_u8_kmer(&seq.get_range(pos - data_info.k_graph, pos + 1));
+                        IntT::encode_u8_kmer(&seq.get_range(pos - data_info.k_graph, pos + 1));
                     let full_after =
-                        encode_u8_kmer(&seq.get_range(pos, pos + data_info.k_graph + 1));
-                    let rc_after = rev_compl_u128(full_after, data_info.k_graph + 1);
+                        IntT::encode_u8_kmer(&seq.get_range(pos, pos + data_info.k_graph + 1));
+                    let rc_after = IntT::rev_compl(full_after, data_info.k_graph + 1);
 
                     // this is the critical part: we have to avoid SNPs already identified
                     if !entries_done.contains(&full_before) && !entries_done.contains(&rc_after) {
-                        let last_nucl = get_last_nucl(full_before);
+                        let last_nucl = IntT::get_last_nucl(full_before);
                         let samples = kmer_2_samples.get(&full_before).unwrap();
 
                         for sample_index in samples {
@@ -130,7 +131,7 @@ pub fn analyse_variant_groups(
 
                         // Save k-mers to avoid
                         tmp_kmers.insert(full_before);
-                        tmp_kmers.insert(rev_compl_u128(full_before, data_info.k_graph + 1));
+                        tmp_kmers.insert(IntT::rev_compl(full_before, data_info.k_graph + 1));
                         tmp_kmers.insert(full_after);
                         tmp_kmers.insert(rc_after);
                     } else {
@@ -141,7 +142,7 @@ pub fn analyse_variant_groups(
                 if new_snp {
                     let (true_variant, ratio_missing) =
                         check_missing_data(data_info.sample_names.len(), &snp_column);
-                    if true_variant && ratio_missing <= arguments.max_missing {
+                    if true_variant && ratio_missing <= config.max_missing {
                         // save surrounding k-mers
                         kmers_to_save.extend(tmp_kmers);
                         // save SNP
@@ -213,12 +214,13 @@ pub fn analyse_variant_groups(
         genome_seq,
         data_info.sample_names.clone(),
         final_snps,
+        config,
     );
 }
 
-fn find_internal_indels(
+fn find_internal_indels<IntT: for<'a> UInt<'a>>(
     variant: &VariantInfo,
-    entries_indels: &HashSet<u128>,
+    entries_indels: &HashSet<IntT>,
     data_info: &DataInfo,
 ) -> usize {
     let mut nb = 0;
@@ -226,18 +228,17 @@ fn find_internal_indels(
     let k_graph = data_info.k_graph;
 
     // precompute the initial k-mer
-    let mut kmer = encode_u8_kmer(&sequence.get_range(0, k_graph));
-    let mask = (1u128 << (2 * k_graph)) - 1; // Mask for retaining k-mer length
+    let mut kmer = IntT::encode_u8_kmer(&sequence.get_range(0, k_graph));
+    // Mask for retaining k-mer length
+    let mask = IntT::skalo_mask(k_graph);
 
     // sliding window for k-mer computation
     for i in k_graph..sequence.len() {
         // compute the next k-mer using a rolling hash
-        let next_nucleotide = {
-            let byte_index = i / 4;
-            let shift = 6 - (i % 4) * 2;
-            let bits = (sequence.data[byte_index] >> shift) & 0b11;
-            bits as u128
-        };
+        let byte_index = i / 4;
+        let shift = 6 - (i % 4) * 2;
+        let next_nucleotide = IntT::from_encoded_base((sequence.data[byte_index] >> shift) & 0b11);
+
         kmer = ((kmer << 2) | next_nucleotide) & mask; // update k-mer with new nucl
 
         if entries_indels.contains(&kmer) {
@@ -247,15 +248,18 @@ fn find_internal_indels(
     nb
 }
 
-fn process_indels(indel_groups: VariantGroups, k_graph: usize) -> (VariantGroups, HashSet<u128>) {
-    let mut entries_indels: HashSet<u128> = HashSet::new();
-    let mut final_indels: VariantGroups = HashMap::new();
+fn process_indels<IntT: for<'a> UInt<'a>>(
+    indel_groups: VariantGroups<IntT>,
+    k_graph: usize,
+) -> (VariantGroups<IntT>, HashSet<IntT>) {
+    let mut entries_indels: HashSet<IntT> = HashSet::new();
+    let mut final_indels: VariantGroups<IntT> = HashMap::new();
 
     for (combined_ext, vec_variant) in &indel_groups {
         if !entries_indels.contains(&combined_ext.0) {
             // test if rev-compl exists
-            let rc_1 = rev_compl_u128(combined_ext.0, k_graph);
-            let rc_2 = rev_compl_u128(combined_ext.1, k_graph);
+            let rc_1 = IntT::rev_compl(combined_ext.0, k_graph);
+            let rc_2 = IntT::rev_compl(combined_ext.1, k_graph);
             let rc_combined = (rc_2, rc_1);
 
             if indel_groups.contains_key(&rc_combined) {

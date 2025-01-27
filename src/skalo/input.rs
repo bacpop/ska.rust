@@ -6,24 +6,28 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use crate::io_utils::load_array;
-use crate::ska_dict::bit_encoding::decode_kmer;
+use crate::merge_ska_array::MergeSkaArray;
+use crate::ska_dict::bit_encoding::{decode_kmer, UInt};
 
-use crate::skalo::utils::{encode_kmer, rev_compl_u128, CONFIG};
+use crate::skalo::utils::Config;
 
-type KmerGraph = HashMap<u128, Vec<u128>>;
-type KmerSamples = HashMap<u128, BitSet>;
+type KmerGraph<IntT> = HashMap<IntT, Vec<IntT>>;
+type KmerSamples<IntT> = HashMap<IntT, BitSet>;
 
-pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
-    let arguments = CONFIG.get().unwrap();
+pub fn build_graph<IntT: for<'a> UInt<'a>>(
+    ska_array: MergeSkaArray<IntT>,
+    nb_threads: usize,
+) -> (usize, Vec<String>, KmerGraph<IntT>, KmerSamples<IntT>) {
+    // let arguments = CONFIG.get().unwrap();
 
-    log::info!(" # read file {}", arguments.input_file);
+    // log::info!(" # read file {}", config.input_file);
 
     // read the skf file and load split-kmers (ska_array), kmer length and sample names
-    let ska_array = load_array::<u128>(&[arguments.input_file.to_string()], arguments.nb_threads)
-        .expect("\nerror: could not read the skf file\n\n");
+    // let ska_array = load_array::<IntT>(&[arguments.input_file.to_string()], arguments.nb_threads)
+    //     .expect("\nerror: could not read the skf file\n\n");
     let sample_names = ska_array.names().to_vec();
     let len_kmer = ska_array.kmer_len();
-    let mask = (1 << (len_kmer * 2)) - 1;
+    let mask: IntT = IntT::skalo_mask(len_kmer);
 
     log::info!("     . {}-mers", len_kmer);
     log::info!("     . {} samples", sample_names.len());
@@ -52,11 +56,11 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
     .cloned()
     .collect();
 
-    let all_kmers: DashMap<u128, Vec<u128>> = DashMap::new();
-    let kmer_samples: DashMap<u128, BitSet> = DashMap::new();
+    let all_kmers: DashMap<IntT, Vec<IntT>> = DashMap::new();
+    let kmer_samples: DashMap<IntT, BitSet> = DashMap::new();
 
     ThreadPoolBuilder::new()
-        .num_threads(arguments.nb_threads)
+        .num_threads(nb_threads)
         .build_global()
         .expect("failed to build the thread pool");
 
@@ -95,8 +99,8 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
                 full_kmer.push(*nucl);
                 full_kmer.push_str(&kmer_right);
 
-                let encoded_kmer_1 = encode_kmer(&full_kmer[..len_kmer - 1]);
-                let encoded_kmer_2 = encode_kmer(&full_kmer[1..]);
+                let encoded_kmer_1 = IntT::encode_kmer(&full_kmer[..len_kmer - 1]);
+                let encoded_kmer_2 = IntT::encode_kmer(&full_kmer[1..]);
 
                 all_kmers
                     .entry(encoded_kmer_1)
@@ -104,22 +108,22 @@ pub fn read_input_file() -> (usize, Vec<String>, KmerGraph, KmerSamples) {
                     .push(encoded_kmer_2);
 
                 all_kmers
-                    .entry(rev_compl_u128(encoded_kmer_2, len_kmer - 1))
+                    .entry(IntT::rev_compl(encoded_kmer_2, len_kmer - 1))
                     .or_default()
-                    .push(rev_compl_u128(encoded_kmer_1, len_kmer - 1));
+                    .push(IntT::rev_compl(encoded_kmer_1, len_kmer - 1));
 
-                let encode_full = encode_kmer(&full_kmer);
+                let encode_full = IntT::encode_kmer(&full_kmer);
                 kmer_samples
                     .entry(encode_full)
                     .or_insert_with(|| bitset_samples.clone());
                 kmer_samples
-                    .entry(rev_compl_u128(encode_full, len_kmer))
+                    .entry(IntT::rev_compl(encode_full, len_kmer))
                     .or_insert_with(|| bitset_samples.clone());
             }
         });
 
-    let all_kmers: KmerGraph = all_kmers.into_iter().collect();
-    let kmer_samples: KmerSamples = kmer_samples.into_iter().collect();
+    let all_kmers: KmerGraph<IntT> = all_kmers.into_iter().collect();
+    let kmer_samples: KmerSamples<IntT> = kmer_samples.into_iter().collect();
 
     log::info!("     . {} nodes", all_kmers.len());
 

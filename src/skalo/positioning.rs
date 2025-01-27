@@ -7,18 +7,19 @@ use std::path::PathBuf;
 
 use flate2::read::MultiGzDecoder;
 
-use crate::skalo::utils::{encode_kmer, rev_compl, VariantInfo};
+use crate::ska_dict::bit_encoding::UInt;
+use crate::skalo::utils::{rev_compl, VariantInfo};
 
 // extract genomic k-mers with up to 3 distinct positions
-pub fn extract_genomic_kmers(
+pub fn extract_genomic_kmers<IntT: for<'a> UInt<'a>>(
     file_path: PathBuf,
     k: usize,
-) -> (HashMap<u128, Vec<u32>>, Vec<u8>, String) {
+) -> (HashMap<IntT, Vec<u32>>, Vec<u8>, String) {
     // Initialize HashMap to store k-mers and their positions
-    let mut kmer_map: HashMap<u128, Vec<u32>> = HashMap::new();
+    let mut kmer_map: HashMap<IntT, Vec<u32>> = HashMap::new();
 
     // initialize HashSet to track k-mers that have more than 5 positions
-    let mut overflow_kmers: HashSet<u128> = HashSet::new();
+    let mut overflow_kmers: HashSet<IntT> = HashSet::new();
 
     // initialize variables to store the genome
     let mut genome_seq: Vec<u8> = Vec::new();
@@ -65,7 +66,7 @@ pub fn extract_genomic_kmers(
                 let kmer = &genome_seq[n..n + k];
 
                 // convert k-mer to u128
-                if let Some(kmer_encoded) = encode_vecu8_u128(kmer) {
+                if let Some(kmer_encoded) = IntT::encode_vecu8(kmer) {
                     // Skip k-mers that have already overflowed
                     if overflow_kmers.contains(&kmer_encoded) {
                         continue;
@@ -106,26 +107,26 @@ fn get_reader(path: &PathBuf) -> Box<dyn BufRead + Send> {
 }
 
 // encode slice [u8] into a u128
-fn encode_vecu8_u128(kmer: &[u8]) -> Option<u128> {
-    let mut encoded = 0u128;
-    for &base in kmer {
-        encoded = (encoded << 2)
-            | match base {
-                b'A' => 0b00,
-                b'C' => 0b01,
-                b'G' => 0b10,
-                b'T' => 0b11,
-                _ => return None,
-            };
-    }
-    Some(encoded)
-}
+// fn encode_vecu8_u128<IntT: for<'a> UInt<'a>>(kmer: &[u8]) -> Option<IntT> {
+//     let mut encoded = 0u128;
+//     for &base in kmer {
+//         encoded = (encoded << 2)
+//             | match base {
+//                 b'A' => 0b00,
+//                 b'C' => 0b01,
+//                 b'G' => 0b10,
+//                 b'T' => 0b11,
+//                 _ => return None,
+//             };
+//     }
+//     Some(encoded)
+// }
 
 // returns the genomic position of a bubble
-pub fn scan_variants(
+pub fn scan_variants<IntT: for<'a> UInt<'a>>(
     vec_variants: &[VariantInfo],
     len_kmer_graph: usize,
-    kmer_map: &HashMap<u128, Vec<u32>>,
+    kmer_map: &HashMap<IntT, Vec<u32>>,
 ) -> (bool, u32, String) {
     let mut final_position = 0;
 
@@ -138,7 +139,7 @@ pub fn scan_variants(
 
         // collect positions for the forward sequence
         for pos in 0..=seq.len() - len_kmer_graph {
-            let encoded_kmer = encode_kmer(&seq[pos..pos + len_kmer_graph]);
+            let encoded_kmer = IntT::encode_kmer(&seq[pos..pos + len_kmer_graph]);
             if let Some(vec_pos) = kmer_map.get(&encoded_kmer) {
                 for position in vec_pos {
                     vec_position_forward.push(position - pos as u32);
@@ -148,7 +149,7 @@ pub fn scan_variants(
 
         // collect positions for the reverse-complement sequence
         for pos in 0..=rc_seq.len() - len_kmer_graph {
-            let encoded_kmer = encode_kmer(&rc_seq[pos..pos + len_kmer_graph]);
+            let encoded_kmer = IntT::encode_kmer(&rc_seq[pos..pos + len_kmer_graph]);
             if let Some(vec_pos) = kmer_map.get(&encoded_kmer) {
                 for position in vec_pos {
                     vec_position_reverse.push(position - pos as u32);

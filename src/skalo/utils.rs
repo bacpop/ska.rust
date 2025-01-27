@@ -36,55 +36,55 @@ pub fn rev_compl(seq: &str) -> String {
     complemented_seq
 }
 
-pub fn rev_compl_u128(kmer: u128, k: usize) -> u128 {
-    // mask for the last 2 bits (representing one nucleotide)
-    let mask = 0b11u128;
+// pub fn rev_compl_u128(kmer: u128, k: usize) -> u128 {
+//     // mask for the last 2 bits (representing one nucleotide)
+//     let mask = 0b11u128;
 
-    // initialize reverse complement result
-    let mut rc_u128 = 0u128;
+//     // initialize reverse complement result
+//     let mut rc_u128 = 0u128;
 
-    // for each nucleotide in the k-mer
-    for i in 0..k {
-        // get the last 2 bits (current nucleotide)
-        let nucleotide = (kmer >> (2 * i)) & mask;
+//     // for each nucleotide in the k-mer
+//     for i in 0..k {
+//         // get the last 2 bits (current nucleotide)
+//         let nucleotide = (kmer >> (2 * i)) & mask;
 
-        // complement the nucleotide:
-        let complement = match nucleotide {
-            0b00 => 0b11, // A -> T
-            0b01 => 0b10, // C -> G
-            0b10 => 0b01, // G -> C
-            0b11 => 0b00, // T -> A
-            _ => unreachable!(),
-        };
+//         // complement the nucleotide:
+//         let complement = match nucleotide {
+//             0b00 => 0b11, // A -> T
+//             0b01 => 0b10, // C -> G
+//             0b10 => 0b01, // G -> C
+//             0b11 => 0b00, // T -> A
+//             _ => unreachable!(),
+//         };
 
-        // shift the complemented nucleotide to its reverse position
-        rc_u128 |= complement << (2 * (k - i - 1));
-    }
-    rc_u128
-}
+//         // shift the complemented nucleotide to its reverse position
+//         rc_u128 |= complement << (2 * (k - i - 1));
+//     }
+//     rc_u128
+// }
 
-pub fn encode_kmer(kmer: &str) -> u128 {
-    let nucleotide_to_bits: [u8; 4] = [
-        0b00, // A
-        0b01, // C
-        0b10, // G
-        0b11, // T
-    ];
+// pub fn encode_kmer<IntT: for<'a> UInt<'a>>(kmer: &str) -> IntT {
+//     let nucleotide_to_bits: [u8; 4] = [
+//         0b00, // A
+//         0b01, // C
+//         0b10, // G
+//         0b11, // T
+//     ];
 
-    let mut result: u128 = 0;
+//     let mut result: IntT = 0 as InT;
 
-    for nucleotide in kmer.chars() {
-        let index = match nucleotide {
-            'A' => 0,
-            'C' => 1,
-            'G' => 2,
-            'T' => 3,
-            _ => panic!("Invalid nucleotide"),
-        };
-        result = (result << 2) | (nucleotide_to_bits[index] as u128);
-    }
-    result
-}
+//     for nucleotide in kmer.chars() {
+//         let index = match nucleotide {
+//             'A' => 0,
+//             'C' => 1,
+//             'G' => 2,
+//             'T' => 3,
+//             _ => panic!("Invalid nucleotide"),
+//         };
+//         result = (result << 2) | (nucleotide_to_bits[index] as u128);
+//     }
+//     result
+// }
 
 pub fn encode_u8_kmer(dna: &[u8]) -> u128 {
     let mut encoded: u128 = 0;
@@ -118,18 +118,18 @@ pub fn decode_kmer(encoded: u128, k: usize) -> String {
 }
 
 // extract last nucleotide from an encoded k-mer
-pub fn get_last_nucl(encoded_kmer: u128) -> char {
-    // mask the last 2 bits to get the encoded nucleotide
-    let last_bits = (encoded_kmer & 0b11) as u8;
-    // decode the nucleotide based on the 2-bit pattern
-    match last_bits {
-        0b00 => 'A',
-        0b01 => 'C',
-        0b10 => 'G',
-        0b11 => 'T',
-        _ => unreachable!(),
-    }
-}
+// pub fn get_last_nucl<IntT: for<'a> UInt<'a>>(encoded_kmer: IntT) -> char {
+//     // mask the last 2 bits to get the encoded nucleotide
+//     let last_bits = (encoded_kmer & 0b11) as u8;
+//     // decode the nucleotide based on the 2-bit pattern
+//     match last_bits {
+//         0b00 => 'A',
+//         0b01 => 'C',
+//         0b10 => 'G',
+//         0b11 => 'T',
+//         _ => unreachable!(),
+//     }
+// }
 
 #[derive(Clone)]
 pub struct VariantInfo {

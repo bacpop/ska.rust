@@ -2,15 +2,16 @@ use hashbrown::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 
-use crate::skalo::utils::CONFIG;
+use crate::skalo::utils::Config;
 
 pub fn create_fasta_and_vcf(
     genome_name: String,
     mut genome_seq: Vec<u8>,
     sample_names: Vec<String>,
     map: HashMap<u32, Vec<char>>,
+    config: &Config,
 ) {
-    let arguments = CONFIG.get().unwrap();
+    // let arguments = CONFIG.get().unwrap();
 
     // replace non-ATGCN characters with 'N' in genome_seq
     for base in genome_seq.iter_mut() {
@@ -74,7 +75,7 @@ pub fn create_fasta_and_vcf(
     }
 
     // write SNP alignment in FASTA format
-    let snp_filename = format!("{}_snps.fas", arguments.output_name);
+    let snp_filename = format!("{}_snps.fas", config.output_name);
     let mut snp_output = File::create(snp_filename).expect("Unable to create SNP file");
     for (name, sequence) in sample_names.iter().zip(sequences.iter()) {
         writeln!(snp_output, ">{}", name).expect("Error writing to SNP file");
@@ -83,7 +84,7 @@ pub fn create_fasta_and_vcf(
 
     if !genome_seq.is_empty() {
         // write pseudo-genomes in FASTA format
-        let genome_filename = format!("{}_pseudo_genomes.fas", arguments.output_name);
+        let genome_filename = format!("{}_pseudo_genomes.fas", config.output_name);
         let genome_output =
             File::create(genome_filename).expect("Unable to create genome alignment file");
         if let Some(ref_genome_alignments) = genome_alignments {
@@ -96,7 +97,7 @@ pub fn create_fasta_and_vcf(
         }
 
         // write variants in VCF format
-        let vcf_filename = format!("{}_snps.vcf", arguments.output_name);
+        let vcf_filename = format!("{}_snps.vcf", config.output_name);
         let mut vcf_output = File::create(vcf_filename).expect("Unable to create VCF file");
         writeln!(vcf_output, "##fileformat=VCFv4.2").expect("Error writing VCF header");
         writeln!(

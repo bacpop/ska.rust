@@ -450,8 +450,9 @@ pub mod coverage;
 use crate::coverage::CoverageHistogram;
 
 pub mod skalo;
+use crate::io_utils::load_array;
 use crate::skalo::extremities::identify_good_kmers;
-use crate::skalo::input::read_input_file;
+// use crate::skalo::input::read_input_file;
 use crate::skalo::read_graph::build_variant_groups;
 use crate::skalo::utils::{Config, DataInfo, CONFIG, DATA_INFO};
 
@@ -815,35 +816,27 @@ pub fn main() {
         } => {
             println!("\n      skalo v{}     \n", env!("CARGO_PKG_VERSION"));
 
-            // initialise the global CONFIG structure
-            CONFIG
-                .set(Config {
-                    input_file: input_skf.clone(),
-                    output_name: output.clone(),
-                    max_missing: *missing,
-                    max_depth: *depth,
-                    max_indel_kmers: *indel_kmers,
-                    nb_threads: *threads,
-                    reference_genome: reference.clone(),
-                })
-                .expect("failed to initialise CONFIG");
+            let config = Config {
+                input_file: input_skf.clone(),
+                output_name: output.clone(),
+                max_missing: *missing,
+                max_depth: *depth,
+                max_indel_kmers: *indel_kmers,
+                nb_threads: *threads,
+                reference_genome: reference.clone(),
+            };
 
-            // read input file
-            let (len_kmer, sample_names, all_kmers, index_map) = read_input_file();
-
-            // initialise the global DataInfo structure
-            DATA_INFO
-                .set(DataInfo {
-                    k_graph: len_kmer - 1,
-                    sample_names: sample_names.clone(),
-                })
-                .expect("failed to initialise DATA_INFO");
-
-            // identify 'good' kmers in De Bruijn graph
-            let (start_kmers, end_kmers) = identify_good_kmers(&all_kmers, &index_map);
-
-            // identify variant groups
-            build_variant_groups(all_kmers, start_kmers, end_kmers, index_map);
+            if let Ok(ska_array) = load_array::<u64>(&[input_skf.clone()], *threads) {
+                log::info!(" # read file {}", input_skf);
+                log::info!("Using 64-bit representation");
+                skalo(ska_array, config);
+            } else if let Ok(ska_array) = load_array::<u128>(&[input_skf.clone()], *threads) {
+                log::info!(" # read file {}", input_skf);
+                log::info!("Using 128-bit representation");
+                skalo(ska_array, config);
+            } else {
+                panic!("Could not read input file(s): {input_skf:?}");
+            }
         }
     }
     let end = Instant::now();
