@@ -197,6 +197,11 @@ impl UInt<'_> for u64 {
             result = (result << 2) | (nucleotide_to_bits[index] as Self);
         }
 
+        // let result: Self = kmer.as_bytes().iter().fold(0, |result, nt| {
+        //     let nt_bits = encode_base(*nt);
+        //     (result << 2) | (nt_bits as Self)
+        // });
+
         result
     }
 
@@ -285,6 +290,7 @@ impl UInt<'_> for u64 {
             0b11 => 'T',
             _ => unreachable!(),
         }
+        // decode_base(last_bits) as char
     }
 
     fn skalo_decode_kmer(encoded: Self, k: usize) -> String {
