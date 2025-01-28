@@ -117,15 +117,21 @@ pub trait UInt<'a>:
     /// Generate a mask for the skalo algorithm
     fn skalo_mask(k: usize) -> Self;
     /// Encodes a kmer from a string to UInt
-    fn encode_kmer(kmer: &[u8]) -> Self;
-    fn encode_kmer_str(kmer: &str) -> Self;
-    // fn rev_compl(kmer: Self, k: usize) -> Self;
+    fn encode_kmer(kmer: &[u8]) -> Self {
+        kmer.iter().fold(Self::zero_init(), |result, nt| {
+            (result << 2) | (Self::from_encoded_base(encode_base(*nt)))
+        })
+    }
+    /// Encodes a kmer in str form to UInt
+    fn encode_kmer_str(kmer: &str) -> Self {
+        Self::encode_kmer(kmer.as_bytes())
+    }
+    /// Combines two kmers togethers
     fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self;
-    // fn encode_u8_kmer(dna: &[u8]) -> Self;
+    /// Get last nucleotides from a kmer
     fn get_last_nucl(encoded_kmer: Self) -> char;
+    /// Decodes kmer string for use in skalo code
     fn skalo_decode_kmer(encoded: Self, k: usize) -> String;
-    ///// encode slice [u8] into UInt
-    // fn encode_vecu8(kmer: &[u8]) -> Option<Self>;
     /// Set to zero
     fn zero_init() -> Self;
     /// Convert from u8, encoded bases 0-3
@@ -176,53 +182,14 @@ impl UInt<'_> for u64 {
         (1 << (k * 2)) - 1
     }
 
-    #[inline(always)]
-    fn encode_kmer(kmer: &[u8]) -> Self {
-        let mut result: Self = Self::zero_init();
-
-        for nucleotide in kmer.iter() {
-            result = (result << 2) | (encode_base(*nucleotide) as Self);
-        }
-        // let result: Self = kmer.as_bytes().iter().fold(0, |result, nt| {
-        //     let nt_bits = encode_base(*nt);
-        //     (result << 2) | (nt_bits as Self)
-        // });
-
-        result
-    }
-
-    #[inline(always)]
-    fn encode_kmer_str(kmer: &str) -> Self {
-        Self::encode_kmer(kmer.as_bytes())
-    }
-
     // #[inline(always)]
-    // fn rev_compl(kmer: Self, k: usize) -> Self {
-    //     // mask for the last 2 bits (representing one nucleotide)
-    //     let mask: Self = 0b11u64;
+    // fn encode_kmer(kmer: &[u8]) -> Self {
+    //     let result: Self = kmer.iter().fold(Self::zero_init(), |result, nt| {
+    //         let nt_bits = encode_base(*nt);
+    //         (result << 2) | (nt_bits as Self)
+    //     });
 
-    //     // initialize reverse complement result
-    //     let mut rc: Self = 0u64;
-
-    //     // for each nucleotide in the k-mer
-    //     for i in 0..k {
-    //         // get the last 2 bits (current nucleotide)
-    //         let nucleotide = (kmer >> (2 * i)) & mask;
-
-    //         // complement the nucleotide:
-    //         let complement = match nucleotide {
-    //             0b00 => 0b11, // A -> T
-    //             0b01 => 0b10, // C -> G
-    //             0b10 => 0b01, // G -> C
-    //             0b11 => 0b00, // T -> A
-    //             _ => unreachable!(),
-    //         };
-
-    //         // shift the complemented nucleotide to its reverse position
-    //         rc |= complement << (2 * (k - i - 1));
-    //     }
-
-    //     rc
+    //     result
     // }
 
     #[inline(always)]
@@ -240,37 +207,6 @@ impl UInt<'_> for u64 {
         shifted_kmer1 | last_nucleotide
     }
 
-    // #[inline(always)]
-    // fn encode_vecu8(kmer: &[u8]) -> Option<Self> {
-    //     let mut encoded = 0u64;
-    //     for &base in kmer {
-    //         encoded = (encoded << 2)
-    //             | match base {
-    //                 b'A' => 0b00,
-    //                 b'C' => 0b01,
-    //                 b'G' => 0b10,
-    //                 b'T' => 0b11,
-    //                 _ => return None,
-    //             };
-    //     }
-    //     Some(encoded)
-    // }
-
-    // fn encode_u8_kmer(dna: &[u8]) -> Self {
-    //     let mut encoded: u64 = 0;
-    //     for &nucleotide in dna {
-    //         encoded <<= 2; // Shift left by 2 bits
-    //         encoded |= match nucleotide {
-    //             b'A' => 0b00,
-    //             b'C' => 0b01,
-    //             b'G' => 0b10,
-    //             b'T' => 0b11,
-    //             _ => panic!("Invalid nucleotide: {}", nucleotide as char),
-    //         };
-    //     }
-    //     encoded
-    // }
-
     fn get_last_nucl(encoded_kmer: Self) -> char {
         // mask the last 2 bits to get the encoded nucleotide
         let last_bits = (encoded_kmer & 0b11) as u8;
@@ -279,25 +215,17 @@ impl UInt<'_> for u64 {
     }
 
     fn skalo_decode_kmer(encoded: Self, k: usize) -> String {
-        // let bits_to_nucleotide: [char; 4] = ['A', 'C', 'G', 'T'];
         let mut kmer = String::with_capacity(k);
 
         let mask: Self = (1u64 << (2 * k)) - 1;
         let mut value = encoded & mask;
 
         for _ in 0..k {
-            // let index = (value & 0b11) as usize;
-            // let nucleotide = bits_to_nucleotide[index];
             let nucleotide = decode_base((value & 0b11) as u8) as char;
             kmer.insert(0, nucleotide);
             value >>= 2;
         }
         kmer
-
-        // let res: String = encoded.to_le_bytes().chunks(2).map(|bits| {
-        //     let nt = bits[0] & bits[1];
-        //     decode_base(nt) as char
-        // }).collect();
     }
 
     #[inline(always)]
@@ -370,52 +298,14 @@ impl UInt<'_> for u128 {
         (1 << (k * 2)) - 1
     }
 
-    #[inline(always)]
-    fn encode_kmer(kmer: &[u8]) -> Self {
-        let mut result: Self = Self::zero_init();
-
-        for nucleotide in kmer.iter() {
-            result = (result << 2) | (encode_base(*nucleotide) as Self);
-        }
-        // let result: Self = kmer.as_bytes().iter().fold(0, |result, nt| {
-        //     let nt_bits = encode_base(*nt);
-        //     (result << 2) | (nt_bits as Self)
-        // });
-
-        result
-    }
-
-    #[inline(always)]
-    fn encode_kmer_str(kmer: &str) -> Self {
-        Self::encode_kmer(kmer.as_bytes())
-    }
-
     // #[inline(always)]
-    // fn rev_compl(kmer: Self, k: usize) -> Self {
-    //     // mask for the last 2 bits (representing one nucleotide)
-    //     let mask: Self = 0b11u128;
+    // fn encode_kmer(kmer: &[u8]) -> Self {
+    //     let result: Self = kmer.iter().fold(Self::zero_init(), |result, nt| {
+    //         let nt_bits = encode_base(*nt);
+    //         (result << 2) | (nt_bits as Self)
+    //     });
 
-    //     // initialize reverse complement result
-    //     let mut rc: Self = 0u128;
-
-    //     // for each nucleotide in the k-mer
-    //     for i in 0..k {
-    //         // get the last 2 bits (current nucleotide)
-    //         let nucleotide = (kmer >> (2 * i)) & mask;
-
-    //         // complement the nucleotide:
-    //         let complement = match nucleotide {
-    //             0b00 => 0b11, // A -> T
-    //             0b01 => 0b10, // C -> G
-    //             0b10 => 0b01, // G -> C
-    //             0b11 => 0b00, // T -> A
-    //             _ => unreachable!(),
-    //         };
-
-    //         // shift the complemented nucleotide to its reverse position
-    //         rc |= complement << (2 * (k - i - 1));
-    //     }
-    //     rc
+    //     result
     // }
 
     #[inline(always)]
@@ -433,37 +323,6 @@ impl UInt<'_> for u128 {
         shifted_kmer1 | last_nucleotide
     }
 
-    // #[inline(always)]
-    // fn encode_vecu8(kmer: &[u8]) -> Option<Self> {
-    //     let mut encoded = 0u128;
-    //     for &base in kmer {
-    //         encoded = (encoded << 2)
-    //             | match base {
-    //                 b'A' => 0b00,
-    //                 b'C' => 0b01,
-    //                 b'G' => 0b10,
-    //                 b'T' => 0b11,
-    //                 _ => return None,
-    //             };
-    //     }
-    //     Some(encoded)
-    // }
-
-    // fn encode_u8_kmer(dna: &[u8]) -> Self {
-    //     let mut encoded: u128 = 0;
-    //     for &nucleotide in dna {
-    //         encoded <<= 2; // Shift left by 2 bits
-    //         encoded |= match nucleotide {
-    //             b'A' => 0b00,
-    //             b'C' => 0b01,
-    //             b'G' => 0b10,
-    //             b'T' => 0b11,
-    //             _ => panic!("Invalid nucleotide: {}", nucleotide as char),
-    //         };
-    //     }
-    //     encoded
-    // }
-
     fn get_last_nucl(encoded_kmer: Self) -> char {
         // mask the last 2 bits to get the encoded nucleotide
         let last_bits = (encoded_kmer & 0b11) as u8;
@@ -478,18 +337,11 @@ impl UInt<'_> for u128 {
         let mut value = encoded & mask;
 
         for _ in 0..k {
-            // let index = (value & 0b11) as usize;
-            // let nucleotide = bits_to_nucleotide[index];
             let nucleotide = decode_base((value & 0b11) as u8) as char;
             kmer.insert(0, nucleotide);
             value >>= 2;
         }
         kmer
-
-        // let res: String = encoded.to_le_bytes().chunks(2).map(|bits| {
-        //     let nt = bits[0] & bits[1];
-        //     decode_base(nt) as char
-        // }).collect();
     }
 
     #[inline(always)]
