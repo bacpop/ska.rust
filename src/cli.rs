@@ -358,6 +358,7 @@ pub enum Commands {
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
     },
+    /// Finds 'left out' SNPs and INDELs using a graph
     Lo {
         /// input SKA2 file
         #[arg(short = 'i', long, help_heading = "input")]
