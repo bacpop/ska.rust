@@ -172,8 +172,7 @@ impl UInt<'_> for u64 {
 
     #[inline(always)]
     fn skalo_mask(k: usize) -> Self {
-        let mask: Self = (1 << (k * 2)) - 1;
-        mask
+        (1 << (k * 2)) - 1
     }
 
     #[inline(always)]
@@ -371,8 +370,7 @@ impl UInt<'_> for u128 {
 
     #[inline(always)]
     fn skalo_mask(k: usize) -> Self {
-        let mask: Self = (1 << (k * 2)) - 1;
-        mask
+        (1 << (k * 2)) - 1
     }
 
     #[inline(always)]
