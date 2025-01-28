@@ -127,7 +127,18 @@ pub trait UInt<'a>:
         Self::encode_kmer(kmer.as_bytes())
     }
     /// Combines two kmers togethers
-    fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self;
+    fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self {
+        let last_nucleotide_mask: Self = Self::from_encoded_base(0b11); // Mask for 2 bits
+
+        // shift the first k-mer left by 2 bits to make space for the new nucleotide
+        let shifted_kmer1 = encoded_kmer1 << 2;
+
+        // extract the last nucleotide from the second k-mer
+        let last_nucleotide = encoded_kmer2 & last_nucleotide_mask;
+
+        // combine the two k-mers into a (k+1)-mer encoding
+        shifted_kmer1 | last_nucleotide
+    }
     /// Get last nucleotides from a kmer
     fn get_last_nucl(encoded_kmer: Self) -> char {
         // mask the last 2 bits to get the encoded nucleotide
@@ -203,21 +214,6 @@ impl UInt<'_> for u64 {
     }
 
     #[inline(always)]
-    fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self {
-        // define the bit mask for extracting the last nucleotide of the second k-mer
-        let last_nucleotide_mask: Self = 0b11u64; // Mask for 2 bits
-
-        // shift the first k-mer left by 2 bits to make space for the new nucleotide
-        let shifted_kmer1 = encoded_kmer1 << 2;
-
-        // extract the last nucleotide from the second k-mer
-        let last_nucleotide = encoded_kmer2 & last_nucleotide_mask;
-
-        // combine the two k-mers into a (k+1)-mer encoding
-        shifted_kmer1 | last_nucleotide
-    }
-
-    #[inline(always)]
     fn from_encoded_base(encoded_base: u8) -> Self {
         encoded_base as Self
     }
@@ -280,21 +276,6 @@ impl UInt<'_> for u128 {
     #[inline(always)]
     fn skalo_mask(k: usize) -> Self {
         (1 << (k * 2)) - 1
-    }
-
-    #[inline(always)]
-    fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self {
-        // define the bit mask for extracting the last nucleotide of the second k-mer
-        let last_nucleotide_mask: Self = 0b11u128; // Mask for 2 bits
-
-        // shift the first k-mer left by 2 bits to make space for the new nucleotide
-        let shifted_kmer1 = encoded_kmer1 << 2;
-
-        // extract the last nucleotide from the second k-mer
-        let last_nucleotide = encoded_kmer2 & last_nucleotide_mask;
-
-        // combine the two k-mers into a (k+1)-mer encoding
-        shifted_kmer1 | last_nucleotide
     }
 
     #[inline(always)]
