@@ -96,8 +96,8 @@ pub fn build_graph<IntT: for<'a> UInt<'a>>(
                 full_kmer.push(*nucl);
                 full_kmer.push_str(&kmer_right);
 
-                let encoded_kmer_1 = IntT::encode_kmer(&full_kmer[..len_kmer - 1]);
-                let encoded_kmer_2 = IntT::encode_kmer(&full_kmer[1..]);
+                let encoded_kmer_1 = IntT::encode_kmer_str(&full_kmer[..len_kmer - 1]);
+                let encoded_kmer_2 = IntT::encode_kmer_str(&full_kmer[1..]);
 
                 all_kmers
                     .entry(encoded_kmer_1)
@@ -105,16 +105,16 @@ pub fn build_graph<IntT: for<'a> UInt<'a>>(
                     .push(encoded_kmer_2);
 
                 all_kmers
-                    .entry(IntT::rev_compl(encoded_kmer_2, len_kmer - 1))
+                    .entry(IntT::rev_comp(encoded_kmer_2, len_kmer - 1))
                     .or_default()
-                    .push(IntT::rev_compl(encoded_kmer_1, len_kmer - 1));
+                    .push(IntT::rev_comp(encoded_kmer_1, len_kmer - 1));
 
-                let encode_full = IntT::encode_kmer(&full_kmer);
+                let encode_full = IntT::encode_kmer_str(&full_kmer);
                 kmer_samples
                     .entry(encode_full)
                     .or_insert_with(|| bitset_samples.clone());
                 kmer_samples
-                    .entry(IntT::rev_compl(encode_full, len_kmer))
+                    .entry(IntT::rev_comp(encode_full, len_kmer))
                     .or_insert_with(|| bitset_samples.clone());
             }
         });

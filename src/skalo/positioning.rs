@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use flate2::read::MultiGzDecoder;
 
-use crate::ska_dict::bit_encoding::UInt;
+use crate::ska_dict::bit_encoding::{valid_base, UInt};
 use crate::skalo::utils::{rev_compl, VariantInfo};
 
 // extract genomic k-mers with up to 3 distinct positions
@@ -65,8 +65,9 @@ pub fn extract_genomic_kmers<IntT: for<'a> UInt<'a>>(
                 // get slice of Vec<u8>
                 let kmer = &genome_seq[n..n + k];
 
-                // convert k-mer to u128
-                if let Some(kmer_encoded) = IntT::encode_vecu8(kmer) {
+                if kmer.iter().all(|x| valid_base(*x)) {
+                    // convert k-mer to u128
+                    let kmer_encoded = IntT::encode_kmer(kmer);
                     // Skip k-mers that have already overflowed
                     if overflow_kmers.contains(&kmer_encoded) {
                         continue;
@@ -139,7 +140,7 @@ pub fn scan_variants<IntT: for<'a> UInt<'a>>(
 
         // collect positions for the forward sequence
         for pos in 0..=seq.len() - len_kmer_graph {
-            let encoded_kmer = IntT::encode_kmer(&seq[pos..pos + len_kmer_graph]);
+            let encoded_kmer = IntT::encode_kmer_str(&seq[pos..pos + len_kmer_graph]);
             if let Some(vec_pos) = kmer_map.get(&encoded_kmer) {
                 for position in vec_pos {
                     vec_position_forward.push(position - pos as u32);
@@ -149,7 +150,7 @@ pub fn scan_variants<IntT: for<'a> UInt<'a>>(
 
         // collect positions for the reverse-complement sequence
         for pos in 0..=rc_seq.len() - len_kmer_graph {
-            let encoded_kmer = IntT::encode_kmer(&rc_seq[pos..pos + len_kmer_graph]);
+            let encoded_kmer = IntT::encode_kmer_str(&rc_seq[pos..pos + len_kmer_graph]);
             if let Some(vec_pos) = kmer_map.get(&encoded_kmer) {
                 for position in vec_pos {
                     vec_position_reverse.push(position - pos as u32);

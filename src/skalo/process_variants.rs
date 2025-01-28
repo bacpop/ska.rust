@@ -81,7 +81,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
 
     for (key, _) in sorted_keys {
         if !entries_indels.contains(&key.0)
-            && !entries_indels.contains(&IntT::rev_compl(key.1, data_info.k_graph))
+            && !entries_indels.contains(&IntT::rev_comp(key.1, data_info.k_graph))
         {
             let vec_variants = variant_groups.get(key).unwrap();
 
@@ -109,10 +109,10 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
 
                     // Extract k-mers directly from the packed DNA sequence
                     let full_before =
-                        IntT::encode_u8_kmer(&seq.get_range(pos - data_info.k_graph, pos + 1));
+                        IntT::encode_kmer(&seq.get_range(pos - data_info.k_graph, pos + 1));
                     let full_after =
-                        IntT::encode_u8_kmer(&seq.get_range(pos, pos + data_info.k_graph + 1));
-                    let rc_after = IntT::rev_compl(full_after, data_info.k_graph + 1);
+                        IntT::encode_kmer(&seq.get_range(pos, pos + data_info.k_graph + 1));
+                    let rc_after = IntT::rev_comp(full_after, data_info.k_graph + 1);
 
                     // this is the critical part: we have to avoid SNPs already identified
                     if !entries_done.contains(&full_before) && !entries_done.contains(&rc_after) {
@@ -131,7 +131,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
 
                         // Save k-mers to avoid
                         tmp_kmers.insert(full_before);
-                        tmp_kmers.insert(IntT::rev_compl(full_before, data_info.k_graph + 1));
+                        tmp_kmers.insert(IntT::rev_comp(full_before, data_info.k_graph + 1));
                         tmp_kmers.insert(full_after);
                         tmp_kmers.insert(rc_after);
                     } else {
@@ -228,7 +228,7 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
     let k_graph = data_info.k_graph;
 
     // precompute the initial k-mer
-    let mut kmer = IntT::encode_u8_kmer(&sequence.get_range(0, k_graph));
+    let mut kmer = IntT::encode_kmer(&sequence.get_range(0, k_graph));
     // Mask for retaining k-mer length
     let mask = IntT::skalo_mask(k_graph);
 
@@ -258,8 +258,8 @@ fn process_indels<IntT: for<'a> UInt<'a>>(
     for (combined_ext, vec_variant) in &indel_groups {
         if !entries_indels.contains(&combined_ext.0) {
             // test if rev-compl exists
-            let rc_1 = IntT::rev_compl(combined_ext.0, k_graph);
-            let rc_2 = IntT::rev_compl(combined_ext.1, k_graph);
+            let rc_1 = IntT::rev_comp(combined_ext.0, k_graph);
+            let rc_2 = IntT::rev_comp(combined_ext.1, k_graph);
             let rc_combined = (rc_2, rc_1);
 
             if indel_groups.contains_key(&rc_combined) {

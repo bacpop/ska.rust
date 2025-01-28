@@ -27,7 +27,7 @@ pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
 
                     if compare_samples(samples1, samples2) {
                         start_kmers.insert(*kmer);
-                        end_kmers.insert(IntT::rev_compl(*kmer, data_info.k_graph));
+                        end_kmers.insert(IntT::rev_comp(*kmer, data_info.k_graph));
 
                         //uncomment to print network
                         /*
