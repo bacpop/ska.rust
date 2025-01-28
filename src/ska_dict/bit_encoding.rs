@@ -230,6 +230,7 @@ impl UInt<'_> for u64 {
             // shift the complemented nucleotide to its reverse position
             rc |= complement << (2 * (k - i - 1));
         }
+
         rc
     }
 
@@ -307,6 +308,11 @@ impl UInt<'_> for u64 {
             value >>= 2;
         }
         kmer
+
+        // let res: String = encoded.to_le_bytes().chunks(2).map(|bits| {
+        //     let nt = bits[0] & bits[1];
+        //     decode_base(nt) as char
+        // }).collect();
     }
 
     #[inline(always)]
