@@ -15,13 +15,10 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
     config: &Config,
     data_info: &DataInfo,
 ) {
-    // let arguments = CONFIG.get().unwrap();
-    // let data_info = DATA_INFO.get().unwrap();
-
     // check if the optional reference genome file argument is provided -> extract kmers
     let (do_postioning, kmer_map, genome_name, genome_seq) =
         if let Some(path) = &config.reference_genome {
-            log::info!(" # read reference genome");
+            log::info!("Reading reference genome");
             let (extracted_kmer_map, seq, name) =
                 extract_genomic_kmers(path.clone(), data_info.k_graph);
             (true, extracted_kmer_map, name, seq)
@@ -34,11 +31,11 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
             )
         };
 
-    log::info!(" # process indels");
+    log::info!("Processing indels");
 
     // collect entry kmers of indels
     let (final_indels, entries_indels) = process_indels(indel_groups, data_info.k_graph);
-    log::info!("     -> {} indels", final_indels.len());
+    log::info!("Found {} indels", final_indels.len());
 
     // remove variants having  internal indels from each variant group
     for (_, vec_variant) in variant_groups.iter_mut() {
@@ -54,7 +51,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         }
     }
 
-    log::info!(" # process SNPs");
+    log::info!("Processing SNPs");
 
     // create a vector of keys sorted by the ratio of size of Vec<VariantInfo> to the length of the first sequence
     // and sort the keys by decreasing order -> we consider first for snp calling variant group with lot of variants
@@ -207,7 +204,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         log::info!("     -> {} SNPs", final_snps.len());
     }
 
-    log::info!(" # write output");
+    log::info!("Writing output");
     // write output
     create_fasta_and_vcf(
         genome_name,

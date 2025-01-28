@@ -15,21 +15,14 @@ pub fn build_graph<IntT: for<'a> UInt<'a>>(
     ska_array: MergeSkaArray<IntT>,
     nb_threads: usize,
 ) -> (usize, Vec<String>, KmerGraph<IntT>, KmerSamples<IntT>) {
-    // let arguments = CONFIG.get().unwrap();
-
-    // log::info!(" # read file {}", config.input_file);
-
-    // read the skf file and load split-kmers (ska_array), kmer length and sample names
-    // let ska_array = load_array::<IntT>(&[arguments.input_file.to_string()], arguments.nb_threads)
-    //     .expect("\nerror: could not read the skf file\n\n");
     let sample_names = ska_array.names().to_vec();
     let len_kmer = ska_array.kmer_len();
     let mask: IntT = IntT::skalo_mask(len_kmer);
 
-    log::info!("     . {}-mers", len_kmer);
-    log::info!("     . {} samples", sample_names.len());
+    log::info!("{len_kmer}-mers");
+    log::info!("{} samples", sample_names.len());
 
-    log::info!(" # build colored de Bruijn graph");
+    log::info!("Building colored de Bruijn graph");
 
     // build De Bruijn graph
     let degenerate_code: HashMap<u8, Vec<char>> = [

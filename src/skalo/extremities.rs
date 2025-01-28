@@ -48,11 +48,11 @@ pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
 
     // exit program if no extremity found (eg, cases of weeded skf files)
     if start_kmers.is_empty() {
-        log::info!("\n      Error: there is no entry node in this graph, hence no variant.\n");
+        log::error!("\n      Error: there is no entry node in this graph, hence no variant.\n");
         std::process::exit(1);
     }
 
-    log::info!("     . {} entry nodes", start_kmers.len());
+    log::info!("{} entry nodes", start_kmers.len());
 
     (start_kmers, end_kmers)
 }

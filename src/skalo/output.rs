@@ -11,8 +11,6 @@ pub fn create_fasta_and_vcf(
     map: HashMap<u32, Vec<char>>,
     config: &Config,
 ) {
-    // let arguments = CONFIG.get().unwrap();
-
     // replace non-ATGCN characters with 'N' in genome_seq
     for base in genome_seq.iter_mut() {
         match *base as char {
