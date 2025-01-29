@@ -294,7 +294,7 @@ fn most_abundant_length<IntT: for<'a> UInt<'a>>(vec_variants: &[Vec<IntT>]) -> O
         .map(|(length, _)| length)
 }
 
-// structure to hold state for each path in the stack
+/// structure to hold state for each path in the stack
 pub struct PathState<T> {
     current_kmer: T,
     visited: HashSet<T>,

@@ -6,7 +6,7 @@ use crate::skalo::output::create_fasta_and_vcf;
 use crate::skalo::positioning::{extract_genomic_kmers, scan_variants};
 use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 
-type VariantGroups<IntT: for<'a> UInt<'a>> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
+type VariantGroups<IntT> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
 
 pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
     mut variant_groups: VariantGroups<IntT>,
