@@ -233,7 +233,7 @@ impl UInt<'_> for u64 {
 
 impl UInt<'_> for u128 {
     #[inline(always)]
-    fn rev_comp(mut self, k_size: usize) -> u128 {
+    fn rev_comp(mut self, k_size: usize) -> Self {
         // This part reverses the bases by shuffling them using an on/off pattern
         // of bits
         self = (self >> 2 & 0x33333333333333333333333333333333)
