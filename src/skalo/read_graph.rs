@@ -1,13 +1,9 @@
 use bit_set::BitSet;
 use hashbrown::{HashMap, HashSet};
 
-use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 
 use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::compaction::compact_graph;
@@ -40,18 +36,8 @@ pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
         .build()
         .unwrap();
 
-    let pb = ProgressBar::new(start_kmers.len().try_into().unwrap());
-    let sty = ProgressStyle::with_template("   {bar:60.cyan/blue} {pos:>7}/{len:7} {msg}")
-        .unwrap()
-        .progress_chars("##-");
-    pb.set_style(sty);
-    let counter_pb = AtomicUsize::new(0);
-
     pool.install(|| {
         start_kmers.par_iter().for_each(|kmer| {
-            if counter_pb.fetch_add(1, Ordering::SeqCst) % 1000 == 0 {
-                pb.inc(1000);
-            }
 
             let mut tmp_container: HashMap<IntT, Vec<Vec<IntT>>> = HashMap::new();
 
@@ -243,7 +229,7 @@ pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
 
     let built_groups_end = built_groups.lock().unwrap();
 
-    log::info!("Found {} variant groups", built_groups_end.len());
+    log::info!("{} variant groups", built_groups_end.len());
     
     log::info!("Identifying indels");
 
