@@ -11,6 +11,9 @@ use crate::ska_dict::bit_encoding::{decode_kmer, UInt};
 type KmerGraph<IntT> = HashMap<IntT, Vec<IntT>>;
 type KmerSamples<IntT> = HashMap<IntT, BitSet>;
 
+/// the function converts each split k-mer into two overlapping k-mers of size k-1, 
+/// considering both forward and reverse-complement sequences.
+/// the sample set of each pair of overlapping k-mers is stored as a BitSet in 'kmer_samples'
 pub fn build_graph<IntT: for<'a> UInt<'a>>(
     ska_array: MergeSkaArray<IntT>,
     nb_threads: usize,
@@ -115,7 +118,7 @@ pub fn build_graph<IntT: for<'a> UInt<'a>>(
     let all_kmers: KmerGraph<IntT> = all_kmers.into_iter().collect();
     let kmer_samples: KmerSamples<IntT> = kmer_samples.into_iter().collect();
 
-    log::info!("     . {} nodes", all_kmers.len());
+    log::info!("{} nodes", all_kmers.len());
 
     (len_kmer, sample_names, all_kmers, kmer_samples)
 }
