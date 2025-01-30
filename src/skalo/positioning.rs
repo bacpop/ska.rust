@@ -10,7 +10,8 @@ use flate2::read::MultiGzDecoder;
 use crate::ska_dict::bit_encoding::{valid_base, UInt};
 use crate::skalo::utils::{rev_compl, VariantInfo};
 
-// extract genomic k-mers with up to 3 distinct positions
+/// Extracts k-mers with up to 3 distinct positions from the reference genome. 
+/// The reference genome should be provided in FASTA format and be composed of only 1 sequence.
 pub fn extract_genomic_kmers<IntT: for<'a> UInt<'a>>(
     file_path: PathBuf,
     k: usize,
