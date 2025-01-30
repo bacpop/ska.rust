@@ -42,7 +42,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
 
     // collect entry kmers of indels
     let (final_indels, entries_indels) = process_indels(indel_groups, data_info.k_graph);
-    log::info!("Found {} indels", final_indels.len());
+    log::info!("{} indels", final_indels.len());
 
     // remove variants having  internal indels from each variant group
     for (_, vec_variant) in variant_groups.iter_mut() {
@@ -203,12 +203,12 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
 
     if do_postioning {
         log::info!(
-            "     -> {} SNPs (+ {} w/o position)",
+            "{} SNPs (+ {} w/o position)",
             final_snps.len(),
             not_postioned
         );
     } else {
-        log::info!("     -> {} SNPs", final_snps.len());
+        log::info!("{} SNPs", final_snps.len());
     }
 
     log::info!("Writing output");
