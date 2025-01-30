@@ -14,6 +14,11 @@ use crate::skalo::compaction::compact_graph;
 use crate::skalo::process_variants::analyse_variant_groups;
 use crate::skalo::utils::{Config, DataInfo, DnaSequence, VariantInfo};
 
+/// The function traverses the graph and build variant groups (ie, set of paths starting from
+/// the same entry node and ending on the same exit node) and filters them to keep only
+/// paths of the most common length (unless there are only 2 paths - see indels below).
+/// Indel are also identified in this function: variant groups with 2 path of diffent lengths, 
+/// one of which is equal or inferior to 2 * (k-1).
 pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
     mut all_kmers: HashMap<IntT, Vec<IntT>>,
     start_kmers: HashSet<IntT>,
@@ -26,7 +31,7 @@ pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
 
     let compacted = compact_graph(&mut all_kmers, &start_kmers, &end_kmers);
 
-    log::info!("Exploring graph");
+    log::info!("Traversing graph");
 
     let built_groups = Arc::new(Mutex::new(HashMap::<(IntT, IntT), Vec<VariantInfo>>::new()));
 
@@ -239,6 +244,8 @@ pub fn build_variant_groups<IntT: for<'a> UInt<'a>>(
     let built_groups_end = built_groups.lock().unwrap();
 
     log::info!("Found {} variant groups", built_groups_end.len());
+    
+    log::info!("Identifying indels");
 
     // at least one of the 2 branches of an indel should have a size below or equal to this (indel and other >= (1 + 2 * data_info.k_graph))
     let min_indel = 2 * data_info.k_graph;
