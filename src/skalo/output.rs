@@ -4,6 +4,8 @@ use std::io::Write;
 
 use crate::skalo::utils::Config;
 
+/// the function outputs a SNP alignment, and a VCF file and a pseudo-genome alignment 
+/// if a reference genome has been provided
 pub fn create_fasta_and_vcf(
     genome_name: String,
     mut genome_seq: Vec<u8>,
@@ -11,6 +13,9 @@ pub fn create_fasta_and_vcf(
     map: HashMap<u32, Vec<char>>,
     config: &Config,
 ) {
+    
+    log::info!("Writting output files");
+
     // replace non-ATGCN characters with 'N' in genome_seq
     for base in genome_seq.iter_mut() {
         match *base as char {
