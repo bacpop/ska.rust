@@ -4,12 +4,14 @@ use hashbrown::{HashMap, HashSet};
 use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::utils::DataInfo;
 
+/// the function identifies entry nodes (nodes leading to two or more paths whose edges
+/// contain non-identical sample sets) and exit nodes (their reverse-complements) of the graph bubbles. 
 pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
     all_kmers: &HashMap<IntT, Vec<IntT>>,
     kmer_2_samples: &HashMap<IntT, BitSet>,
     data_info: &DataInfo,
 ) -> (HashSet<IntT>, HashSet<IntT>) {
-    log::info!(" # identify bubble extremities");
+    log::info!("Identifying extremity nodes");
 
     let mut start_kmers: HashSet<IntT> = HashSet::new();
     let mut end_kmers: HashSet<IntT> = HashSet::new();
