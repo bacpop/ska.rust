@@ -194,7 +194,7 @@
 //! ## ska lo
 //! 
 //! Converts split k-mers from a `.skf` file into a colored De Bruijn graph and infers SNPs from variant groups in 
-//! reference-free mode (as with SKA align). SNPs are only composed of ATGC variants (no ambigous nucleotides).
+//! reference-free mode (equivalent to SKA align). SNPs are only composed of ATGC variants (no ambigous nucleotides).
 //! Multithreading ('-t' argument) is not yet optimised - it usually takes 4 threads to halve runtimes.
 //! 
 //! To generate a SNP alignment (here in a file named 'test_snps.fas'):
@@ -204,8 +204,8 @@
 //! 
 //! ska lo can also position SNPs on a reference genome if provided using the '-r' argument. The reference genome should
 //! be in FASTA format and composed of a unique sequence. skalo lo will then generate, in addition to the SNP alignemnt, a 
-//! VCF file and a pseudo-genome alignment (as with SKA map) that can be used for recombination analyses. In such use case, 
-//! we recommmend to lower the maximum proportion of missing data allowed per SNP ('-m' argument), but not below 0.5.
+//! VCF file and a pseudo-genome alignment (equivalent to SKA map) that can be used for recombination analyses. In such use case, 
+//! we recommmend to increase the maximum proportion of missing data allowed per SNP ('-m' argument), but not above 0.5.
 //! ```bash
 //! ska lo -i seqs.skf -o test -r reference.fas -m 0.4
 //! ```
