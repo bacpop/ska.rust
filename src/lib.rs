@@ -172,7 +172,7 @@
 //!
 //! ## ska map
 //!
-//! Create an alignment from a `.skf` file or sequence files by mapping its
+//! Creates an alignment from a `.skf` file or sequence files by mapping its
 //! split k-mers to split k-mers of a linear reference sequence. This produces pseudoalignment
 //! with the same sites/columns as the reference sequence. Sites not mapped will
 //! be output as missing '-'.
@@ -191,6 +191,25 @@
 //! ska map ref.fa seq1.fa seq2.fa -f vcf --threads 2 | bgzip -c - > seqs.vcf.gz
 //! ```
 //!
+//! ## ska lo
+//! 
+//! Converts split k-mers from a `.skf` file into a colored De Bruijn graph and infers SNPs from variant groups in 
+//! reference-free mode (as with SKA align). SNPs are only composed of ATGC variants (no ambigous nucleotides).
+//! Multithreading ('-t' argument) is not yet optimised - it usually takes 4 threads to halve runtimes.
+//! 
+//! To generate a SNP alignment (here in a file named 'test_snps.fas'):
+//! ```bash
+//! ska lo -i seqs.skf -o test
+//! ```
+//! 
+//! ska lo can also position SNPs on a reference genome if provided using the '-r' argument. The reference genome should
+//! be in FASTA format and composed of a unique sequence. skalo lo will then generate, in addition to the SNP alignemnt, a 
+//! VCF file and a pseudo-genome alignment (as with SKA map) that can be used for recombination analyses. In such use case, 
+//! we recommmend to lower the maximum proportion of missing data allowed per SNP ('-m' argument), but not below 0.5.
+//! ```bash
+//! ska lo -i seqs.skf -o test -r reference.fas -m 0.4
+//! ```
+//! 
 //! ### Efficiency
 //!
 //! As `ska map` is independent for each input file, the most efficient way to
