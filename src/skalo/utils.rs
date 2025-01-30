@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use crate::ska_dict::bit_encoding::{decode_base, encode_base};
 
-// structure to hold arguments
+/// structure to store parameters
 #[derive(Debug)]
 pub struct Config {
     pub input_file: String,
@@ -17,7 +17,7 @@ pub struct Config {
 }
 pub static CONFIG: OnceLock<Config> = OnceLock::new();
 
-// structure to hold dataset information
+/// structure to store dataset information
 #[derive(Debug, Clone)]
 pub struct DataInfo {
     pub k_graph: usize,
@@ -25,6 +25,7 @@ pub struct DataInfo {
 }
 pub static DATA_INFO: OnceLock<DataInfo> = OnceLock::new();
 
+/// Returns the reverse-complement of a DNA string slice
 pub fn rev_compl(seq: &str) -> String {
     let out: String = seq
         .chars()
@@ -41,6 +42,7 @@ pub fn rev_compl(seq: &str) -> String {
     out
 }
 
+/// structure to store variant groups
 #[derive(Clone)]
 pub struct VariantInfo {
     pub sequence: DnaSequence,
