@@ -4,6 +4,8 @@ use rayon::prelude::*;
 
 use crate::ska_dict::bit_encoding::UInt;
 
+/// compact the assembly graph by removing all but one nodes between extremity nodes (entry or exit nodes)
+/// the function outputs removed nodes in 'compacted' 
 pub fn compact_graph<IntT: for<'a> UInt<'a>>(
     all_kmers: &mut HashMap<IntT, Vec<IntT>>,
     start_kmers: &HashSet<IntT>,
