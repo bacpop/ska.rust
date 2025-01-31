@@ -8,6 +8,7 @@ use crate::common::*;
 
 // NB: to view output, uncomment the current_dir lines
 
+// reference-free SNP calling with positioning on a reference genome
 #[test]
 fn ska_lo() {
     let sandbox = TestSetup::setup();
@@ -15,7 +16,11 @@ fn ska_lo() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("lo")
+        .arg("-i")
         .arg(sandbox.file_string("test_skalo.skf", TestDir::Input))
+        .arg("-r")
+        .arg(sandbox.file_string("test_skalo_reference.fas", TestDir::Input))
+        .arg("-o")
         .arg("test_skalo")
         .assert()
         .success();
