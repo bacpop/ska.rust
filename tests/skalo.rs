@@ -15,9 +15,7 @@ fn ska_lo() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("lo")
-        .arg("-i")
         .arg(sandbox.file_string("test_skalo.skf", TestDir::Input))
-        .arg("-o")
         .arg("test_skalo")
         .assert()
         .success();
