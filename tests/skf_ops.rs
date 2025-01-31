@@ -53,7 +53,7 @@ fn merge_delete() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .args(&["-s", "merge.skf"])
+        .args(["-s", "merge.skf"])
         .arg("test_3")
         .assert()
         .failure();
@@ -69,7 +69,7 @@ fn merge_delete() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .args(&["-s", "merge.skf"])
+        .args(["-s", "merge.skf"])
         .arg("test_2")
         .assert()
         .success();
@@ -125,8 +125,11 @@ fn merge_delete_u128() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .args(&["-s", "merge.skf"])
-        .args(&["-f", &sandbox.file_string("missing_delete.txt", TestDir::Input)])
+        .args(["-s", "merge.skf"])
+        .args([
+            "-f",
+            &sandbox.file_string("missing_delete.txt", TestDir::Input),
+        ])
         .arg("-v")
         .assert()
         .failure();
@@ -142,8 +145,8 @@ fn merge_delete_u128() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
-        .args(&["-s", "merge.skf"])
-        .args(&["-o", "merge_delete"])
+        .args(["-s", "merge.skf"])
+        .args(["-o", "merge_delete"])
         .arg("test_2")
         .arg("-v")
         .assert()
@@ -191,7 +194,7 @@ fn weed() {
         .arg("merge.skf")
         .arg("--filter")
         .arg("no-const")
-        .args(&["--min-freq", "1"])
+        .args(["--min-freq", "1"])
         .assert()
         .success();
 
@@ -271,7 +274,7 @@ fn weed() {
         .arg("build_k41.skf")
         .arg("--filter")
         .arg("no-ambig-or-const")
-        .args(&["--min-freq", "1"])
+        .args(["--min-freq", "1"])
         .arg("-v")
         .assert()
         .success();

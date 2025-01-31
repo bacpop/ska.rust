@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 fn build_cli() {
     let sandbox = TestSetup::setup();
     // Create an rfile in the tmp dir
-    let rfile_name = sandbox.create_rfile(&"test", FxType::Fasta);
+    let rfile_name = sandbox.create_rfile("test", FxType::Fasta);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -23,7 +23,7 @@ fn build_cli() {
         .arg(rfile_name)
         .arg("-o")
         .arg("basic_build_opts")
-        .args(&["-v", "--threads", "2", "-k", "31"])
+        .args(["-v", "--threads", "2", "-k", "31"])
         .assert()
         .success();
 
@@ -68,7 +68,7 @@ fn align_cli() {
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
         .arg("basic.aln")
-        .args(&[
+        .args([
             "-v",
             "--threads",
             "2",
@@ -359,7 +359,7 @@ fn parallel_align() {
         .arg(rfile_name)
         .arg("-o")
         .arg("serial_build")
-        .args(&["-v", "--threads", "1", "-k", "15"])
+        .args(["-v", "--threads", "1", "-k", "15"])
         .assert()
         .success();
 
@@ -379,7 +379,7 @@ fn parallel_align() {
         .arg(rfile_name)
         .arg("-o")
         .arg("parallel_build")
-        .args(&["-v", "--threads", "4", "-k", "15"])
+        .args(["-v", "--threads", "4", "-k", "15"])
         .assert()
         .success();
 

@@ -13,11 +13,11 @@ use hashbrown::HashSet;
 use pretty_assertions::assert_eq;
 
 // Creates correct path for input/output files
-static FILE_IN: &'static str = "tests/test_files_in";
-static FILE_TEST: &'static str = "tests/test_results_correct";
-static SYM_IN: &'static str = "input";
-static SYM_TEST: &'static str = "correct";
-static RFILE_NAME: &'static str = "file_list.txt";
+static FILE_IN: &str = "tests/test_files_in";
+static FILE_TEST: &str = "tests/test_results_correct";
+static SYM_IN: &str = "input";
+static SYM_TEST: &str = "correct";
+static RFILE_NAME: &str = "file_list.txt";
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TestDir {
@@ -185,7 +185,7 @@ pub fn var_hash(aln_string: &[u8]) -> HashSet<Vec<char>> {
         variant_pairs.insert(var_vec);
     }
 
-    return variant_pairs;
+    variant_pairs
 }
 
 // Helper for comparing mapped alignments with different sample names

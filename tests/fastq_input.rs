@@ -12,7 +12,7 @@ use crate::common::*;
 #[test]
 fn align_fastq() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -21,7 +21,7 @@ fn align_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "2", "-v", "-k", "9", "--min-qual", "2"])
+        .args(["--min-count", "2", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .success();
 
@@ -36,13 +36,12 @@ fn align_fastq() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
-        .args(&["-k", "9"])
+        .args(["-k", "9"])
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
-        .args(&["-o", "fasta_k9"])
+        .args(["-o", "fasta_k9"])
         .output()
-        .unwrap()
-        .stdout;
+        .unwrap();
 
     let fasta_align_out = Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -60,7 +59,7 @@ fn align_fastq() {
 #[test]
 fn count_check() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test_count", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_count", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -69,7 +68,7 @@ fn count_check() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads_k7_c1")
-        .args(&["--min-count", "1", "-v", "-k", "7"])
+        .args(["--min-count", "1", "-v", "-k", "7"])
         .assert()
         .success();
 
@@ -93,7 +92,7 @@ fn count_check() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads_k7_c3")
-        .args(&["--min-count", "3", "-v", "-k", "7"])
+        .args(["--min-count", "3", "-v", "-k", "7"])
         .assert()
         .success();
 
@@ -114,7 +113,7 @@ fn count_check() {
 #[test]
 fn count_check_long() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test_long", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_long", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -123,7 +122,7 @@ fn count_check_long() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads_k63_c1")
-        .args(&["--min-count", "1", "-v", "-k", "63"])
+        .args(["--min-count", "1", "-v", "-k", "63"])
         .assert()
         .success();
 
@@ -148,7 +147,7 @@ fn count_check_long() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads_k63_c3")
-        .args(&["--min-count", "3", "-v", "-k", "63"])
+        .args(["--min-count", "3", "-v", "-k", "63"])
         .assert()
         .success();
 
@@ -173,7 +172,7 @@ fn count_check_long() {
         .arg("-o")
         .arg("reads_k63_c3_ss")
         .arg("--single-strand")
-        .args(&["--min-count", "2", "-v", "-k", "63"])
+        .args(["--min-count", "2", "-v", "-k", "63"])
         .assert()
         .success();
 
@@ -196,7 +195,7 @@ fn count_check_long() {
 #[test]
 fn map_fastq() {
     let sandbox = TestSetup::setup();
-    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -205,7 +204,7 @@ fn map_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "1", "-v", "-k", "9", "--min-qual", "2"])
+        .args(["--min-count", "1", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .success();
 
@@ -225,7 +224,7 @@ fn map_fastq() {
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
         .arg("-o")
         .arg("assemblies")
-        .args(&["-v", "-k", "9"])
+        .args(["-v", "-k", "9"])
         .assert()
         .success();
 
@@ -248,7 +247,7 @@ fn map_fastq() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg("reads.skf")
-        .args(&["-f", "vcf"])
+        .args(["-f", "vcf"])
         .output()
         .unwrap()
         .stdout;
@@ -258,7 +257,7 @@ fn map_fastq() {
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
         .arg("assemblies.skf")
-        .args(&["-f", "vcf"])
+        .args(["-f", "vcf"])
         .output()
         .unwrap()
         .stdout;
@@ -281,7 +280,7 @@ fn error_fastq() {
     let sandbox = TestSetup::setup();
 
     // Without errors
-    let rfile_name = sandbox.create_rfile(&"test", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -289,7 +288,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "3", "-v", "-k", "9", "--min-qual", "2"])
+        .args(["--min-count", "3", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .success();
 
@@ -303,7 +302,7 @@ fn error_fastq() {
     let mut all_hash = var_hash(&fastq_align_out_all);
 
     // With no quality filtering
-    let rfile_name = sandbox.create_rfile(&"test_quality", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_quality", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -311,7 +310,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&[
+        .args([
             "--min-count",
             "5",
             "-v",
@@ -334,7 +333,7 @@ fn error_fastq() {
     assert_eq!(var_hash(&fastq_align_out_quality_nofilter), all_hash);
 
     // With only quality filtering the middle base
-    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -342,7 +341,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&[
+        .args([
             "--min-count",
             "5",
             "-v",
@@ -368,7 +367,7 @@ fn error_fastq() {
 
     // With errors
     all_hash.remove(&vec!['C', 'T']);
-    let rfile_name = sandbox.create_rfile(&"test_error", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_error", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -376,7 +375,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9", "--min-qual", "2"])
+        .args(["--min-count", "5", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .success();
 
@@ -391,7 +390,7 @@ fn error_fastq() {
     assert_eq!(var_hash(&fastq_align_out_error), all_hash);
 
     // With low quality score
-    let rfile_name = sandbox.create_rfile(&"test_quality", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_quality", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -399,7 +398,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9", "--min-qual", "30"])
+        .args(["--min-count", "5", "-v", "-k", "9", "--min-qual", "30"])
         .assert()
         .success();
 
@@ -414,7 +413,7 @@ fn error_fastq() {
     assert_eq!(var_hash(&fastq_align_out_quality), all_hash);
 
     // With low quality score in flanking region
-    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -422,7 +421,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&[
+        .args([
             "--min-count",
             "5",
             "-v",
@@ -447,7 +446,7 @@ fn error_fastq() {
     assert_eq!(var_hash(&fastq_align_out_quality), all_hash);
 
     // With low quality score in middle base region
-    let rfile_name = sandbox.create_rfile(&"test_quality_base", FxType::Fastq);
+    let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -455,7 +454,7 @@ fn error_fastq() {
         .arg(rfile_name)
         .arg("-o")
         .arg("reads")
-        .args(&["--min-count", "5", "-v", "-k", "9"])
+        .args(["--min-count", "5", "-v", "-k", "9"])
         .assert()
         .success();
 
@@ -506,6 +505,34 @@ fn cov_check() {
         .arg("-k")
         .arg("9")
         .arg("-v")
+        .assert()
+        .failure();
+}
+
+#[test]
+fn build_auto_check() {
+    let sandbox = TestSetup::setup();
+
+    let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(["--min-count", "auto", "-v", "-k", "9", "--min-qual", "2"])
+        .assert()
+        .success();
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg("-f")
+        .arg(rfile_name)
+        .arg("-o")
+        .arg("reads")
+        .args(["--min-count", "-1", "-v", "-k", "9", "--min-qual", "2"])
         .assert()
         .failure();
 }
