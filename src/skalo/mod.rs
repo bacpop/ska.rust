@@ -1,3 +1,4 @@
+//! Utilities to support graph traversal for SNP retreival as part of ska lo
 mod compaction;
 pub mod extremities;
 pub mod input;

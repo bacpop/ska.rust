@@ -1,10 +1,11 @@
+//! Functions for writing output in ska lo
 use hashbrown::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 
 use crate::skalo::utils::Config;
 
-/// the function outputs a SNP alignment, and a VCF file and a pseudo-genome alignment 
+/// the function outputs a SNP alignment, and a VCF file and a pseudo-genome alignment
 /// if a reference genome has been provided
 pub fn create_fasta_and_vcf(
     genome_name: String,
@@ -13,7 +14,6 @@ pub fn create_fasta_and_vcf(
     map: HashMap<u32, Vec<char>>,
     config: &Config,
 ) {
-    
     log::info!("Writting output files");
 
     // replace non-ATGCN characters with 'N' in genome_seq

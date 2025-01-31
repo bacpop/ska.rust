@@ -1,3 +1,4 @@
+//! Bubble finding algorithm
 use bit_set::BitSet;
 use hashbrown::{HashMap, HashSet};
 
@@ -5,7 +6,7 @@ use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::utils::DataInfo;
 
 /// the function identifies entry nodes (nodes leading to two or more paths whose edges
-/// contain non-identical sample sets) and exit nodes (their reverse-complements) of the graph bubbles. 
+/// contain non-identical sample sets) and exit nodes (their reverse-complements) of the graph bubbles.
 pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
     all_kmers: &HashMap<IntT, Vec<IntT>>,
     kmer_2_samples: &HashMap<IntT, BitSet>,
@@ -31,16 +32,6 @@ pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
                         start_kmers.insert(*kmer);
                         end_kmers.insert(IntT::rev_comp(*kmer, data_info.k_graph));
 
-                        //uncomment to print network
-                        /*
-                        use crate::utils::{rev_compl, decode_kmer};
-                        let dna = decode_kmer(kmer.clone(), data_info.k_graph);
-                        let rc = rev_compl(&dna);
-
-                        println!("{}	{}	red	", &kmer, &kmer);
-                        println!("{}	{}	red	", &rev_compl_u128(*kmer, data_info.k_graph), &rev_compl_u128(*kmer, data_info.k_graph));
-                        */
-
                         break 'i_loop;
                     }
                 }
@@ -50,7 +41,7 @@ pub fn identify_good_kmers<IntT: for<'a> UInt<'a>>(
 
     // exit program if no extremity found (eg, cases of weeded skf files)
     if start_kmers.is_empty() {
-        log::error!("\n      Error: there is no entry node in this graph, hence no variant.\n");
+        log::error!("Error: there is no entry node in this graph, hence no variant.\n");
         std::process::exit(1);
     }
 

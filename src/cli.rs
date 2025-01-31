@@ -27,6 +27,12 @@ pub const DEFAULT_MINCOUNT: u16 = 5;
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
 pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
+/// Default -m for ska lo
+pub const DEFAULT_MISSING_SKALO: f32 = 0.2;
+/// Default -d for ska lo
+pub const DEFAULT_MAX_PATHDEPTH: usize = 4;
+/// Deafult -n for ska lo
+pub const DEFAULT_MAX_INDEL_KMERS: usize = 2;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -386,36 +392,34 @@ pub enum Commands {
     /// Finds 'left out' SNPs and INDELs using a graph
     Lo {
         /// input SKA2 file
-        #[arg(short = 'i', long, help_heading = "input")]
         input_skf: String,
+
+        /// prefix of output files
+        output: String,
 
         /// reference genome for SNP positioning
         #[arg(short = 'r', long, help_heading = "input")]
         reference: Option<PathBuf>,
 
-        /// prefix of output files
-        #[arg(short = 'o', long, default_value_t = ("skalo").to_string(), help_heading = "output")]
-        output: String,
-
         /// maximum fraction of missing data
-        #[arg(short = 'm', long, default_value_t = 0.2, help_heading = "output")]
+        #[arg(short = 'm', long, default_value_t = DEFAULT_MISSING_SKALO, help_heading = "output")]
         missing: f32,
 
         /// maximum depth of recursive paths
         #[arg(
             short = 'd',
             long,
-            default_value_t = 4,
+            default_value_t = DEFAULT_MAX_PATHDEPTH,
             help_heading = "graph traversal"
         )]
         depth: usize,
 
         /// maximum number of internal indel k-mers
-        #[arg(short = 'n', long, default_value_t = 2, help_heading = "other")]
+        #[arg(short = 'n', long, default_value_t = DEFAULT_MAX_INDEL_KMERS, help_heading = "other")]
         indel_kmers: usize,
 
-        /// number of threads
-        #[arg(short = 't', long, default_value_t = 1, help_heading = "other")]
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1, help_heading = "other")]
         threads: usize,
     },
 }

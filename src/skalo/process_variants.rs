@@ -1,3 +1,4 @@
+//! Variant caller for ska lo
 use bit_set::BitSet;
 use hashbrown::{HashMap, HashSet};
 
@@ -8,11 +9,11 @@ use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 
 type VariantGroups<IntT> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
 
-/// This function is the variant-caller. Firstly, indels are dereplicated and their k-mers stored. Then 
+/// This function is the variant-caller. Firstly, indels are dereplicated and their k-mers stored. Then
 /// variant groups are further filtered to remove paths containing n or more indel k-mers. Variant groups
-/// are then sorted by the ratio of the number of paths to their length. These groups are then processed 
-/// in decreasing order. Within each variant group, SNPs are checked and retained only if they meet the 
-/// following criteria: they have not been encountered before (based on their surrounding k-mers), 
+/// are then sorted by the ratio of the number of paths to their length. These groups are then processed
+/// in decreasing order. Within each variant group, SNPs are checked and retained only if they meet the
+/// following criteria: they have not been encountered before (based on their surrounding k-mers),
 /// they represent true ATGC variants, and their proportion of missing samples are below a threshold ‘m’.
 /// Variant groups, and their SNPs, are finally positioned on a reference genome if provided by user.
 pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(

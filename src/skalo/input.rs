@@ -1,3 +1,4 @@
+//! Build the variant graph
 use bit_set::BitSet;
 use hashbrown::HashMap;
 
@@ -11,7 +12,7 @@ use crate::ska_dict::bit_encoding::{decode_kmer, UInt};
 type KmerGraph<IntT> = HashMap<IntT, Vec<IntT>>;
 type KmerSamples<IntT> = HashMap<IntT, BitSet>;
 
-/// the function converts each split k-mer into two overlapping k-mers of size k-1, 
+/// the function converts each split k-mer into two overlapping k-mers of size k-1,
 /// considering both forward and reverse-complement sequences.
 /// the sample set of each pair of overlapping k-mers is stored as a BitSet in 'kmer_samples'
 pub fn build_graph<IntT: for<'a> UInt<'a>>(

@@ -1,3 +1,4 @@
+//! Mapping functions for ska lo, to position on a reference genome
 use hashbrown::{HashMap, HashSet};
 use seq_io::fasta::{Reader, Record};
 use std::cmp::Ordering;
@@ -10,7 +11,7 @@ use flate2::read::MultiGzDecoder;
 use crate::ska_dict::bit_encoding::{valid_base, UInt};
 use crate::skalo::utils::{rev_compl, VariantInfo};
 
-/// Extracts k-mers with up to 3 distinct positions from the reference genome. 
+/// Extracts k-mers with up to 3 distinct positions from the reference genome.
 /// The reference genome should be provided in FASTA format and be composed of only 1 sequence.
 pub fn extract_genomic_kmers<IntT: for<'a> UInt<'a>>(
     file_path: PathBuf,
