@@ -134,7 +134,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
                             }
                         }
 
-                        // Save k-mers to avoid
+                        // Save k-mers to avoid those already identified
                         tmp_kmers.insert(full_before);
                         tmp_kmers.insert(IntT::rev_comp(full_before, data_info.k_graph + 1));
                         tmp_kmers.insert(full_after);

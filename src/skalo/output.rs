@@ -11,7 +11,7 @@ pub fn create_fasta_and_vcf(
     genome_name: String,
     mut genome_seq: Vec<u8>,
     sample_names: Vec<String>,
-    map: HashMap<u32, Vec<char>>,
+    variant_map: HashMap<u32, Vec<char>>,
     config: &Config,
 ) {
     log::info!("Writting output files");
@@ -25,7 +25,7 @@ pub fn create_fasta_and_vcf(
     }
 
     // sort variants by positions (increasing u32 key)
-    let mut sorted_map: Vec<_> = map.into_iter().collect();
+    let mut sorted_map: Vec<_> = variant_map.into_iter().collect();
     sorted_map.sort_by_key(|&(key, _)| key);
 
     let mut sequences: Vec<String> = vec![String::new(); sample_names.len()];
