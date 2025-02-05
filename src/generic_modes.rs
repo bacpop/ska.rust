@@ -13,6 +13,10 @@ use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_ref::RefSka;
+use crate::skalo::extremities::identify_good_kmers;
+use crate::skalo::input::build_graph;
+use crate::skalo::read_graph::build_variant_groups;
+use crate::skalo::utils::{Config, DataInfo};
 
 /// Filters alignment, and prints it out
 pub fn align<IntT: for<'a> UInt<'a>>(
@@ -294,4 +298,27 @@ pub fn save_skf<IntT: for<'a> UInt<'a>>(ska_dict: &MergeSkaDict<IntT>, out_file:
     ska_array
         .save(&outfile_suffix)
         .expect("Failed to save output file");
+}
+
+/// Run the skalo algorithm
+pub fn skalo<IntT: for<'a> UInt<'a>>(ska_array: MergeSkaArray<IntT>, config: Config) {
+    let (len_kmer, sample_names, all_kmers, index_map) = build_graph(ska_array, config.nb_threads);
+
+    let data_info = DataInfo {
+        k_graph: len_kmer - 1,
+        sample_names: sample_names.clone(),
+    };
+
+    // identify 'good' kmers in De Bruijn graph
+    let (start_kmers, end_kmers) = identify_good_kmers(&all_kmers, &index_map, &data_info);
+
+    // identify variant groups
+    build_variant_groups(
+        all_kmers,
+        start_kmers,
+        end_kmers,
+        index_map,
+        &config,
+        &data_info,
+    );
 }

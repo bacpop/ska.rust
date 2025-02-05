@@ -1,9 +1,9 @@
 //! Command line interface, built using [`crate::clap` with `Derive`](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html)
 use std::fmt;
 
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
-
 use super::QualFilter;
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 /// Default split k-mer size
 pub const DEFAULT_KMER: usize = 17;
@@ -27,6 +27,12 @@ pub const DEFAULT_MINCOUNT: u16 = 5;
 pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
 pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
+/// Default -m for ska lo
+pub const DEFAULT_MISSING_SKALO: f32 = 0.2;
+/// Default -d for ska lo
+pub const DEFAULT_MAX_PATHDEPTH: usize = 4;
+/// Deafult -n for ska lo
+pub const DEFAULT_MAX_INDEL_KMERS: usize = 2;
 
 #[doc(hidden)]
 fn valid_kmer(s: &str) -> Result<usize, String> {
@@ -382,6 +388,39 @@ pub enum Commands {
         /// Ignore reverse complement (all reads are oriented along same strand)
         #[arg(long, default_value_t = DEFAULT_STRAND)]
         single_strand: bool,
+    },
+    /// Finds 'left out' SNPs and INDELs using a graph
+    Lo {
+        /// input SKA2 file
+        input_skf: String,
+
+        /// prefix of output files
+        output: String,
+
+        /// reference genome for SNP positioning
+        #[arg(short = 'r', long, help_heading = "input")]
+        reference: Option<PathBuf>,
+
+        /// maximum fraction of missing data
+        #[arg(short = 'm', long, default_value_t = DEFAULT_MISSING_SKALO, help_heading = "output")]
+        missing: f32,
+
+        /// maximum depth of recursive paths
+        #[arg(
+            short = 'd',
+            long,
+            default_value_t = DEFAULT_MAX_PATHDEPTH,
+            help_heading = "graph traversal"
+        )]
+        depth: usize,
+
+        /// maximum number of internal indel k-mers
+        #[arg(short = 'n', long, default_value_t = DEFAULT_MAX_INDEL_KMERS, help_heading = "other")]
+        indel_kmers: usize,
+
+        /// Number of CPU threads
+        #[arg(long, value_parser = valid_cpus, default_value_t = 1, help_heading = "other")]
+        threads: usize,
     },
 }
 

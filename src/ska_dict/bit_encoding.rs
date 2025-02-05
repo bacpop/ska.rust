@@ -114,8 +114,57 @@ pub trait UInt<'a>:
     /// Generate bit masks which can be applied to the packed k-mer representation
     /// too extract the upper and lower parts of the split k-mer (as bits).
     fn generate_masks(k: usize) -> (Self, Self);
+    /// Generate a mask for the skalo algorithm
+    fn skalo_mask(k: usize) -> Self;
+    /// Encodes a kmer from a string to UInt
+    fn encode_kmer(kmer: &[u8]) -> Self {
+        kmer.iter().fold(Self::zero_init(), |result, nt| {
+            (result << 2) | (Self::from_encoded_base(encode_base(*nt)))
+        })
+    }
+    /// Encodes a kmer in str form to UInt
+    fn encode_kmer_str(kmer: &str) -> Self {
+        Self::encode_kmer(kmer.as_bytes())
+    }
+    /// Combines two kmers togethers
+    fn combine_kmers(encoded_kmer1: Self, encoded_kmer2: Self) -> Self {
+        let last_nucleotide_mask: Self = Self::from_encoded_base(0b11); // Mask for 2 bits
+
+        // shift the first k-mer left by 2 bits to make space for the new nucleotide
+        let shifted_kmer1 = encoded_kmer1 << 2;
+
+        // extract the last nucleotide from the second k-mer
+        let last_nucleotide = encoded_kmer2 & last_nucleotide_mask;
+
+        // combine the two k-mers into a (k+1)-mer encoding
+        shifted_kmer1 | last_nucleotide
+    }
+    /// Get last nucleotides from a kmer
+    fn get_last_nucl(encoded_kmer: Self) -> char {
+        // mask the last 2 bits to get the encoded nucleotide
+        let last_bits = Self::as_u8(encoded_kmer & Self::from_encoded_base(0b11));
+        // decode the nucleotide based on the 2-bit pattern
+        decode_base(last_bits) as char
+    }
+    /// Decodes kmer string for use in skalo code
+    fn skalo_decode_kmer(encoded: Self, k: usize) -> String {
+        let mut kmer = String::with_capacity(k);
+
+        let mask: Self = Self::skalo_mask(k);
+        let mut value = encoded & mask;
+
+        for _ in 0..k {
+            let nucleotide =
+                decode_base(Self::as_u8(value & Self::from_encoded_base(0b11))) as char;
+            kmer.insert(0, nucleotide);
+            value >>= 2;
+        }
+        kmer
+    }
     /// Set to zero
-    fn zero_init() -> Self;
+    fn zero_init() -> Self {
+        Self::from_encoded_base(0)
+    }
     /// Convert from u8, encoded bases 0-3
     fn from_encoded_base(encoded_base: u8) -> Self;
     /// Number of bits in the representation
@@ -160,8 +209,8 @@ impl UInt<'_> for u64 {
     }
 
     #[inline(always)]
-    fn zero_init() -> Self {
-        0
+    fn skalo_mask(k: usize) -> Self {
+        (1 << (k * 2)) - 1
     }
 
     #[inline(always)]
@@ -184,7 +233,7 @@ impl UInt<'_> for u64 {
 
 impl UInt<'_> for u128 {
     #[inline(always)]
-    fn rev_comp(mut self, k_size: usize) -> u128 {
+    fn rev_comp(mut self, k_size: usize) -> Self {
         // This part reverses the bases by shuffling them using an on/off pattern
         // of bits
         self = (self >> 2 & 0x33333333333333333333333333333333)
@@ -225,8 +274,8 @@ impl UInt<'_> for u128 {
     }
 
     #[inline(always)]
-    fn zero_init() -> Self {
-        0
+    fn skalo_mask(k: usize) -> Self {
+        (1 << (k * 2)) - 1
     }
 
     #[inline(always)]
