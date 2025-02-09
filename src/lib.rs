@@ -193,22 +193,25 @@
 //!
 //! ## ska lo
 //!
-//! Converts split k-mers from a `.skf` file into a colored De Bruijn graph and infers SNPs from variant groups in
-//! reference-free mode (equivalent to SKA align). SNPs are only composed of ATGC variants (no ambigous nucleotides).
-//! Multithreading ('-t' argument) is not yet optimised - it usually takes 4 threads to halve runtimes.
+//! Converts split k-mers from a `.skf` file into a colored De Bruijn graph and infers indels from graph bubbles and SNPs from variant groups in
+//! reference-free mode (as with `ska align`). SNPs are only composed of ATGC variants (no ambigous nucleotides). The same
+//! filtering applies to indels. 
+//! Multithreading ('-t' argument) is not fully optimised - it usually takes 4 threads to halve runtimes.
 //!
-//! To generate a SNP alignment (here in a file named 'test_snps.fas'):
+//! To generate a SNP alignment and an indel VCF file (here named 'test_snps.fas' and 'test_indels.vcf'):
 //! ```bash
-//! ska lo -i seqs.skf -o test
+//! ska lo seqs.skf test
 //! ```
 //!
-//! ska lo can also position SNPs on a reference genome if provided using the '-r' argument. The reference genome should
-//! be in FASTA format and composed of a unique sequence. skalo lo will then generate, in addition to the SNP alignemnt, a
-//! VCF file and a pseudo-genome alignment (equivalent to SKA map) that can be used for recombination analyses. In such use case,
-//! we recommmend to increase the maximum proportion of missing data allowed per SNP ('-m' argument), but not above 0.5.
+//! It can also position SNPs on a reference genome if provided using the '-r' argument. The reference genome should
+//! be in FASTA format and composed of a unique sequence. skalo lo will then generate, in addition to the SNP alignment and the indel
+//! VCF file, a SNP VCF file and a pseudo-genome alignment (as with `ska map`) that can be used for recombination analyses.
+//! In such use case, we recommmend to increase the maximum proportion of missing data allowed per variant ('-m' argument), but not above 0.5.
 //! ```bash
-//! ska lo -i seqs.skf -o test -r reference.fas -m 0.4
+//! ska lo seqs.skf test -r reference.fas -m 0.4
 //! ```
+//! Please note that at the moment indels cannot be positioned on a reference genome.
+//!
 //!
 //! ### Efficiency
 //!
@@ -842,11 +845,11 @@ pub fn main() {
             };
 
             if let Ok(ska_array) = load_array::<u64>(&[input_skf.clone()], *threads) {
-                log::info!(" # read file {}", input_skf);
+                log::info!("Reading file {}", input_skf);
                 log::info!("Using 64-bit representation");
                 skalo(ska_array, config);
             } else if let Ok(ska_array) = load_array::<u128>(&[input_skf.clone()], *threads) {
-                log::info!(" # read file {}", input_skf);
+                log::info!("Reading file {}", input_skf);
                 log::info!("Using 128-bit representation");
                 skalo(ska_array, config);
             } else {

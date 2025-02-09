@@ -28,7 +28,7 @@ pub const DEFAULT_MINQUAL: u8 = 20;
 /// Default quality filtering criteria
 pub const DEFAULT_QUALFILTER: QualFilter = QualFilter::Strict;
 /// Default -m for ska lo
-pub const DEFAULT_MISSING_SKALO: f32 = 0.2;
+pub const DEFAULT_MISSING_SKALO: f32 = 0.1;
 /// Default -d for ska lo
 pub const DEFAULT_MAX_PATHDEPTH: usize = 4;
 /// Deafult -n for ska lo
