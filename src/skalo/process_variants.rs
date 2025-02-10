@@ -241,30 +241,6 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
         }
     }
     
-    /*
-    let sequence = &variant.sequence;
-    let k_graph = data_info.k_graph;
-
-    // precompute the initial k-mer
-    let mut kmer = IntT::encode_kmer(&sequence.get_range(0, k_graph));
-    // Mask for retaining k-mer length
-    let mask = IntT::skalo_mask(k_graph);
-
-    // sliding window for k-mer computation
-    for i in k_graph..sequence.len() {
-        // compute the next k-mer using a rolling hash
-        let byte_index = i / 4;
-        let shift = 6 - (i % 4) * 2;
-        let next_nucleotide = IntT::from_encoded_base((sequence.data[byte_index] >> shift) & 0b11);
-
-        kmer = ((kmer << 2) | next_nucleotide) & mask; // update k-mer with new nucl
-
-        if entries_indels.contains(&kmer) {
-            nb += 1;
-        }
-    }
-    */
-    
     nb
 }
 
