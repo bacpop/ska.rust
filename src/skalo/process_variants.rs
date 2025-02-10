@@ -3,18 +3,19 @@ use bit_set::BitSet;
 use hashbrown::{HashMap, HashSet};
 
 use crate::ska_dict::bit_encoding::UInt;
-use crate::skalo::output::create_fasta_and_vcf;
+use crate::skalo::output_snps::create_fasta_and_vcf;
 use crate::skalo::positioning::{extract_genomic_kmers, scan_variants};
+use crate::skalo::process_indels::process_indels;
 use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 
 type VariantGroups<IntT> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
 
-/// This function is the variant-caller. Firstly, indels are dereplicated and their k-mers stored. Then
+/// This function is the variant-caller. First, indels are dereplicated and their k-mers stored. Then
 /// variant groups are further filtered to remove paths containing n or more indel k-mers. Variant groups
-/// are then sorted by the ratio of the number of paths to their length. These groups are then processed
-/// in decreasing order. Within each variant group, SNPs are checked and retained only if they meet the
-/// following criteria: they have not been encountered before (based on their surrounding k-mers),
-/// they represent true ATGC variants, and their proportion of missing samples are below a threshold ‘m’.
+/// are then sorted by the ratio of the number of paths to their length, and hese groups are processed
+/// in decreasing order. Within each variant group, SNPs are filtered to retain those that have not been
+/// encountered before (based on their surrounding k-mers), that represent true ATGC variants, and having a
+/// proportion of missing samples are below a threshold ‘m’.
 /// Variant groups, and their SNPs, are finally positioned on a reference genome if provided by user.
 pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
     mut variant_groups: VariantGroups<IntT>,
@@ -39,13 +40,12 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
             )
         };
 
-    log::info!("Processing indels");
+    // extract and output indels, and return their entry kmers for SNP identification
+    let entries_indels = process_indels(indel_groups, &kmer_2_samples, data_info, config);
 
-    // collect entry kmers of indels
-    let (final_indels, entries_indels) = process_indels(indel_groups, data_info.k_graph);
-    log::info!("{} indels", final_indels.len());
+    log::info!("Filtering paths");
 
-    // remove variants having  internal indels from each variant group
+    // remove variants having internal indels from each variant group
     for (_, vec_variant) in variant_groups.iter_mut() {
         let mut i = 0;
         while i < vec_variant.len() {
@@ -59,7 +59,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         }
     }
 
-    log::info!("Processing SNPs");
+    log::info!("Sorting variant groups");
 
     // create a vector of keys sorted by the ratio of size of Vec<VariantInfo> to the length of the first sequence
     // and sort the keys by decreasing order -> we consider first for snp calling variant group with lot of variants
@@ -75,6 +75,8 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         })
         .collect();
     sorted_keys.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); // Sort by ratio, descending
+
+    log::info!("Processing SNPs");
 
     // start processing SNPs
     let mut entries_done: HashSet<IntT> = HashSet::new();
@@ -212,7 +214,6 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         log::info!("{} SNPs", final_snps.len());
     }
 
-    log::info!("Writing output");
     // write output
     create_fasta_and_vcf(
         genome_name,
@@ -229,71 +230,18 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
     data_info: &DataInfo,
 ) -> usize {
     let mut nb = 0;
-    let sequence = &variant.sequence;
+    // this code is slow (it encodes every k-mers), but it is working
+    let sequence = &variant.sequence.decode();
     let k_graph = data_info.k_graph;
 
-    // precompute the initial k-mer
-    let mut kmer = IntT::encode_kmer(&sequence.get_range(0, k_graph));
-    // Mask for retaining k-mer length
-    let mask = IntT::skalo_mask(k_graph);
-
-    // sliding window for k-mer computation
-    for i in k_graph..sequence.len() {
-        // compute the next k-mer using a rolling hash
-        let byte_index = i / 4;
-        let shift = 6 - (i % 4) * 2;
-        let next_nucleotide = IntT::from_encoded_base((sequence.data[byte_index] >> shift) & 0b11);
-
-        kmer = ((kmer << 2) | next_nucleotide) & mask; // update k-mer with new nucl
-
+    for i in 0..(sequence.len() - k_graph) {
+        let kmer = IntT::encode_kmer_str(&sequence[i..k_graph + i]);
         if entries_indels.contains(&kmer) {
             nb += 1;
         }
     }
+
     nb
-}
-
-fn process_indels<IntT: for<'a> UInt<'a>>(
-    indel_groups: VariantGroups<IntT>,
-    k_graph: usize,
-) -> (VariantGroups<IntT>, HashSet<IntT>) {
-    let mut entries_indels: HashSet<IntT> = HashSet::new();
-    let mut final_indels: VariantGroups<IntT> = HashMap::new();
-
-    for (combined_ext, vec_variant) in &indel_groups {
-        if !entries_indels.contains(&combined_ext.0) {
-            // test if rev-compl exists
-            let rc_1 = IntT::rev_comp(combined_ext.0, k_graph);
-            let rc_2 = IntT::rev_comp(combined_ext.1, k_graph);
-            let rc_combined = (rc_2, rc_1);
-
-            if indel_groups.contains_key(&rc_combined) {
-                // compare the size of variant groups and select the shortest one
-                // this is equivalent to indel realigning in read-alignment (useful in repeats)
-                let vec_variant2 = indel_groups.get(&rc_combined).unwrap();
-                let sum1: usize = vec_variant
-                    .iter()
-                    .map(|variant| variant.sequence.len())
-                    .sum();
-                let sum2: usize = vec_variant2
-                    .iter()
-                    .map(|variant| variant.sequence.len())
-                    .sum();
-                if sum1 <= sum2 {
-                    final_indels.insert(*combined_ext, vec_variant.clone());
-                } else {
-                    final_indels.insert(rc_combined, vec_variant2.clone());
-                }
-            } else {
-                final_indels.insert(*combined_ext, vec_variant.clone());
-            }
-            entries_indels.insert(combined_ext.0);
-            entries_indels.insert(rc_1);
-            entries_indels.insert(combined_ext.1);
-            entries_indels.insert(rc_2);
-        }
-    }
-    (final_indels, entries_indels)
 }
 
 fn get_potential_snp(vec_variant: &Vec<VariantInfo>) -> HashSet<usize> {

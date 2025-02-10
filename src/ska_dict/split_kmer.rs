@@ -92,7 +92,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
         let mut upper = IntT::zero_init();
         let mut lower = IntT::zero_init();
         let mut middle_base: u8 = 0;
-        let middle_idx = (k + 1) / 2 - 1;
+        let middle_idx = k.div_ceil(2) - 1;
         let mut i = 0;
         while i < k {
             if valid_base(seq[i + *idx])
@@ -320,7 +320,7 @@ impl<'a, IntT: for<'b> UInt<'b>> SplitKmer<'a, IntT> {
 
     /// Get the index in the sequence of the current middle base
     pub fn get_middle_pos(&self) -> usize {
-        let middle_idx = (self.k + 1) / 2 - 1;
+        let middle_idx = self.k.div_ceil(2) - 1;
         self.index - middle_idx
     }
 

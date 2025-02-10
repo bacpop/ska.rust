@@ -14,8 +14,6 @@ pub fn create_fasta_and_vcf(
     variant_map: HashMap<u32, Vec<char>>,
     config: &Config,
 ) {
-    log::info!("Writting output files");
-
     // replace non-ATGCN characters with 'N' in genome_seq
     for base in genome_seq.iter_mut() {
         match *base as char {
