@@ -1,0 +1,4 @@
+##fileformat=VCFv4.2
+# REF corresponds to the most frequent variant among samples
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	0	1	2	3	4	5	6	7	8	9
+.	.	.	CC	-	.	before=CATATC;after=ACGGC	.	GT	0	0	0	0	0	1	0	0	0	0
