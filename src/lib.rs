@@ -195,7 +195,7 @@
 //!
 //! Converts split k-mers from a `.skf` file into a colored De Bruijn graph and infers indels from graph bubbles and SNPs from variant groups in
 //! reference-free mode (as with `ska align`). SNPs are only composed of ATGC variants (no ambigous nucleotides). The same
-//! filtering applies to indels. 
+//! filtering applies to indels.
 //! Multithreading ('-t' argument) is not fully optimised - it usually takes 4 threads to halve runtimes.
 //!
 //! To generate a SNP alignment and an indel VCF file (here named 'test_snps.fas' and 'test_indels.vcf'):

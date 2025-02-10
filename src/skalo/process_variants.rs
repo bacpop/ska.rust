@@ -5,15 +5,15 @@ use hashbrown::{HashMap, HashSet};
 use crate::ska_dict::bit_encoding::UInt;
 use crate::skalo::output_snps::create_fasta_and_vcf;
 use crate::skalo::positioning::{extract_genomic_kmers, scan_variants};
-use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 use crate::skalo::process_indels::process_indels;
+use crate::skalo::utils::{Config, DataInfo, VariantInfo};
 
 type VariantGroups<IntT> = HashMap<(IntT, IntT), Vec<VariantInfo>>;
 
 /// This function is the variant-caller. First, indels are dereplicated and their k-mers stored. Then
 /// variant groups are further filtered to remove paths containing n or more indel k-mers. Variant groups
 /// are then sorted by the ratio of the number of paths to their length, and hese groups are processed
-/// in decreasing order. Within each variant group, SNPs are filtered to retain those that have not been 
+/// in decreasing order. Within each variant group, SNPs are filtered to retain those that have not been
 /// encountered before (based on their surrounding k-mers), that represent true ATGC variants, and having a
 /// proportion of missing samples are below a threshold ‘m’.
 /// Variant groups, and their SNPs, are finally positioned on a reference genome if provided by user.
@@ -41,10 +41,10 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
         };
 
     // extract and output indels, and return their entry kmers for SNP identification
-    let entries_indels = process_indels(indel_groups, &kmer_2_samples, data_info, config);    
-        
+    let entries_indels = process_indels(indel_groups, &kmer_2_samples, data_info, config);
+
     log::info!("Filtering paths");
-    
+
     // remove variants having internal indels from each variant group
     for (_, vec_variant) in variant_groups.iter_mut() {
         let mut i = 0;
@@ -77,7 +77,7 @@ pub fn analyse_variant_groups<IntT: for<'a> UInt<'a>>(
     sorted_keys.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); // Sort by ratio, descending
 
     log::info!("Processing SNPs");
-    
+
     // start processing SNPs
     let mut entries_done: HashSet<IntT> = HashSet::new();
 
@@ -240,10 +240,9 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
             nb += 1;
         }
     }
-    
+
     nb
 }
-
 
 fn get_potential_snp(vec_variant: &Vec<VariantInfo>) -> HashSet<usize> {
     let mut snps_set = HashSet::new();
