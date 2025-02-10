@@ -23,7 +23,7 @@ fn ska_lo() {
         .assert()
         .success();
 
-    assert_eq!(true, sandbox.file_exists("test_skalo_snps.fas"));
+    sandbox.file_check("test_skalo_snps.fas", "test_skalo_snps.fas");
 
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
@@ -33,5 +33,5 @@ fn ska_lo() {
         .assert()
         .success();
 
-    assert_eq!(true, sandbox.file_exists("test_skalo_indels.vcf"));
+    sandbox.file_check("test_skalo_indels.vcf", "test_skalo_indels.vcf");
 }
