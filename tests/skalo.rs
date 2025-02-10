@@ -8,7 +8,7 @@ use crate::common::*;
 
 // NB: to view output, uncomment the current_dir lines
 
-// reference-free SNP calling with positioning on a reference genome
+// reference-free SNP/indel calling with positioning on a reference genome
 #[test]
 fn ska_lo() {
     let sandbox = TestSetup::setup();
@@ -24,4 +24,14 @@ fn ska_lo() {
         .success();
 
     assert_eq!(true, sandbox.file_exists("test_skalo_snps.fas"));
+
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("lo")
+        .arg(sandbox.file_string("test_skalo_indel.skf", TestDir::Input))
+        .arg("test_skalo")
+        .assert()
+        .success();
+
+    assert_eq!(true, sandbox.file_exists("test_skalo_indels.vcf"));
 }
