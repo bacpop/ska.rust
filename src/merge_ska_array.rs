@@ -381,7 +381,7 @@ where
     /// # Arguments
     ///
     /// - `constant` – the number of prefiltered constant bases, used to adjust
-    ///     the denominator of mismatch proportion
+    ///   the denominator of mismatch proportion
     pub fn distance(&self, constant: f64) -> Vec<Vec<(f64, f64)>> {
         let mut distances: Vec<Vec<(f64, f64)>> = Vec::new();
         self.variants
