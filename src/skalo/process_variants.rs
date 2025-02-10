@@ -234,7 +234,7 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
     let sequence = &variant.sequence.decode();
     let k_graph = data_info.k_graph;
 
-    for i in 0..(sequence.len() -k_graph) {
+    for i in 0..(sequence.len() - k_graph) {
         let kmer = IntT::encode_kmer_str(&sequence[i..k_graph + i]);
         if entries_indels.contains(&kmer) {
             nb += 1;
