@@ -241,7 +241,6 @@ fn find_internal_indels<IntT: for<'a> UInt<'a>>(
         }
     }
     
-    // this encoding is not working (ie, no indel k-mer found)
     /*
     let sequence = &variant.sequence;
     let k_graph = data_info.k_graph;
