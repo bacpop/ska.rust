@@ -15,6 +15,7 @@ use crate::merge_ska_array::MergeSkaArray;
 use crate::merge_ska_dict::{build_and_merge, InputFastx};
 use crate::ska_dict::bit_encoding::UInt;
 use crate::CoverageHistogram;
+use crate::cli::check_threads;
 
 use crate::cli::{
     DEFAULT_KMER, DEFAULT_MINCOUNT, DEFAULT_MINQUAL, DEFAULT_PROPORTION_READS, DEFAULT_QUALFILTER,
@@ -66,6 +67,10 @@ pub fn load_array<IntT: for<'a> UInt<'a>>(
             "Single file as input, trying to load as skf {}-bits",
             IntT::n_bits()
         );
+        if threads > 1 {
+            log::warn!("--threads only used if building skf, setting to 1");
+            check_threads(1);
+        }
         MergeSkaArray::load(input[0].as_str())
     } else {
         log::info!("Multiple files as input, running ska build with default settings");
