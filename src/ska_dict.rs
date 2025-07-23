@@ -106,16 +106,16 @@ where
     ) {
         let mut step: usize = 1;
 
-        if proportion_reads.is_some() {
-            step = (1.0 / proportion_reads.unwrap()).round() as usize;
+        if let Some(prop) = proportion_reads {
+            step = (1.0 / prop).round() as usize;
         }
 
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
-        let mut iter_reads = 0;
+        let mut iter_reads: usize = 0;
         while let Some(record) = reader.next() {
-            if iter_reads % step != 0 {
+            if !iter_reads.is_multiple_of(step) {
                 iter_reads += 1;
                 continue;
             } else {
@@ -213,7 +213,7 @@ where
         qual: &QualOpts,
         proportion_reads: Option<f64>,
     ) -> Self {
-        if !(5..=63).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
         }
 

@@ -832,12 +832,14 @@ pub fn main() {
                 reference_genome: reference.clone(),
             };
 
-            if let Ok(ska_array) = load_array::<u64>(&[input_skf.clone()], *threads) {
-                log::info!("Reading file {}", input_skf);
+            if let Ok(ska_array) = load_array::<u64>(std::slice::from_ref(input_skf), *threads) {
+                log::info!("Reading file {input_skf}");
                 log::info!("Using 64-bit representation");
                 skalo(ska_array, config);
-            } else if let Ok(ska_array) = load_array::<u128>(&[input_skf.clone()], *threads) {
-                log::info!("Reading file {}", input_skf);
+            } else if let Ok(ska_array) =
+                load_array::<u128>(std::slice::from_ref(input_skf), *threads)
+            {
+                log::info!("Reading file {input_skf}");
                 log::info!("Using 128-bit representation");
                 skalo(ska_array, config);
             } else {

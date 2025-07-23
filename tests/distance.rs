@@ -107,7 +107,7 @@ fn multisample_dists() {
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
 
-    // Test with min freq
+    // Test with min freq -- this removes all k-mers here
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")

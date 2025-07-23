@@ -561,7 +561,7 @@ where
     }
 
     /// Iterator over split k-mers and middle bases
-    pub fn iter(&self) -> KmerIter<IntT> {
+    pub fn iter(&self) -> KmerIter<'_, IntT> {
         KmerIter {
             kmers: &self.split_kmers,
             vars: &self.variants,

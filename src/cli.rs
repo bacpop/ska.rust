@@ -39,7 +39,7 @@ fn valid_kmer(s: &str) -> Result<usize, String> {
     let k: usize = s
         .parse()
         .map_err(|_| format!("`{s}` isn't a valid k-mer"))?;
-    if !(5..=63).contains(&k) || k % 2 == 0 {
+    if !(5..=63).contains(&k) || k.is_multiple_of(2) {
         Err("K-mer must be an odd number between 5 and 63 (inclusive)".to_string())
     } else {
         Ok(k)
@@ -98,7 +98,7 @@ pub fn valid_min_kmer(s: &str) -> Result<ValidMinKmer, String> {
             // Throw error if it cannot be parsed to u16
             let x: u16 = s.parse().expect("Invalid minimum kmer count");
             if x.ge(&1) {
-                log::info!("Using provided minimum kmer count of {}", x);
+                log::info!("Using provided minimum kmer count of {x}");
                 Ok(ValidMinKmer::Val(x))
             } else {
                 Err("Minimum kmer count must be >= 1".to_string())

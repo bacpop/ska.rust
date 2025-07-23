@@ -181,16 +181,13 @@ pub fn kmer_min_cutoff<IntT: for<'a> UInt<'a>>(
 ) -> u16 {
     // Minimum kmer cutoff logic
     if v.is_none() {
-        log::info!(
-            "Using user-provided minimum kmer value of {}",
-            DEFAULT_MINCOUNT
-        );
+        log::info!("Using user-provided minimum kmer value of {DEFAULT_MINCOUNT}",);
         DEFAULT_MINCOUNT
     } else {
         match v.unwrap() {
             // User-provided value (already checked by cli parser)
             ValidMinKmer::Val(x) => {
-                log::info!("Using user-provided minimum kmer value of {}", x);
+                log::info!("Using user-provided minimum kmer value of {x}");
                 x
             }
             // auto-calculate & there are enough fastq files
@@ -200,7 +197,7 @@ pub fn kmer_min_cutoff<IntT: for<'a> UInt<'a>>(
                     CoverageHistogram::<IntT>::new(&fastq_fwd, &fastq_rev, *k, rc, verbose);
                 let out = cov.fit_histogram().expect("Couldn't fit coverage model") as u16;
                 cov.plot_hist();
-                log::info!("Using inferred minimum kmer value of {}", out);
+                log::info!("Using inferred minimum kmer value of {out}");
                 out
             }
             // Not enough fastq files, use default and warn user

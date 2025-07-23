@@ -69,13 +69,13 @@ pub fn map<IntT: for<'a> UInt<'a>>(
     let mut out_stream = set_ostream(output);
     match format {
         FileType::Aln => {
-            log::info!("Generating alignment with {} threads", threads);
+            log::info!("Generating alignment with {threads} threads");
             ska_ref
                 .write_aln(&mut out_stream, threads)
                 .expect("Failed to write output alignment");
         }
         FileType::Vcf => {
-            log::info!("Generating VCF with {} threads", threads);
+            log::info!("Generating VCF with {threads} threads");
             ska_ref
                 .write_vcf(&mut out_stream, threads)
                 .expect("Failed to write output VCF");
@@ -95,7 +95,7 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     let mut merged_dict = first_array.to_dict();
 
     for (file_idx, skf_in) in skf_files.iter().enumerate() {
-        log::info!("Merging alignment {}", format!("{}", file_idx + 1));
+        log::info!("Merging alignment {}", file_idx + 1);
         let next_array = MergeSkaArray::load(skf_in)
             .expect("Failed to load input file (inconsistent k-mer lengths?)");
         merged_dict.extend(&mut next_array.to_dict());

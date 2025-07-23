@@ -131,7 +131,7 @@ pub fn process_indels<IntT: for<'a> UInt<'a>>(
         }
     }
 
-    log::info!("{} indels", nb_indels);
+    log::info!("{nb_indels} indels");
 
     // return entry k-mers of indels for SNP processing
     entries_indels
