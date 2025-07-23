@@ -46,7 +46,7 @@ pub fn rev_compl(seq: &str) -> String {
             'C' => 'G',
             'T' => 'A',
             'G' => 'C',
-            _ => panic!("Error taking reverse complement of {}", nt),
+            _ => panic!("Error taking reverse complement of {nt}"),
         })
         .collect();
 

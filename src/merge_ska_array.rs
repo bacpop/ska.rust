@@ -535,23 +535,21 @@ where
                 if !(*var1 == b'-' && *var2 == b'-') {
                     mismatches += 1.0;
                 }
-            } else {
-                if filt_ambig {
-                    if !is_ambiguous(*var1) && !is_ambiguous(*var2) {
-                        matches += 1.0;
-                        if *var1 != *var2 {
-                            distance += 1.0;
-                        }
+            } else if filt_ambig {
+                if !is_ambiguous(*var1) && !is_ambiguous(*var2) {
+                    matches += 1.0;
+                    if *var1 != *var2 {
+                        distance += 1.0;
                     }
-                } else {
-                    let var1_p = base_to_prob(*var1);
-                    let var2_p = base_to_prob(*var2);
-                    let overlap: f64 = var1_p.iter().zip(var2_p).map(|(p1, p2)| *p1 * p2).sum();
-                    if overlap > 0.0 {
-                        matches += 1.0;
-                    }
-                    distance += 1.0 - overlap;
                 }
+            } else {
+                let var1_p = base_to_prob(*var1);
+                let var2_p = base_to_prob(*var2);
+                let overlap: f64 = var1_p.iter().zip(var2_p).map(|(p1, p2)| *p1 * p2).sum();
+                if overlap > 0.0 {
+                    matches += 1.0;
+                }
+                distance += 1.0 - overlap;
             }
         }
         mismatches = if (matches + mismatches) == 0.0 {

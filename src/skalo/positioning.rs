@@ -99,7 +99,7 @@ fn get_reader(path: &PathBuf) -> Box<dyn BufRead + Send> {
     let filename_str = path.to_str().unwrap();
     let file = match File::open(path) {
         Ok(file) => file,
-        Err(error) => panic!("Error opening file: {:?}.", error),
+        Err(error) => panic!("Error opening file: {error:?}."),
     };
 
     if filename_str.ends_with(".gz") {

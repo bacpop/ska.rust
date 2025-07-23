@@ -313,7 +313,7 @@ fn complement_snp(dna: &[char]) -> Vec<char> {
             'G' => 'C',
             '-' => '-',
             'N' => 'N',
-            _ => panic!("Invalid nucleotide: {}", nucleotide),
+            _ => panic!("Invalid nucleotide: {nucleotide}"),
         })
         .collect()
 }
