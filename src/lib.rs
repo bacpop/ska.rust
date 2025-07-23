@@ -236,7 +236,7 @@
 //! ```
 //!
 //! Consider ambiguous bases by adding `--allow-ambiguous` flag, and change `--min-freq` to
-//! ignore more/less k-mers only found in some samples (default = 0.9). Note that ambiguous bases may overestimate
+//! ignore more/less k-mers only found in some samples (default = 0.0). Note that ambiguous bases may overestimate
 //! distances due to repeat k-mers. For finer control over filtering, first run `ska weed`
 //! on the input .skf.
 //!
@@ -685,7 +685,6 @@ pub fn main() {
                     output,
                     *min_freq,
                     filter_ambiguous,
-                    *threads,
                 );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
@@ -695,7 +694,6 @@ pub fn main() {
                     output,
                     *min_freq,
                     filter_ambiguous,
-                    *threads,
                 );
             } else {
                 panic!("Could not read input file(s): {skf_file}");

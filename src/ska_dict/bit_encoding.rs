@@ -536,6 +536,7 @@ mod tests {
         assert_eq!(overlap(&t, &u), 1.0);
         assert_eq!(overlap(&g, &u), 0.0);
 
+        assert_eq!(overlap(&r, &a), 0.5);
         assert_eq!(overlap(&r, &y), 0.0);
         assert_eq!(overlap(&s, &g), 0.5);
         assert_eq!(overlap(&w, &w), 0.5);

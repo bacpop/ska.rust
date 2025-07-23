@@ -285,10 +285,11 @@ pub enum Commands {
         output: Option<String>,
 
         /// Minimum fraction of samples a k-mer has to appear in
+        /// across the entire alignment
         #[arg(short, long, value_parser = zero_to_one, default_value_t = 0.0)]
         min_freq: f64,
 
-        /// Filter out ambiguous bases ('N' still a mismatch)
+        /// Don't filter out ambiguous bases and compute fractional distances
         #[arg(long, default_value_t = false)]
         allow_ambiguous: bool,
 

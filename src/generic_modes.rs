@@ -138,7 +138,6 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     output_prefix: &Option<String>,
     min_freq: f64,
     filt_ambig: bool,
-    threads: usize,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
@@ -146,46 +145,30 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     let mask_ambig = false;
     let ignore_const_gaps = false;
     let filter_ambig_as_missing = false;
+    // Filter min_freq (needs to be population-wide, not pairwise)
+    if min_freq * ska_array.nsamples() as f64 >= 1.0 {
+        // Filter any below min freq
+        apply_filters(
+            ska_array,
+            min_freq,
+            filter_ambig_as_missing,
+            &FilterType::NoFilter,
+            mask_ambig,
+            ignore_const_gaps,
+        );
+    }
+    // Filter constant sites
     let constant = apply_filters(
         ska_array,
-        min_freq,
+        0.0, // do not filter min-freq at this stage
         filter_ambig_as_missing,
         &FilterType::NoConst,
         mask_ambig,
         ignore_const_gaps,
     );
-    if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
-        if filt_ambig {
-            let filter_ambig_as_missing = true;
-            let mask_ambig = true;
-            apply_filters(
-                ska_array,
-                min_freq,
-                filter_ambig_as_missing,
-                &FilterType::NoAmbigOrConst,
-                mask_ambig,
-                ignore_const_gaps,
-            );
-        } else {
-            apply_filters(
-                ska_array,
-                min_freq,
-                filter_ambig_as_missing,
-                &FilterType::NoFilter,
-                mask_ambig,
-                ignore_const_gaps,
-            );
-        }
-    }
 
     log::info!("Calculating distances");
-    if threads > 1 {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .unwrap();
-    }
-    let distances = ska_array.distance(constant as f64);
+    let distances = ska_array.distance(constant as f64, filt_ambig);
 
     // Write out the distances (long form)
     let mut f = set_ostream(output_prefix);

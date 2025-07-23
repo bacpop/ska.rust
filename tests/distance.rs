@@ -76,11 +76,11 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9_min_freq.dist.stdout", TestDir::Correct));
 }
 
-// With two samples
 #[test]
 fn multisample_dists() {
     let sandbox = TestSetup::setup();
 
+    // NB: Ensure dists of sample pair are the same as the above test
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
