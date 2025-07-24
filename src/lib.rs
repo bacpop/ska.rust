@@ -39,7 +39,7 @@
 //!
 //! Papers:
 //! - [Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis ](https://genome.cshlp.org/content/34/10/1661.abstract).
-//! - [skalo: using SKA split k-mers with coloured de Brujin graphs to genotype indels](https://www.biorxiv.org/content/10.1101/2024.10.02.616334v1).
+//! - [skalo: using SKA split k-mers with coloured de Brujin graphs to genotype indels](https://academic.oup.com/mbe/article/42/4/msaf077/8103706).
 //!
 //! Command line usage follows. For API documentation and usage, see the [end of this section](#api-usage).
 //!
@@ -235,9 +235,13 @@
 //! ska distance -o distances.txt seqs.skf
 //! ```
 //!
-//! Consider ambiguous bases by adding `--allow-ambiguous` flag, and change `--min-freq` to
-//! ignore more/less k-mers only found in some samples (default = 0.9). Note that ambiguous bases may overestimate
-//! distances due to repeat k-mers. For finer control over filtering, first run `ska weed`
+//! Mismatches is an estimate of the alignable genome fraction based on the unfiltered
+//! k-mers.
+//!
+//! Also consider ambiguous bases by adding `--allow-ambiguous` flag, which will give partial SNP distances.
+//! Note that ambiguous bases may overestimate distances due to repeat k-mers. Use `--min-freq` to
+//! ignore k-mers only found in some samples at the population level (default = 0.0). F
+//! or finer control over filtering, first run `ska weed`
 //! on the input .skf.
 //!
 //! Multiple threads can be used, but this will only be effective with large numbers of samples.
@@ -680,23 +684,11 @@ pub fn main() {
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(
-                    &mut ska_array,
-                    output,
-                    *min_freq,
-                    filter_ambiguous,
-                    *threads,
-                );
+                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(
-                    &mut ska_array,
-                    output,
-                    *min_freq,
-                    filter_ambiguous,
-                    *threads,
-                );
+                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
             } else {
                 panic!("Could not read input file(s): {skf_file}");
             }
@@ -844,12 +836,14 @@ pub fn main() {
                 reference_genome: reference.clone(),
             };
 
-            if let Ok(ska_array) = load_array::<u64>(&[input_skf.clone()], *threads) {
-                log::info!("Reading file {}", input_skf);
+            if let Ok(ska_array) = load_array::<u64>(std::slice::from_ref(input_skf), *threads) {
+                log::info!("Reading file {input_skf}");
                 log::info!("Using 64-bit representation");
                 skalo(ska_array, config);
-            } else if let Ok(ska_array) = load_array::<u128>(&[input_skf.clone()], *threads) {
-                log::info!("Reading file {}", input_skf);
+            } else if let Ok(ska_array) =
+                load_array::<u128>(std::slice::from_ref(input_skf), *threads)
+            {
+                log::info!("Reading file {input_skf}");
                 log::info!("Using 128-bit representation");
                 skalo(ska_array, config);
             } else {

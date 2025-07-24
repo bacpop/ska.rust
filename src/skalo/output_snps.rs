@@ -79,8 +79,8 @@ pub fn create_fasta_and_vcf(
     let snp_filename = format!("{}_snps.fas", config.output_name);
     let mut snp_output = File::create(snp_filename).expect("Unable to create SNP file");
     for (name, sequence) in sample_names.iter().zip(sequences.iter()) {
-        writeln!(snp_output, ">{}", name).expect("Error writing to SNP file");
-        writeln!(snp_output, "{}", sequence).expect("Error writing to SNP file");
+        writeln!(snp_output, ">{name}").expect("Error writing to SNP file");
+        writeln!(snp_output, "{sequence}").expect("Error writing to SNP file");
     }
 
     if !genome_seq.is_empty() {
@@ -90,9 +90,9 @@ pub fn create_fasta_and_vcf(
             File::create(genome_filename).expect("Unable to create genome alignment file");
         if let Some(ref_genome_alignments) = genome_alignments {
             for (name, alignment) in sample_names.iter().zip(ref_genome_alignments.iter()) {
-                writeln!(&genome_output, ">{}", name)
+                writeln!(&genome_output, ">{name}")
                     .expect("Error writing to genome alignment file");
-                writeln!(&genome_output, "{}", alignment)
+                writeln!(&genome_output, "{alignment}")
                     .expect("Error writing to genome alignment file");
             }
         }

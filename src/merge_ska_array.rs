@@ -382,7 +382,7 @@ where
     ///
     /// - `constant` – the number of prefiltered constant bases, used to adjust
     ///   the denominator of mismatch proportion
-    pub fn distance(&self, constant: f64) -> Vec<Vec<(f64, f64)>> {
+    pub fn distance(&self, constant: f64, filt_ambig: bool) -> Vec<Vec<(f64, f64)>> {
         let mut distances: Vec<Vec<(f64, f64)>> = Vec::new();
         self.variants
             .axis_iter(Axis(1))
@@ -397,6 +397,7 @@ where
                         &row,
                         &self.variants.index_axis(Axis(1), j),
                         constant,
+                        filt_ambig,
                     ));
                 }
                 partial_dists
@@ -521,23 +522,33 @@ where
         sample1: &ArrayView<u8, Dim<[usize; 1]>>,
         sample2: &ArrayView<u8, Dim<[usize; 1]>>,
         constant: f64,
+        filt_ambig: bool,
     ) -> (f64, f64) {
         //  ACGT vs different ACGT -> +1
         //  Ambig bases are converted to prob vectors and multiplied
         //  '-' vs anything counts as a mismatch
         let mut distance = 0.0;
         let mut mismatches = 0.0;
-        let mut matches = constant;
+        let mut matches = constant; // already counted and filtered some matches across whole alignment
         for (var1, var2) in sample1.iter().zip(sample2) {
             if *var1 == b'-' || *var2 == b'-' {
                 if !(*var1 == b'-' && *var2 == b'-') {
                     mismatches += 1.0;
                 }
+            } else if filt_ambig {
+                if !is_ambiguous(*var1) && !is_ambiguous(*var2) {
+                    matches += 1.0;
+                    if *var1 != *var2 {
+                        distance += 1.0;
+                    }
+                }
             } else {
-                matches += 1.0;
                 let var1_p = base_to_prob(*var1);
                 let var2_p = base_to_prob(*var2);
                 let overlap: f64 = var1_p.iter().zip(var2_p).map(|(p1, p2)| *p1 * p2).sum();
+                if overlap > 0.0 {
+                    matches += 1.0;
+                }
                 distance += 1.0 - overlap;
             }
         }
@@ -550,7 +561,7 @@ where
     }
 
     /// Iterator over split k-mers and middle bases
-    pub fn iter(&self) -> KmerIter<IntT> {
+    pub fn iter(&self) -> KmerIter<'_, IntT> {
         KmerIter {
             kmers: &self.split_kmers,
             vars: &self.variants,

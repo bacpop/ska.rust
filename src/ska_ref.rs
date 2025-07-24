@@ -156,7 +156,7 @@ where
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
     pub fn new(k: usize, filename: &str, rc: bool, ambig_mask: bool, repeat_mask: bool) -> Self {
-        if !(5..=63).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
         }
 
@@ -341,7 +341,7 @@ where
     // Calls the necessary parts of AlnWriter (in parallel) to produce all the
     // pseudoalignments. The calling function either modifies these (VCF) or
     // simply writes them out (ALN)
-    fn pseudoalignment(&self, threads: usize) -> Vec<AlnWriter> {
+    fn pseudoalignment(&self, threads: usize) -> Vec<AlnWriter<'_>> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
         }

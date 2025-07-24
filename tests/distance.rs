@@ -76,11 +76,11 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9_min_freq.dist.stdout", TestDir::Correct));
 }
 
-// With two samples
 #[test]
 fn multisample_dists() {
     let sandbox = TestSetup::setup();
 
+    // NB: Ensure dists of sample pair are the same as the above test
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
@@ -97,24 +97,33 @@ fn multisample_dists() {
         .assert()
         .success();
 
-    // Test with filters off
+    // Test with defaults (and that output order correct irrespective of threads)
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
-        .args(["--min-freq", "0"])
-        .arg("--allow-ambiguous")
         .args(["--threads", "2"])
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
 
-    // Test with default filters
+    // Test with min freq -- this removes all k-mers here
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
         .arg("-v")
+        .args(["--min-freq", "0.9"])
         .assert()
-        .stdout_eq_path(sandbox.file_string("multidist.filter.stdout", TestDir::Correct));
+        .stdout_eq_path(sandbox.file_string("multidist.minfreq.stdout", TestDir::Correct));
+
+    // Test with ambig bases
+    Command::new(cargo_bin("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg("multidist.skf")
+        .arg("-v")
+        .arg("--allow-ambiguous")
+        .assert()
+        .stdout_eq_path(sandbox.file_string("multidist.ambig.stdout", TestDir::Correct));
 }

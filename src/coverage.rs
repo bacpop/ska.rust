@@ -68,7 +68,7 @@ where
     /// Parameters the same as for [`crate::ska_dict::SkaDict`]. `verbose` will
     /// also print to stderr on each iteration of the optiser.
     pub fn new(fastq1: &String, fastq2: &String, k: usize, rc: bool, verbose: bool) -> Self {
-        if !(5..=63).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
         }
 

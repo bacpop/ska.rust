@@ -69,13 +69,13 @@ pub fn map<IntT: for<'a> UInt<'a>>(
     let mut out_stream = set_ostream(output);
     match format {
         FileType::Aln => {
-            log::info!("Generating alignment with {} threads", threads);
+            log::info!("Generating alignment with {threads} threads");
             ska_ref
                 .write_aln(&mut out_stream, threads)
                 .expect("Failed to write output alignment");
         }
         FileType::Vcf => {
-            log::info!("Generating VCF with {} threads", threads);
+            log::info!("Generating VCF with {threads} threads");
             ska_ref
                 .write_vcf(&mut out_stream, threads)
                 .expect("Failed to write output VCF");
@@ -95,7 +95,7 @@ pub fn merge<IntT: for<'a> UInt<'a>>(
     let mut merged_dict = first_array.to_dict();
 
     for (file_idx, skf_in) in skf_files.iter().enumerate() {
-        log::info!("Merging alignment {}", format!("{}", file_idx + 1));
+        log::info!("Merging alignment {}", file_idx + 1);
         let next_array = MergeSkaArray::load(skf_in)
             .expect("Failed to load input file (inconsistent k-mer lengths?)");
         merged_dict.extend(&mut next_array.to_dict());
@@ -138,7 +138,6 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     output_prefix: &Option<String>,
     min_freq: f64,
     filt_ambig: bool,
-    threads: usize,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
@@ -146,46 +145,30 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     let mask_ambig = false;
     let ignore_const_gaps = false;
     let filter_ambig_as_missing = false;
+    // Filter min_freq (needs to be population-wide, not pairwise)
+    if min_freq * ska_array.nsamples() as f64 >= 1.0 {
+        // Filter any below min freq
+        apply_filters(
+            ska_array,
+            min_freq,
+            filter_ambig_as_missing,
+            &FilterType::NoFilter,
+            mask_ambig,
+            ignore_const_gaps,
+        );
+    }
+    // Filter constant sites
     let constant = apply_filters(
         ska_array,
-        min_freq,
+        0.0, // do not filter min-freq at this stage
         filter_ambig_as_missing,
         &FilterType::NoConst,
         mask_ambig,
         ignore_const_gaps,
     );
-    if filt_ambig || (min_freq * ska_array.nsamples() as f64 >= 1.0) {
-        if filt_ambig {
-            let filter_ambig_as_missing = true;
-            let mask_ambig = true;
-            apply_filters(
-                ska_array,
-                min_freq,
-                filter_ambig_as_missing,
-                &FilterType::NoAmbigOrConst,
-                mask_ambig,
-                ignore_const_gaps,
-            );
-        } else {
-            apply_filters(
-                ska_array,
-                min_freq,
-                filter_ambig_as_missing,
-                &FilterType::NoFilter,
-                mask_ambig,
-                ignore_const_gaps,
-            );
-        }
-    }
 
     log::info!("Calculating distances");
-    if threads > 1 {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .unwrap();
-    }
-    let distances = ska_array.distance(constant as f64);
+    let distances = ska_array.distance(constant as f64, filt_ambig);
 
     // Write out the distances (long form)
     let mut f = set_ostream(output_prefix);

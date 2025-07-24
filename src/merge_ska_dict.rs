@@ -379,11 +379,8 @@ where
     let max_depth = f64::floor(f64::log2(max_threads as f64)) as usize;
     if max_depth > 0 {
         log::info!(
-            "{}",
-            format!(
-                "Build and merge skf dicts in parallel using {} threads",
-                1 << max_depth
-            )
+            "Build and merge skf dicts in parallel using {} threads",
+            1 << max_depth
         );
         merged_dict = parallel_append(
             max_depth,
