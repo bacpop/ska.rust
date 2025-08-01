@@ -447,35 +447,72 @@
 
 #![warn(missing_docs)]
 use std::fmt;
+#[cfg(not(feature = "wasm"))]
 use std::time::Instant;
 
 use clap::ValueEnum;
 extern crate num_cpus;
 
+#[cfg(not(feature = "wasm"))]
 pub mod merge_ska_dict;
 pub mod ska_dict;
+#[cfg(not(feature = "wasm"))]
 use crate::merge_ska_dict::build_and_merge;
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
+#[cfg(not(feature = "wasm"))]
 pub mod merge_ska_array;
+#[cfg(not(feature = "wasm"))]
 use crate::merge_ska_array::MergeSkaArray;
 
+#[cfg(not(feature = "wasm"))]
 pub mod generic_modes;
+#[cfg(not(feature = "wasm"))]
 use crate::generic_modes::*;
 
+#[cfg(not(feature = "wasm"))]
 pub mod cli;
+#[cfg(not(feature = "wasm"))]
 use crate::cli::*;
 
+#[cfg(not(feature = "wasm"))]
 pub mod io_utils;
+#[cfg(not(feature = "wasm"))]
 use crate::io_utils::*;
 
+#[cfg(not(feature = "wasm"))]
 pub mod coverage;
+#[cfg(not(feature = "wasm"))]
 use crate::coverage::CoverageHistogram;
 
+#[cfg(not(feature = "wasm"))]
 pub mod skalo;
+#[cfg(not(feature = "wasm"))]
 use crate::io_utils::load_array;
+#[cfg(not(feature = "wasm"))]
 use crate::skalo::utils::Config;
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+#[cfg(feature = "wasm")]
+use wasm_bindgen_file_reader::WebSysFile;
+#[cfg(feature = "wasm")]
+extern crate console_error_panic_hook;
+#[cfg(feature = "wasm")]
+pub mod fastx_wasm;
+#[cfg(feature = "wasm")]
+use json;
+#[cfg(feature = "wasm")]
+pub mod ska_map;
+#[cfg(feature = "wasm")]
+use crate::ska_map::SkaMap;
+#[cfg(feature = "wasm")]
+pub mod ska_align;
+#[cfg(feature = "wasm")]
+use crate::ska_align::SkaAlign;
+#[cfg(feature = "wasm")]
+use crate::ska_dict::bit_encoding::UInt;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -521,6 +558,7 @@ impl fmt::Display for QualOpts {
     }
 }
 
+#[cfg(not(feature = "wasm"))]
 #[doc(hidden)]
 pub fn main() {
     let args = cli_args();
@@ -857,4 +895,300 @@ pub fn main() {
     eprintln!("⬛⬜⬛⬜⬛⬜⬛");
     eprintln!("⬜⬛⬜⬛⬜⬛⬜");
     log::info!("Complete");
+}
+
+
+// WASM implementation
+#[cfg(feature = "wasm")]
+#[doc(hidden)]
+pub fn main() {
+    panic!("You've compiled Ska2 for WebAssembly support, you cannot use it as a normal binary anymore!");
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+extern {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+/// Function that allows to propagate panic error messages when compiling to wasm, see https://github.com/rustwasm/console_error_panic_hook
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
+
+/// Logging wrapper function for the WebAssembly version
+#[cfg(feature = "wasm")]
+pub fn logw(text : &str, typ : Option<&str>) {
+    if typ.is_some() {
+        log((String::from("ska.rust::") + typ.unwrap() + "::" + text).as_str());
+    } else {
+        log(text);
+    }
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+/// Struct to interact with JS when working with WebAssembly
+pub struct SkaData {
+    k: usize,
+    rc: bool,
+    reference64: Option<RefSka<u64>>,
+    reference128: Option<RefSka<u128>>,
+    reference_string: Vec<String>,
+    mapped64: Option<Vec<SkaMap<u64>>>,
+    mapped128: Option<Vec<SkaMap<u128>>>,
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl SkaData {
+    /// Constructor of the SkaData struct
+    pub fn new(ref_file: web_sys::File, k: usize) -> Self {
+        if cfg!(debug_assertions) {
+            init_panic_hook();
+        }
+
+        let rc = true;
+        let ambig_mask = false;
+        let repeat_mask = false;
+
+        let mut wf = WebSysFile::new(ref_file);
+        if k < 32 {
+            let reference = RefSka::<u64>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
+            logw(&format!(
+                "Indexed reference: {} split k-mers",
+                reference.ksize()
+            ), None);
+            let reference_string = reconstruct_sequence(&reference);
+
+            Self {
+                k: k,
+                rc: rc,
+                reference64: Some(reference),
+                reference128: None,
+                reference_string: reference_string,
+                mapped64: Some(Vec::new()),
+                mapped128: None,
+            }
+        } else if k < 64 {
+            let reference = RefSka::<u128>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
+            logw(&format!(
+                "Indexed reference: {} split k-mers",
+                reference.ksize()
+            ), None);
+            let reference_string = reconstruct_sequence(&reference);
+
+            Self {
+                k: k,
+                rc: rc,
+                reference64: None,
+                reference128: Some(reference),
+                reference_string: reference_string,
+                mapped64: None,
+                mapped128: Some(Vec::new()),
+            }
+        } else {
+            panic!("k values larger than 64 not supported");
+        }
+    }
+
+    /// Mapping function.
+    pub fn map(&mut self, input_file: web_sys::File, rev_reads: Option<web_sys::File>, proportion_reads: Option<f64>) -> String {
+        if rev_reads.is_some() {
+            logw(&format!("Detected paired fastq input files"), None);
+        }
+        logw(&format!("Mapping reads to reference"), None);
+        let mut input_file_ref = input_file;
+        if self.k < 32 {
+            if let Some(mut second_file) = rev_reads {
+                self.mapped64.as_mut().unwrap().push(SkaMap::<u64>::new(
+                    self.reference64.as_ref().unwrap(),
+                    &mut input_file_ref,
+                    Some(&mut second_file),
+                    proportion_reads,
+                    self.rc,
+                ));
+            } else {
+                self.mapped64.as_mut().unwrap()
+                    .push(SkaMap::<u64>::new(&self.reference64.as_ref().unwrap(), &mut input_file_ref, None, proportion_reads, self.rc));
+            };
+        } else {
+            if let Some(mut second_file) = rev_reads {
+                self.mapped128.as_mut().unwrap().push(SkaMap::<u128>::new(
+                    &self.reference128.as_ref().unwrap(),
+                    &mut input_file_ref,
+                    Some(&mut second_file),
+                    proportion_reads,
+                    self.rc,
+                ));
+            } else {
+                self.mapped128.as_mut().unwrap()
+                    .push(SkaMap::<u128>::new(&self.reference128.as_ref().unwrap(), &mut input_file_ref, None, proportion_reads, self.rc));
+            };
+        }
+
+        logw("Reads mapped successfully!", None);
+
+        let mut results = json::JsonValue::new_array();
+
+        results["Mapped sequences"] = json::JsonValue::new_array();
+        let whole_mapping;
+        if self.k < 32 {
+            whole_mapping = self.reference64.as_ref().unwrap().pseudoalignment(self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1].get_mapped_bases())[0].clone();
+        } else {
+            whole_mapping = self.reference128.as_ref().unwrap().pseudoalignment(self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1].get_mapped_bases())[0].clone();
+        }
+
+        let mut current_length = 0;
+        for chr in 0..self.reference_string.len() {
+            let chr_mapping: String = whole_mapping[current_length..current_length + self.reference_string[chr].len()].to_string();
+            let _ = results["Mapped sequences"].push(chr_mapping);
+            current_length += self.reference_string[chr].len();
+        }
+
+        if self.k < 32 {
+            results["Number of variants"] = self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1].get_mapped_bases().len().into();
+        } else {
+            results["Number of variants"] = self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1].get_mapped_bases().len().into();
+        }
+        // The result is a concatenated string of all the mapped bases
+
+        let mut count_mapped_bases = 0;
+        let mut count_total_bases = 0;
+        for base in whole_mapping.chars() {
+            if base != '-' {
+                count_mapped_bases += 1;
+                count_total_bases += 1;
+            } else {
+                count_total_bases += 1;
+            }
+        }
+
+        results["Coverage"] = (count_mapped_bases as f64 / count_total_bases as f64).into();
+
+        logw("Results computed successfully!", None);
+
+        return results.dump();
+    }
+
+    /// Retrieves the reference sequence
+    pub fn get_reference(&self) -> String {
+        return self.reference_string.join("\n");
+    }
+}
+
+#[cfg(feature = "wasm")]
+/// Reconstructs a sequence beginning from a reference
+pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) -> Vec<String> {
+    let sequence_u8 = reference.get_seq();
+    let mut sequence_string = Vec::new();
+
+    for sequence in sequence_u8 {
+        let mut current_seq= "".to_string();
+        for base in sequence {
+            if *base != 10 {
+                current_seq.push(*base as char);
+            }
+
+        }
+        sequence_string.push(current_seq);
+    }
+
+    return sequence_string;
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+/// AlignData struct for doing alignment while in WebAssembly
+pub struct AlignData {
+    k: usize,
+    alignment64: Option<SkaAlign<u64>>,
+    alignment128: Option<SkaAlign<u128>>,
+    file_names: Vec<String>,
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl AlignData {
+    /// Constructor of the AlignData struct
+    pub fn new(k: usize) -> Self {
+        if k < 32 {
+            Self {
+                k : k,
+                alignment64: Some(SkaAlign::<u64>::new(k)),
+                alignment128: None,
+                file_names: Vec::new(),
+            }
+        } else if k < 64 {
+            Self {
+                k: k,
+                alignment64: None,
+                alignment128: Some(SkaAlign::<u128>::new(k)),
+                file_names: Vec::new(),
+            }
+        } else {
+            panic!("k values larger than 64 are not supported.");
+        }
+    }
+
+    /// Alignment function.
+    pub fn align(&mut self, input_files: Vec<web_sys::File>, proportion_reads: Option<f64>) -> String {
+        logw(&format!("Aligning reads"), None);
+
+        // let mut wf1: WebSysFile;
+
+        for input_file in input_files {
+            let file_name = input_file.name();
+            self.file_names.push(file_name.clone());
+            // let mut file_type = file_name.split('.').nth(file_name.split('.').count() - 1).unwrap();
+            // if file_type == "gz" {
+            //     file_type = file_name.split('.').nth(file_name.split('.').count() - 2).unwrap();
+            // }
+            // wf1 = WebSysFile::new(input_file);
+            if self.k < 32 {
+                self.alignment64.as_mut().unwrap().add_file(
+                    // &mut wf1,
+                    & input_file,
+                    proportion_reads,
+                );
+            } else {
+                self.alignment128.as_mut().unwrap().add_file(
+                    // &mut wf1,
+                    & input_file,
+                    proportion_reads,
+                );
+            }
+        }
+
+        if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2) || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2) {
+            let mut results = json::JsonValue::new_array();
+            results["newick"] = "Not enough sequences to align".into();
+            results["names"] = json::JsonValue::new_array();
+            for name in &self.file_names {
+                let _ = results["names"].push(name.to_string());
+            }
+
+            return results.dump();
+        }
+
+        let newick;
+
+        if self.k < 32 {
+            newick = self.alignment64.as_mut().unwrap().align(&self.file_names);
+        } else {
+            newick = self.alignment128.as_mut().unwrap().align(&self.file_names);
+        }
+
+        let mut results = json::JsonValue::new_array();
+
+        results["newick"] = newick.into();
+        results["names"] = json::JsonValue::new_array();
+            for name in &self.file_names {
+                let _ = results["names"].push(name.to_string());
+            }
+        results.dump()
+    }
 }
