@@ -39,13 +39,6 @@ use hashbrown::hash_set::Entry::*;
 use hashbrown::HashSet;
 use rayon::prelude::*;
 
-#[cfg(feature = "wasm")]
-use noodles_vcf::{
-    record::{
-        genotypes::{Keys, keys::key},
-        reference_bases::Base,
-    },
-};
 #[cfg(not(feature = "wasm"))]
 use noodles_vcf::{
     self as vcf,
@@ -58,6 +51,7 @@ use noodles_vcf::{
     },
 };
 
+#[cfg(not(feature = "wasm"))]
 extern crate needletail;
 #[cfg(not(feature = "wasm"))]
 use ndarray::{s, Array2, ArrayView};
