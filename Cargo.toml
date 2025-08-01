@@ -30,8 +30,7 @@ categories = ["command-line-utilities", "science"]
 [features]
 default = ["basic"]
 basic = ["needletail", "serde", "ciborium", "noodles-vcf", "snap", "log", "simple_logger", "indicatif", "clap", "regex", "rayon",
-    # "num_cpus", "hashbrown", "ahash", "ndarray", "num-traits", "libm", "argmin", "argmin-math", "bit-set", "dashmap", "seq_io", "flate2"]
-    "num_cpus", "hashbrown", "ndarray", "num-traits", "libm", "argmin", "argmin-math", "bit-set", "dashmap", "seq_io", "flate2"]
+    "num_cpus", "hashbrown", "ahash", "ndarray", "num-traits", "libm", "argmin", "argmin-math", "bit-set", "dashmap", "seq_io", "flate2"]
 wasm = ["serde", "ciborium", "snap", "log", "simple_logger", "clap", "regex", "rayon",
     "num_cpus", "hashbrown", "ndarray", "num-traits", "bit-set", "seq_io", "flate2",
     "wasm-bindgen", "console_error_panic_hook", "wasm-bindgen-file-reader", "json", "speedytree", "getrandom", "web-sys", "js-sys"]

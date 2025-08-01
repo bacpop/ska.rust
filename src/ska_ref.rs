@@ -517,10 +517,10 @@ where
         self.split_kmer_pos.iter()
     }
 
-    // Calls the necessary parts of AlnWriter (in parallel) to produce all the
-    // pseudoalignments. The calling function either modifies these (VCF) or
-    // simply writes them out (ALN)
     #[cfg(not(feature = "wasm"))]
+    /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
+    /// pseudoalignments. The calling function either modifies these (VCF) or
+    /// simply writes them out (ALN)
     pub fn pseudoalignment(&self, threads: usize) -> Vec<AlnWriter<'_>> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
