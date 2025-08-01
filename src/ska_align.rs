@@ -8,7 +8,7 @@ use crate::QualOpts;
 use speedytree::DistanceMatrix;
 use speedytree::{NeighborJoiningSolver, Canonical};
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[derive(Debug, Clone, Default)]
 /// Main struct for alignment in a WebAssembly environment
 pub struct SkaAlign<IntT> {
@@ -22,13 +22,13 @@ impl<IntT> SkaAlign<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Constructor of a SkaAlign struct
     pub fn new(k: usize) -> Self {
         Self { queries_ska: Vec::new(), k }
     }
 
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Adds a file through a SkaDict.
     pub fn add_file(
         &mut self,
@@ -50,7 +50,7 @@ where
         ));
     }
 
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Performs the alignment
     pub fn align(&mut self, file_names: &Vec<String>) -> String {
         let mut pairwise_distances = vec![vec![0; self.queries_ska.len()]; self.queries_ska.len()];
@@ -81,7 +81,7 @@ where
         newick
     }
 
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Gets number of queries
     pub fn get_size(&self) -> usize {
         self.queries_ska.len()

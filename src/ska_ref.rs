@@ -30,16 +30,16 @@
 //! ref_kmers.write_aln(&mut out_stream, threads);
 //! ```
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::Write;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::str;
 
 use hashbrown::hash_set::Entry::*;
 use hashbrown::HashSet;
 use rayon::prelude::*;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use noodles_vcf::{
     self as vcf,
     header::record::value::{map::Contig, Map},
@@ -51,13 +51,13 @@ use noodles_vcf::{
     },
 };
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 extern crate needletail;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use ndarray::{s, Array2, ArrayView};
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use ndarray::Array2;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use needletail::{
     parse_fastx_file,
     parser::{write_fasta, Format},
@@ -67,26 +67,26 @@ use super::QualFilter;
 pub mod aln_writer;
 use crate::ska_ref::aln_writer::AlnWriter;
 pub mod idx_check;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::ska_ref::idx_check::IdxCheck;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_dict::MergeSkaDict;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::split_kmer::SplitKmer;
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use std::io::Read;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::fastx_wasm::open_fasta;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Record;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::logw;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::ska_map::Variant;
 
 
@@ -142,7 +142,7 @@ where
 }
 
 /// [`u8`] representation used elsewhere to [`noodles_vcf::record::reference_bases::Base`]
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[inline]
 fn u8_to_base(ref_base: u8) -> Base {
     match ref_base {
@@ -156,7 +156,7 @@ fn u8_to_base(ref_base: u8) -> Base {
 
 /// The VCF KEYS field used is currently just genotype (GT)
 /// These can be used as [`Keys`] in the genotype builder
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[inline]
 fn gt_keys() -> Keys {
     Keys::try_from(vec![key::GENOTYPE]).unwrap()
@@ -166,7 +166,7 @@ impl<IntT> RefSka<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -184,7 +184,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(k: usize, filename: &str, rc: bool, ambig_mask: bool, repeat_mask: bool) -> Self {
         if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
@@ -323,7 +323,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     pub fn new<F: Read>(
         k: usize,
         file: &mut F,
@@ -474,7 +474,7 @@ where
     /// # Panics
     ///
     /// If k-mer sizes are incompatible
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn map(&mut self, ska_dict: &MergeSkaDict<IntT>) {
         if self.k != ska_dict.kmer_len() {
             panic!(
@@ -517,7 +517,7 @@ where
         self.split_kmer_pos.iter()
     }
 
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function either modifies these (VCF) or
     /// simply writes them out (ALN)
@@ -555,7 +555,7 @@ where
         seq_writers
     }
 
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function simply writes them out (ALN)
     pub fn pseudoalignment(&self, mapped_bases: &Vec<Variant>) -> Vec<String> {
@@ -605,7 +605,7 @@ where
     /// # Panics
     ///
     /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped.
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn write_aln<W: Write>(
         &self,
         f: &mut W,
@@ -641,7 +641,7 @@ where
     ///
     /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped to
     /// the reference.
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn write_vcf<W: Write>(&self, f: &mut W, threads: usize) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");

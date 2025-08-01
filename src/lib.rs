@@ -447,71 +447,71 @@
 
 #![warn(missing_docs)]
 use std::fmt;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 use clap::ValueEnum;
 extern crate num_cpus;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod merge_ska_dict;
 pub mod ska_dict;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_dict::build_and_merge;
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod merge_ska_array;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_array::MergeSkaArray;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod generic_modes;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::generic_modes::*;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod cli;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::cli::*;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod io_utils;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::io_utils::*;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod coverage;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::coverage::CoverageHistogram;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod skalo;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::io_utils::load_array;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use crate::skalo::utils::Config;
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_file_reader::WebSysFile;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 extern crate console_error_panic_hook;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 pub mod fastx_wasm;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use json;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 pub mod ska_map;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::ska_map::SkaMap;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 pub mod ska_align;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::ska_align::SkaAlign;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
 
 /// Possible quality score filters when building with reads
@@ -558,7 +558,7 @@ impl fmt::Display for QualOpts {
     }
 }
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[doc(hidden)]
 pub fn main() {
     let args = cli_args();
@@ -899,20 +899,20 @@ pub fn main() {
 
 
 // WASM implementation
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[doc(hidden)]
 pub fn main() {
     panic!("You've compiled Ska2 for WebAssembly support, you cannot use it as a normal binary anymore!");
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 extern {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 /// Function that allows to propagate panic error messages when compiling to wasm, see https://github.com/rustwasm/console_error_panic_hook
 pub fn init_panic_hook() {
@@ -920,7 +920,7 @@ pub fn init_panic_hook() {
 }
 
 /// Logging wrapper function for the WebAssembly version
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 pub fn logw(text : &str, typ : Option<&str>) {
     if typ.is_some() {
         log((String::from("ska.rust::") + typ.unwrap() + "::" + text).as_str());
@@ -929,7 +929,7 @@ pub fn logw(text : &str, typ : Option<&str>) {
     }
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 /// Struct to interact with JS when working with WebAssembly
 pub struct SkaData {
@@ -942,7 +942,7 @@ pub struct SkaData {
     mapped128: Option<Vec<SkaMap<u128>>>,
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl SkaData {
     /// Constructor of the SkaData struct
@@ -1080,7 +1080,7 @@ impl SkaData {
     }
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 /// Reconstructs a sequence beginning from a reference
 pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) -> Vec<String> {
     let sequence_u8 = reference.get_seq();
@@ -1100,7 +1100,7 @@ pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) ->
     return sequence_string;
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 /// AlignData struct for doing alignment while in WebAssembly
 pub struct AlignData {
@@ -1110,7 +1110,7 @@ pub struct AlignData {
     file_names: Vec<String>,
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct

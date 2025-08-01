@@ -7,7 +7,7 @@ use crate::QualFilter;
 use crate::QualOpts;
 use std::marker::PhantomData;
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[derive(Debug, Clone, Default)]
 /// Variant structure
 pub struct Variant {
@@ -19,7 +19,7 @@ pub struct Variant {
     pub base: u8,
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[derive(Debug, Clone, Default)]
 /// SkaMap structure, to hold both mapping information as well as creation/usage methods
 pub struct SkaMap<IntT> {
@@ -33,7 +33,7 @@ impl<IntT> SkaMap<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Constructor for the SkaMap struct.
     pub fn new(
         reference: &RefSka<IntT>,
@@ -84,7 +84,7 @@ where
         }
     }
 
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     /// Gets the mapped bases attribute.
     pub fn get_mapped_bases(&self) -> &Vec<Variant> {
         &self.mapped_bases

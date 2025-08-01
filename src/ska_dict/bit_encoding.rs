@@ -19,11 +19,11 @@
 //!
 //! There are also lookup tables to support ambiguity using IUPAC codes.
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use ahash::RandomState;
 
 use num_traits::{PrimInt, Unsigned};
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::hash::{BuildHasher, Hasher};
 
 /// Table from bits 0-3 to ASCII (use [`decode_base()`] not this table).
@@ -173,7 +173,7 @@ pub trait UInt<'a>:
     /// Number of bits in the representation
     fn n_bits() -> u32;
     /// Generate a `u64` hash
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     fn hash_val(self, hash_fn: &RandomState) -> u64;
 }
 
@@ -227,7 +227,7 @@ impl UInt<'_> for u64 {
         Self::BITS
     }
 
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     #[inline(always)]
     fn hash_val(self, hash_fn: &RandomState) -> u64 {
         let mut hasher = hash_fn.build_hasher();
@@ -293,7 +293,7 @@ impl UInt<'_> for u128 {
         Self::BITS
     }
 
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     #[inline(always)]
     fn hash_val(self, hash_fn: &RandomState) -> u64 {
         let mut hasher = hash_fn.build_hasher();

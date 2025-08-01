@@ -19,9 +19,9 @@
 use std::cmp::Ordering;
 
 use hashbrown::HashMap;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 extern crate needletail;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
@@ -36,21 +36,21 @@ use crate::ska_dict::bloom_filter::KmerFilter;
 
 pub mod nthash;
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use std::io::Read;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use crate::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Reader as FastaReader;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Record as FastaRecord;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use seq_io::fastq::Reader as FastqReader;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use seq_io::fastq::Record as FastqRecord;
-// #[cfg(feature = "wasm")]
+// #[cfg(target_arch = "wasm32")]
 // use wasm_bindgen::prelude::*;
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_file_reader::WebSysFile;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
@@ -116,7 +116,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     fn add_file_kmers(
         &mut self,
         filename: &str,
@@ -183,7 +183,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     pub fn add_file_kmers<F: Read>(
         &mut self,
         file: &mut F,
@@ -319,7 +319,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
@@ -408,7 +408,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
