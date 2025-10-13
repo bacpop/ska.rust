@@ -19,3 +19,4 @@ Cargo.lock
 .DS_Store
 .vscode
 assemblies/
+.DS_Store
