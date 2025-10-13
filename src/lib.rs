@@ -396,7 +396,7 @@
 //!                                      "tests/test_files_in/test_2.fa".to_string(),
 //!                                      None)];
 //! let rc = true;
-//! let k = 17;
+//! let k = 31;
 //! let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
 //! let threads = 2;
 //! let proportion_reads = None;
