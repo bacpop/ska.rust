@@ -339,7 +339,7 @@ where
 ///                                     ("test2".to_string(),
 ///                                      "tests/test_files_in/test_2.fa".to_string(),
 ///                                      None)];
-/// let merged_dict = build_and_merge::<u64>(&input_files, 17, true, &quality, 1, None);
+/// let merged_dict = build_and_merge::<u64>(&input_files, 31, true, &quality, 1, None);
 /// ```
 ///
 /// # Panics

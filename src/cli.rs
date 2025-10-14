@@ -6,7 +6,7 @@ use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 /// Default split k-mer size
-pub const DEFAULT_KMER: usize = 17;
+pub const DEFAULT_KMER: usize = 31;
 /// Defualt maximum number of reads
 pub const DEFAULT_PROPORTION_READS: Option<f64> = None;
 /// Default single strand (which is equivalent to !rc)

@@ -37,6 +37,8 @@ fn build_proportion_reads() {
     Command::new(cargo_bin("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
+        .arg("-k")
+        .arg("17") // previous default
         .arg("--single-strand")
         .arg("-o")
         .arg("build_proportion_reads")
