@@ -67,7 +67,7 @@ where
         phylip_format += format!("{}\n", self.queries_ska.len()).as_str();
 
         for i in 0..self.queries_ska.len() {
-            phylip_format += format!("{}\t", file_names[i]).as_str();
+            phylip_format += format!("{}", file_names[i]).replace(" ", "_").replace(".fasta", "").replace(".fa", "").replace(".fastq", "").replace(".fq", "").as_str();
             for j in 0..self.queries_ska.len() { // Do it on only half of the matrix
                 for ref_kmer in self.queries_ska[i].kmers().iter() {
                     if let Some(kmer_match) = self.queries_ska[j].kmers().get(ref_kmer.0) {
@@ -76,11 +76,12 @@ where
                         }
                     }
                 }
-                phylip_format += format!("{}\t", pairwise_distances[i][j]).as_str();
+                phylip_format += format!("\t{}", pairwise_distances[i][j]).as_str();
             }
             phylip_format += "\n";
         }
 
+        logw(&format!("{:?}", phylip_format), None);
         logw(&format!("Converting matrix to DistanceMatrix struct."), None);
 
         let d = DistanceMatrix::read_from_phylip(phylip_format.as_bytes()).unwrap();
