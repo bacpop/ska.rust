@@ -1138,32 +1138,184 @@ impl AlignData {
     pub fn align(&mut self, input_files: Vec<web_sys::File>, proportion_reads: Option<f64>) -> String {
         logw(&format!("Aligning reads"), None);
 
-        // let mut wf1: WebSysFile;
-
-        for input_file in input_files {
+        let mut fastq_files = Vec::new();
+        for (i, input_file) in input_files.iter().enumerate() {
             let file_name = input_file.name();
-            self.file_names.push(file_name.clone());
-            // let mut file_type = file_name.split('.').nth(file_name.split('.').count() - 1).unwrap();
-            // if file_type == "gz" {
-            //     file_type = file_name.split('.').nth(file_name.split('.').count() - 2).unwrap();
-            // }
-            // wf1 = WebSysFile::new(input_file);
-            if self.k < 32 {
-                self.alignment64.as_mut().unwrap().add_file(
-                    // &mut wf1,
-                    & input_file,
-                    proportion_reads,
-                );
-            } else {
-                self.alignment128.as_mut().unwrap().add_file(
-                    // &mut wf1,
-                    & input_file,
-                    proportion_reads,
-                );
+            let mut file_type = file_name.split('.').nth(file_name.split('.').count() - 1).unwrap();
+            if file_type == "gz" {
+                file_type = file_name.split('.').nth(file_name.split('.').count() - 2).unwrap();
             }
+
+            if ["fq", "fastq"].contains(&file_type) {
+                fastq_files.push(i);
+            } else {
+                self.file_names.push(file_name.clone());
+                if self.k < 32 {
+                    self.alignment64.as_mut().unwrap().add_file(
+                        & input_file,
+                        None,
+                        proportion_reads,
+                    );
+                } else {
+                    self.alignment128.as_mut().unwrap().add_file(
+                        & input_file,
+                        None,
+                        proportion_reads,
+                    );
+                }
+            }
+
+        }
+        
+        match fastq_files.len() {
+            0 => (),
+            1 => {
+                logw(&format!("Among the uploaded files, only one fastq file has been uploaded. We'll assume it contains all reads needed for this."), None);
+                self.file_names.push(input_files[fastq_files[0]].name().clone());
+                if self.k < 32 {
+                    self.alignment64.as_mut().unwrap().add_file(
+                        &input_files[fastq_files[0]],
+                        None,
+                        proportion_reads,
+                    );
+                } else {
+                    self.alignment128.as_mut().unwrap().add_file(
+                        &input_files[fastq_files[0]],
+                        None,
+                        proportion_reads,
+                    );
+                }
+            },
+            2 => {
+                let filen1 = input_files[fastq_files[0]].name();
+                let filen2 = input_files[fastq_files[1]].name();
+
+                let mut samepair = false;
+                if filen1.chars().count() == filen2.chars().count() {
+                    for (ic, jc) in filen1.chars().zip(filen2.chars()) {
+                        if ic != jc {
+                            if ["0", "1", "2"].contains(&ic.to_string().as_str()) && ["0", "1", "2"].contains(&jc.to_string().as_str()) {
+                                samepair = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if samepair {
+                    self.file_names.push(input_files[fastq_files[0]].name().clone());
+                    if self.k < 32 {
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            Some(&input_files[fastq_files[1]]),
+                            proportion_reads,
+                        );
+                    } else {
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            Some(&input_files[fastq_files[1]]),
+                            proportion_reads,
+                        );
+                    }
+                } else {
+                    logw(&format!("Two read files uploaded, but found to not come from the same sample."), None);
+                    self.file_names.push(input_files[fastq_files[0]].name().clone());
+                    self.file_names.push(input_files[fastq_files[1]].name().clone());
+                    if self.k < 32 {
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            None,
+                            proportion_reads,
+                        );
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[1]],
+                            None,
+                            proportion_reads,
+                        );
+                    } else {
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            None,
+                            proportion_reads,
+                        );
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[1]],
+                            None,
+                            proportion_reads,
+                        );
+                    }
+                }
+            },
+            3.. => {
+                // Annoying situation: need to find pairs...
+                while !fastq_files.is_empty() {
+                    let tmpind = fastq_files.pop().unwrap();
+                    let tmpnam = input_files[fastq_files[tmpind]].name();
+                    let mut to_erase = None;
+
+                    for (i, testind) in fastq_files.iter().enumerate() {
+                        let testnam = input_files[fastq_files[*testind]].name();
+
+                        let mut samepair = false;
+                        if tmpnam.chars().count() == testnam.chars().count() {
+                            for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
+                                if ic != jc {
+                                    if ["0", "1", "2"].contains(&ic.to_string().as_str()) && ["0", "1", "2"].contains(&jc.to_string().as_str()) {
+                                        samepair = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if samepair {
+                            // Great!
+                            to_erase = Some(i);
+
+                            self.file_names.push(input_files[tmpind].name().clone());
+                            if self.k < 32 {
+                                self.alignment64.as_mut().unwrap().add_file(
+                                    &input_files[fastq_files[tmpind]],
+                                    Some(&input_files[fastq_files[*testind]]),
+                                    proportion_reads,
+                                );
+                            } else {
+                                self.alignment128.as_mut().unwrap().add_file(
+                                    &input_files[fastq_files[tmpind]],
+                                    Some(&input_files[fastq_files[*testind]]),
+                                    proportion_reads,
+                                );
+                            }
+
+                            break;
+                        }
+                    }
+                    
+                    if to_erase.is_some() {
+                        fastq_files.remove(to_erase.unwrap());
+                    } else {
+                        logw(&format!("No pair found among input files for {}. Adding individually.", tmpnam), None);
+                        self.file_names.push(input_files[tmpind].name().clone());
+                        if self.k < 32 {
+                            self.alignment64.as_mut().unwrap().add_file(
+                                &input_files[fastq_files[tmpind]],
+                                None,
+                                proportion_reads,
+                            );
+                        } else {
+                            self.alignment128.as_mut().unwrap().add_file(
+                                &input_files[fastq_files[tmpind]],
+                                None,
+                                proportion_reads,
+                            );
+                        }
+                    }
+                }
+            },
         }
 
         if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2) || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2) {
+            logw(&format!("The number of samples inputted are less than three. No results will be outputted now."), None);
+
             let mut results = json::JsonValue::new_array();
             results["newick"] = "Not enough sequences to align".into();
             results["names"] = json::JsonValue::new_array();
@@ -1174,6 +1326,7 @@ impl AlignData {
             return results.dump();
         }
 
+        logw(&format!("The number of samples inputted is enough. Starting alignmemnt."), None);
         let newick;
 
         if self.k < 32 {

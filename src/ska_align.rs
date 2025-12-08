@@ -4,6 +4,7 @@ use crate::ska_dict::SkaDict;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::QualFilter;
 use crate::QualOpts;
+use crate::logw;
 
 use speedytree::DistanceMatrix;
 use speedytree::{NeighborJoiningSolver, Canonical};
@@ -32,15 +33,16 @@ where
     /// Adds a file through a SkaDict.
     pub fn add_file(
         &mut self,
-        file: & web_sys::File,
+        file1: & web_sys::File,
+        file2: Option<& web_sys::File>,
         proportions_reads: Option<f64>,
     ) {
         self.queries_ska.push(SkaDict::new(
             self.k,
             0,
-            (file, None),
+            (file1, file2),
             "",
-            false,
+            if file2.is_some() {true} else {false},
             &QualOpts {
                 min_count: 1,
                 min_qual: 0,
@@ -53,6 +55,12 @@ where
     #[cfg(target_arch = "wasm32")]
     /// Performs the alignment
     pub fn align(&mut self, file_names: &Vec<String>) -> String {
+        logw(&format!(
+            "Initiating alignment in SkaAlign with {} input files.",
+            file_names.len(),
+        ), None);
+
+        logw(&format!("Creating pairwise distances matrix as text."), None);
         let mut pairwise_distances = vec![vec![0; self.queries_ska.len()]; self.queries_ska.len()];
 
         let mut phylip_format = "".to_string();
@@ -73,10 +81,16 @@ where
             phylip_format += "\n";
         }
 
+        logw(&format!("Converting matrix to DistanceMatrix struct."), None);
+
         let d = DistanceMatrix::read_from_phylip(phylip_format.as_bytes()).unwrap();
+
+        logw(&format!("Calculating tree"), None);
         let tree = NeighborJoiningSolver::<Canonical>::default(d.clone())
             .solve()
             .unwrap();
+
+        logw(&format!("Obtaining tree"), None);
         let newick = speedytree::to_newick(&tree);
         newick
     }
