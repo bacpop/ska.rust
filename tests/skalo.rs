@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 #[cfg(test)]
 pub mod common;
@@ -11,7 +11,7 @@ use crate::common::*;
 fn ska_lo() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("lo")
         .arg("-r")
@@ -23,7 +23,7 @@ fn ska_lo() {
 
     sandbox.file_check("test_skalo_snps.fas", "test_skalo_snps.fas");
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("lo")
         .arg(sandbox.file_string("test_skalo_indel.skf", TestDir::Input))

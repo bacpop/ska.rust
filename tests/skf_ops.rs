@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 #[cfg(test)]
 use pretty_assertions::assert_eq;
@@ -12,7 +12,7 @@ use crate::common::{TestDir, TestSetup};
 fn merge_delete() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -21,7 +21,7 @@ fn merge_delete() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
@@ -30,7 +30,7 @@ fn merge_delete() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("merge")
         .arg("test_1.skf")
@@ -42,7 +42,7 @@ fn merge_delete() {
 
     assert_eq!(true, sandbox.file_exists("merge.skf"));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("merge.skf")
@@ -50,7 +50,7 @@ fn merge_delete() {
         .stdout_matches_path(sandbox.file_string("merge_nk.stdout", TestDir::Correct));
 
     // Try removing non-existent sample
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
         .args(["-s", "merge.skf"])
@@ -59,14 +59,14 @@ fn merge_delete() {
         .failure();
 
     // delete a sample then check nk same as original
-    let test1_nk = Command::new(cargo_bin("ska"))
+    let test1_nk = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("test_1.skf")
         .output()
         .unwrap();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
         .args(["-s", "merge.skf"])
@@ -74,7 +74,7 @@ fn merge_delete() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("merge.skf")
@@ -86,7 +86,7 @@ fn merge_delete() {
 fn merge_delete_u128() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -97,7 +97,7 @@ fn merge_delete_u128() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("test_2.fa", TestDir::Input))
@@ -108,7 +108,7 @@ fn merge_delete_u128() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("merge")
         .arg("test_1.skf")
@@ -122,7 +122,7 @@ fn merge_delete_u128() {
     assert_eq!(true, sandbox.file_exists("merge.skf"));
 
     // Try removing non-existent sample
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
         .args(["-s", "merge.skf"])
@@ -135,14 +135,14 @@ fn merge_delete_u128() {
         .failure();
 
     // delete a sample then check nk same as original
-    let test1_nk = Command::new(cargo_bin("ska"))
+    let test1_nk = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("test_1.skf")
         .output()
         .unwrap();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("delete")
         .args(["-s", "merge.skf"])
@@ -152,7 +152,7 @@ fn merge_delete_u128() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("merge_delete.skf")
@@ -171,7 +171,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("merge.skf")
@@ -180,7 +180,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("merge.skf")
@@ -188,7 +188,7 @@ fn weed() {
         .stdout_eq_path(sandbox.file_string("weed_align.stdout", TestDir::Correct));
 
     // With const sites/filter and nk full info
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("merge.skf")
@@ -198,7 +198,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("merge.skf")
@@ -214,7 +214,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("merge_k9.skf")
@@ -222,7 +222,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("merge_k9.skf")
@@ -237,7 +237,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("merge.skf")
@@ -247,7 +247,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("merge.skf")
@@ -255,7 +255,7 @@ fn weed() {
         .stdout_eq_path(sandbox.file_string("weed_align_reverse.stdout", TestDir::Correct));
 
     // With longer k-mers
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -268,7 +268,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("build_k41.skf")
@@ -279,7 +279,7 @@ fn weed() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("build_k41.skf")

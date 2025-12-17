@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 pub mod common;
 use crate::common::*;
@@ -16,7 +16,7 @@ fn build_cli() {
     // Create an rfile in the tmp dir
     let rfile_name = sandbox.create_rfile("test", FxType::Fasta);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -34,7 +34,7 @@ fn build_cli() {
 fn build_proportion_reads() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -49,7 +49,7 @@ fn build_proportion_reads() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("build_proportion_reads.skf")
@@ -63,7 +63,7 @@ fn build_proportion_reads() {
 fn align_cli() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -89,7 +89,7 @@ fn align_cli() {
 fn build_and_align() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -101,7 +101,7 @@ fn build_and_align() {
         .assert()
         .success();
 
-    let fasta_align_out = Command::new(cargo_bin("ska"))
+    let fasta_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("basic_build.skf")
@@ -118,7 +118,7 @@ fn build_and_align() {
 fn long_kmers() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -131,7 +131,7 @@ fn long_kmers() {
         .assert()
         .success();
 
-    let fasta_align_out_k33 = Command::new(cargo_bin("ska"))
+    let fasta_align_out_k33 = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("build_k33.skf")
@@ -144,7 +144,7 @@ fn long_kmers() {
     assert_eq!(var_hash(&fasta_align_out_k33), correct_aln);
 
     // Check 128 bits used
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("build_k33.skf")
@@ -152,7 +152,7 @@ fn long_kmers() {
         .assert()
         .stdout_matches_path(sandbox.file_string("k33.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -170,7 +170,7 @@ fn long_kmers() {
 fn basic_align() {
     let sandbox = TestSetup::setup();
 
-    let fasta_align_out = Command::new(cargo_bin("ska"))
+    let fasta_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -188,7 +188,7 @@ fn filters() {
     let sandbox = TestSetup::setup();
 
     // With k=9 there is a repeated k-mer
-    let unfilt_align_out = Command::new(cargo_bin("ska"))
+    let unfilt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -206,7 +206,7 @@ fn filters() {
         assert_eq!(full_length, length);
     }
 
-    let noambig_align_out = Command::new(cargo_bin("ska"))
+    let noambig_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -223,7 +223,7 @@ fn filters() {
         assert_eq!(full_length - 1, length);
     }
 
-    let const_filt_align_out = Command::new(cargo_bin("ska"))
+    let const_filt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -237,7 +237,7 @@ fn filters() {
     let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T'], vec!['S', 'G']]);
     assert_eq!(var_hash(&const_filt_align_out), correct_aln);
 
-    let no_ambig_or_const_align_out = Command::new(cargo_bin("ska"))
+    let no_ambig_or_const_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -251,7 +251,7 @@ fn filters() {
     let correct_aln = HashSet::from([vec!['T', 'A'], vec!['C', 'T']]);
     assert_eq!(var_hash(&no_ambig_or_const_align_out), correct_aln);
 
-    let ambig_filter_align_out = Command::new(cargo_bin("ska"))
+    let ambig_filter_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -267,7 +267,7 @@ fn filters() {
     assert_eq!(var_hash(&ambig_filter_align_out), correct_aln);
 
     // Output everything by using min-freq 0, check for behaviour on gap only sites
-    let unfilt_align_out = Command::new(cargo_bin("ska"))
+    let unfilt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -286,7 +286,7 @@ fn filters() {
         assert_eq!(full_length, length);
     }
 
-    let filt_align_out = Command::new(cargo_bin("ska"))
+    let filt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -306,7 +306,7 @@ fn filters() {
         assert_eq!(full_length, length);
     }
 
-    let unfilt_align_out = Command::new(cargo_bin("ska"))
+    let unfilt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -325,7 +325,7 @@ fn filters() {
         assert_eq!(full_length, length);
     }
 
-    let filt_align_out = Command::new(cargo_bin("ska"))
+    let filt_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -354,7 +354,7 @@ fn parallel_align() {
     let rfile_name = sandbox.create_par_rfile();
 
     // Serial alignment
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -365,7 +365,7 @@ fn parallel_align() {
         .assert()
         .success();
 
-    let serial_align_out = Command::new(cargo_bin("ska"))
+    let serial_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("serial_build.skf")
@@ -374,7 +374,7 @@ fn parallel_align() {
         .stdout;
 
     // Parallel alignment algorithm used
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -385,7 +385,7 @@ fn parallel_align() {
         .assert()
         .success();
 
-    let parallel_align_out = Command::new(cargo_bin("ska"))
+    let parallel_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("parallel_build.skf")
