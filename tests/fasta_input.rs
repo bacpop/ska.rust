@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 use hashbrown::HashSet;
 
@@ -13,7 +13,7 @@ fn align_n() {
     let sandbox = TestSetup::setup();
 
     // Tests that N and n are skipped, so second variant doesn't appear in align
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
@@ -23,7 +23,7 @@ fn align_n() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("N_test.skf")
@@ -36,7 +36,7 @@ fn map_n() {
     let sandbox = TestSetup::setup();
 
     // Tests that N and n are skipped, so second variant doesn't appear in map
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
@@ -48,7 +48,7 @@ fn map_n() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -62,7 +62,7 @@ fn rev_comp() {
     let sandbox = TestSetup::setup();
 
     // Test an RC sequence gives same alignment out
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -74,7 +74,7 @@ fn rev_comp() {
         .assert()
         .success();
 
-    let no_rc_aln = Command::new(cargo_bin("ska"))
+    let no_rc_aln = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("fwd_build.skf")
@@ -82,7 +82,7 @@ fn rev_comp() {
         .unwrap()
         .stdout;
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -94,7 +94,7 @@ fn rev_comp() {
         .assert()
         .success();
 
-    let rc_aln = Command::new(cargo_bin("ska"))
+    let rc_aln = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("fwd_build.skf")
@@ -105,7 +105,7 @@ fn rev_comp() {
     assert_eq!(var_hash(&no_rc_aln), var_hash(&rc_aln));
 
     // Now with rc off
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -118,7 +118,7 @@ fn rev_comp() {
         .assert()
         .success();
 
-    let ss_aln = Command::new(cargo_bin("ska"))
+    let ss_aln = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("fwd_build.skf")
@@ -128,7 +128,7 @@ fn rev_comp() {
 
     assert_eq!(var_hash(&ss_aln).is_empty(), true);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -141,7 +141,7 @@ fn rev_comp() {
         .assert()
         .success();
 
-    let fasta_align_out_k33 = Command::new(cargo_bin("ska"))
+    let fasta_align_out_k33 = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("build_k33.skf")
@@ -158,7 +158,7 @@ fn repeats() {
     let sandbox = TestSetup::setup();
 
     // Tests that three repeats are correctly shown with IUPAC codes
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -171,7 +171,7 @@ fn repeats() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("dup_ss.skf")
@@ -179,7 +179,7 @@ fn repeats() {
         .stdout_eq_path(sandbox.file_string("dup_ss.stdout", TestDir::Correct));
 
     // Also tests this is just a single variant
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("weed")
         .arg("dup_ss.skf")
@@ -189,7 +189,7 @@ fn repeats() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("nk")
         .arg("dup_ss.skf")
@@ -199,7 +199,7 @@ fn repeats() {
 
     // Tests that the RC of these IUPAC codes is correct
     // (the rc of the input k-mer is the canonical one)
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -211,7 +211,7 @@ fn repeats() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("dup_rc.skf")
@@ -224,7 +224,7 @@ fn palindromes() {
     let sandbox = TestSetup::setup();
 
     // Check that palindrome k-mers (self-rc) are correctly ambiguous
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -237,7 +237,7 @@ fn palindromes() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("otto.skf")
@@ -246,7 +246,7 @@ fn palindromes() {
         .stdout_eq_path(sandbox.file_string("palindrome.stdout", TestDir::Correct));
 
     // Single strand forces orientation so no ambiguity
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -259,7 +259,7 @@ fn palindromes() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("otan.skf")
@@ -268,7 +268,7 @@ fn palindromes() {
 
     // Check that palindrome k-mers (self-rc) are correctly ambiguous, and
     // work correctly when multiple copies are present
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -281,7 +281,7 @@ fn palindromes() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("ottootto.skf")

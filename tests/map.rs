@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 #[cfg(test)]
 use pretty_assertions::assert_eq;
@@ -12,7 +12,7 @@ use crate::common::*;
 fn map_aln() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -25,7 +25,7 @@ fn map_aln() {
 
     assert_eq!(true, sandbox.file_exists("map.aln"));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -34,7 +34,7 @@ fn map_aln() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -42,7 +42,7 @@ fn map_aln() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_k9.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -52,7 +52,7 @@ fn map_aln() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_k9_filter.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
@@ -60,7 +60,7 @@ fn map_aln() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_two_chrom.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -69,7 +69,7 @@ fn map_aln() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_indels.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-k")
@@ -82,7 +82,7 @@ fn map_aln() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("ambig_test_ref.fa", TestDir::Input))
@@ -95,7 +95,7 @@ fn map_aln() {
 fn map_u128() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -104,7 +104,7 @@ fn map_u128() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_k41.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -120,7 +120,7 @@ fn map_u128() {
 fn map_vcf() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -135,7 +135,7 @@ fn map_vcf() {
 
     assert_eq!(true, sandbox.file_exists("map.vcf"));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -145,7 +145,7 @@ fn map_vcf() {
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
@@ -155,7 +155,7 @@ fn map_vcf() {
         .assert()
         .stdout_matches_path(sandbox.file_string("map_vcf_two_chrom.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -171,7 +171,7 @@ fn map_vcf() {
 fn map_rev_comp() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -183,7 +183,7 @@ fn map_rev_comp() {
         .assert()
         .success();
 
-    let rc_map = Command::new(cargo_bin("ska"))
+    let rc_map = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -192,7 +192,7 @@ fn map_rev_comp() {
         .unwrap()
         .stdout;
 
-    let fwd_map = Command::new(cargo_bin("ska"))
+    let fwd_map = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -203,7 +203,7 @@ fn map_rev_comp() {
 
     cmp_map_aln(&rc_map, &fwd_map);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-o")
@@ -216,7 +216,7 @@ fn map_rev_comp() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -224,7 +224,7 @@ fn map_rev_comp() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_ss.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -240,7 +240,7 @@ fn map_rev_comp() {
 fn repeat_mask() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -250,7 +250,7 @@ fn repeat_mask() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_k9.masked.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -262,7 +262,7 @@ fn repeat_mask() {
         .stdout_matches_path(sandbox.file_string("map_vcf_k9.masked.stdout", TestDir::Correct));
 
     // Two identical chromosomes. All bases masked
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom.fa", TestDir::Input))
@@ -272,7 +272,7 @@ fn repeat_mask() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_all_repeats.masked.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom_repeats.fa", TestDir::Input))
@@ -282,7 +282,7 @@ fn repeat_mask() {
         .assert()
         .stdout_eq_path(sandbox.file_string("map_aln_two_chrom.masked.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref_two_chrom_repeats.fa", TestDir::Input))

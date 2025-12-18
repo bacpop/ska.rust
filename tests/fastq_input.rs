@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 use hashbrown::HashSet;
 
@@ -14,7 +14,7 @@ fn align_fastq() {
     let sandbox = TestSetup::setup();
     let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -25,7 +25,7 @@ fn align_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out = Command::new(cargo_bin("ska"))
+    let fastq_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -33,7 +33,7 @@ fn align_fastq() {
         .unwrap()
         .stdout;
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .args(["-k", "9"])
@@ -43,7 +43,7 @@ fn align_fastq() {
         .output()
         .unwrap();
 
-    let fasta_align_out = Command::new(cargo_bin("ska"))
+    let fasta_align_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("fasta_k9.skf")
@@ -61,7 +61,7 @@ fn count_check() {
     let sandbox = TestSetup::setup();
     let rfile_name = sandbox.create_rfile("test_count", FxType::Fastq);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -72,7 +72,7 @@ fn count_check() {
         .assert()
         .success();
 
-    let fastq_align_c1_out = Command::new(cargo_bin("ska"))
+    let fastq_align_c1_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k7_c1.skf")
@@ -85,7 +85,7 @@ fn count_check() {
 
     // In sample two there are three split k-mers supporting T, one supporting A
     // So above see a W, here the A gets filtered and we just see a T
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -96,7 +96,7 @@ fn count_check() {
         .assert()
         .success();
 
-    let fastq_align_c3_out = Command::new(cargo_bin("ska"))
+    let fastq_align_c3_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k7_c3.skf")
@@ -115,7 +115,7 @@ fn count_check_long() {
     let sandbox = TestSetup::setup();
     let rfile_name = sandbox.create_rfile("test_long", FxType::Fastq);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -126,7 +126,7 @@ fn count_check_long() {
         .assert()
         .success();
 
-    let fastq_align_c1_out = Command::new(cargo_bin("ska"))
+    let fastq_align_c1_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k63_c1.skf")
@@ -140,7 +140,7 @@ fn count_check_long() {
 
     // In sample two there are three split k-mers supporting T, one supporting A
     // So above see a W, here the A gets filtered and we just see a T
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -151,7 +151,7 @@ fn count_check_long() {
         .assert()
         .success();
 
-    let fastq_align_c3_out = Command::new(cargo_bin("ska"))
+    let fastq_align_c3_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k63_c3.skf")
@@ -164,7 +164,7 @@ fn count_check_long() {
     assert_eq!(var_hash(&fastq_align_c3_out), correct_aln);
 
     // Now ignoring the rc
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -176,7 +176,7 @@ fn count_check_long() {
         .assert()
         .success();
 
-    let fastq_align_c3_out_ss = Command::new(cargo_bin("ska"))
+    let fastq_align_c3_out_ss = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads_k63_c3_ss.skf")
@@ -197,7 +197,7 @@ fn map_fastq() {
     let sandbox = TestSetup::setup();
     let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -208,7 +208,7 @@ fn map_fastq() {
         .assert()
         .success();
 
-    let fastq_map_out = Command::new(cargo_bin("ska"))
+    let fastq_map_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -217,7 +217,7 @@ fn map_fastq() {
         .unwrap()
         .stdout;
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -228,7 +228,7 @@ fn map_fastq() {
         .assert()
         .success();
 
-    let fasta_map_out = Command::new(cargo_bin("ska"))
+    let fasta_map_out = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -242,7 +242,7 @@ fn map_fastq() {
         String::from_utf8(fasta_map_out).unwrap()
     );
 
-    let fastq_map_out_vcf = Command::new(cargo_bin("ska"))
+    let fastq_map_out_vcf = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -252,7 +252,7 @@ fn map_fastq() {
         .unwrap()
         .stdout;
 
-    let fasta_map_out_vcf = Command::new(cargo_bin("ska"))
+    let fasta_map_out_vcf = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("map")
         .arg(sandbox.file_string("test_ref.fa", TestDir::Input))
@@ -281,7 +281,7 @@ fn error_fastq() {
 
     // Without errors
     let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -292,7 +292,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_all = Command::new(cargo_bin("ska"))
+    let fastq_align_out_all = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -303,7 +303,7 @@ fn error_fastq() {
 
     // With no quality filtering
     let rfile_name = sandbox.create_rfile("test_quality", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -322,7 +322,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_quality_nofilter = Command::new(cargo_bin("ska"))
+    let fastq_align_out_quality_nofilter = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -334,7 +334,7 @@ fn error_fastq() {
 
     // With only quality filtering the middle base
     let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -355,7 +355,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_quality_base = Command::new(cargo_bin("ska"))
+    let fastq_align_out_quality_base = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -368,7 +368,7 @@ fn error_fastq() {
     // With errors
     all_hash.remove(&vec!['C', 'T']);
     let rfile_name = sandbox.create_rfile("test_error", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -379,7 +379,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_error = Command::new(cargo_bin("ska"))
+    let fastq_align_out_error = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -391,7 +391,7 @@ fn error_fastq() {
 
     // With low quality score
     let rfile_name = sandbox.create_rfile("test_quality", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -402,7 +402,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_quality = Command::new(cargo_bin("ska"))
+    let fastq_align_out_quality = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -414,7 +414,7 @@ fn error_fastq() {
 
     // With low quality score in flanking region
     let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -435,7 +435,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_quality = Command::new(cargo_bin("ska"))
+    let fastq_align_out_quality = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -447,7 +447,7 @@ fn error_fastq() {
 
     // With low quality score in middle base region
     let rfile_name = sandbox.create_rfile("test_quality_base", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -458,7 +458,7 @@ fn error_fastq() {
         .assert()
         .success();
 
-    let fastq_align_out_quality = Command::new(cargo_bin("ska"))
+    let fastq_align_out_quality = Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("align")
         .arg("reads.skf")
@@ -474,7 +474,7 @@ fn error_fastq() {
 fn cov_check() {
     let sandbox = TestSetup::setup();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("cov")
         .arg(sandbox.file_string("test_1_fwd.fastq.gz", TestDir::Input))
@@ -485,7 +485,7 @@ fn cov_check() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("cov")
         .arg(sandbox.file_string("test_long_1_fwd.fastq.gz", TestDir::Input))
@@ -497,7 +497,7 @@ fn cov_check() {
         .success();
 
     // Doesn't run with fasta
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("cov")
         .arg(sandbox.file_string("test_1.fa", TestDir::Input))
@@ -514,7 +514,7 @@ fn build_auto_check() {
     let sandbox = TestSetup::setup();
 
     let rfile_name = sandbox.create_rfile("test", FxType::Fastq);
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")
@@ -525,7 +525,7 @@ fn build_auto_check() {
         .assert()
         .success();
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg("-f")

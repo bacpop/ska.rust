@@ -1,4 +1,4 @@
-use snapbox::cmd::{cargo_bin, Command};
+use snapbox::cmd::{self, Command};
 
 pub mod common;
 use crate::common::*;
@@ -11,7 +11,7 @@ fn basic_dists() {
     let sandbox = TestSetup::setup();
 
     // Two differences, so dist 2.0
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
@@ -20,7 +20,7 @@ fn basic_dists() {
         .assert()
         .stdout_eq_path(sandbox.file_string("merge.dist.stdout", TestDir::Correct));
 
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge.skf", TestDir::Input))
@@ -30,7 +30,7 @@ fn basic_dists() {
     sandbox.file_check("dists.txt", "merge.dist.stdout");
 
     // One difference
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k41.skf", TestDir::Input))
@@ -46,7 +46,7 @@ fn dist_filter() {
     let sandbox = TestSetup::setup();
 
     // Has an S,G site, giving 0.5
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -57,7 +57,7 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9.dist.stdout", TestDir::Correct));
 
     // Ignoring the S,G gives 2.0
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -66,7 +66,7 @@ fn dist_filter() {
         .stdout_eq_path(sandbox.file_string("merge_k9_no_ambig.dist.stdout", TestDir::Correct));
 
     // Making only k-mers in both reduces mismatches to zero
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg(sandbox.file_string("merge_k9.skf", TestDir::Input))
@@ -81,7 +81,7 @@ fn multisample_dists() {
     let sandbox = TestSetup::setup();
 
     // NB: Ensure dists of sample pair are the same as the above test
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("build")
         .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
@@ -98,7 +98,7 @@ fn multisample_dists() {
         .success();
 
     // Test with defaults (and that output order correct irrespective of threads)
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
@@ -108,7 +108,7 @@ fn multisample_dists() {
         .stdout_eq_path(sandbox.file_string("multidist.stdout", TestDir::Correct));
 
     // Test with min freq -- this removes all k-mers here
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
@@ -118,7 +118,7 @@ fn multisample_dists() {
         .stdout_eq_path(sandbox.file_string("multidist.minfreq.stdout", TestDir::Correct));
 
     // Test with ambig bases
-    Command::new(cargo_bin("ska"))
+    Command::new(cmd::cargo_bin!("ska"))
         .current_dir(sandbox.get_wd())
         .arg("distance")
         .arg("multidist.skf")
