@@ -34,6 +34,32 @@ use crate::ska_ref::RefSka;
 
 use crate::cli::FilterType;
 
+/// Contains information on ska distance results
+pub struct VariantDist {
+    /// Number of SNPs different (may be non-integer due to ambig bases)
+    distance: f64,
+    /// Proportion of k-mers mismatching
+    mismatch_prop: f64,
+    /// Absolute count of matching sites
+    match_count: usize,
+    /// Absolute count of mismatching sites
+    mismatch_count: usize
+}
+
+/// Prints distance, mismatch proportion, count matching, count mismatching (tab separated)
+impl fmt::Display for VariantDist {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+                f,
+                "{:.2}\t{:.5}\t{}\t{}",
+                self.distance,
+                self.mismatch_prop,
+                self.match_count,
+                self.mismatch_count
+        )
+    }
+}
+
 /// Array representation of split k-mers from multiple samples.
 ///
 /// Supports most modification and input/output.
@@ -382,15 +408,15 @@ where
     ///
     /// - `constant` – the number of prefiltered constant bases, used to adjust
     ///   the denominator of mismatch proportion
-    pub fn distance(&self, constant: f64, filt_ambig: bool) -> Vec<Vec<(f64, f64)>> {
-        let mut distances: Vec<Vec<(f64, f64)>> = Vec::new();
+    pub fn distance(&self, constant: f64, filt_ambig: bool) -> Vec<Vec<VariantDist>> {
+        let mut distances: Vec<Vec<VariantDist>> = Vec::new();
         self.variants
             .axis_iter(Axis(1))
             .into_par_iter()
             .progress_count(self.variants.ncols() as u64)
             .enumerate()
             .map(|(i, row)| {
-                let mut partial_dists: Vec<(f64, f64)> =
+                let mut partial_dists: Vec<VariantDist> =
                     Vec::with_capacity(self.variants.ncols() - (i + 1));
                 for j in (i + 1)..self.variants.ncols() {
                     partial_dists.push(Self::variant_dist(
@@ -523,7 +549,7 @@ where
         sample2: &ArrayView<u8, Dim<[usize; 1]>>,
         constant: f64,
         filt_ambig: bool,
-    ) -> (f64, f64) {
+    ) -> VariantDist {
         //  ACGT vs different ACGT -> +1
         //  Ambig bases are converted to prob vectors and multiplied
         //  '-' vs anything counts as a mismatch
@@ -552,12 +578,12 @@ where
                 distance += 1.0 - overlap;
             }
         }
-        mismatches = if (matches + mismatches) == 0.0 {
+        let mismatch_prop = if (matches + mismatches) == 0.0 {
             0.0
         } else {
             mismatches / (matches + mismatches)
         };
-        (distance, mismatches)
+        VariantDist {distance, mismatch_prop, match_count: matches as usize, mismatch_count: mismatches as usize}
     }
 
     /// Iterator over split k-mers and middle bases

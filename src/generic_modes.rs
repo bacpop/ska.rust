@@ -175,13 +175,13 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     writeln!(&mut f, "Sample1\tSample2\tDistance\tMismatches").unwrap();
     let sample_names = ska_array.names();
     for (idx, (dist_vec, sample1)) in distances.iter().zip(sample_names).enumerate() {
-        for ((distance, mismatches), j) in dist_vec.iter().zip(std::ops::Range {
+        for (dist, j) in dist_vec.iter().zip(std::ops::Range {
             start: (idx + 1),
             end: sample_names.len(),
         }) {
             writeln!(
                 &mut f,
-                "{sample1}\t{}\t{distance:.2}\t{mismatches:.5}",
+                "{sample1}\t{}\t{dist}",
                 sample_names[j]
             )
             .unwrap();
