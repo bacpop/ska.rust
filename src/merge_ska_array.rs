@@ -43,19 +43,16 @@ pub struct VariantDist {
     /// Absolute count of matching sites
     match_count: usize,
     /// Absolute count of mismatching sites
-    mismatch_count: usize
+    mismatch_count: usize,
 }
 
 /// Prints distance, mismatch proportion, count matching, count mismatching (tab separated)
 impl fmt::Display for VariantDist {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
-                f,
-                "{:.2}\t{:.5}\t{}\t{}",
-                self.distance,
-                self.mismatch_prop,
-                self.match_count,
-                self.mismatch_count
+            f,
+            "{:.2}\t{:.5}\t{}\t{}",
+            self.distance, self.mismatch_prop, self.match_count, self.mismatch_count,
         )
     }
 }
@@ -583,7 +580,12 @@ where
         } else {
             mismatches / (matches + mismatches)
         };
-        VariantDist {distance, mismatch_prop, match_count: matches as usize, mismatch_count: mismatches as usize}
+        VariantDist {
+            distance,
+            mismatch_prop,
+            match_count: matches as usize,
+            mismatch_count: mismatches as usize,
+        }
     }
 
     /// Iterator over split k-mers and middle bases

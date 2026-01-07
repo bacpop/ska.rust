@@ -1,2 +1,2 @@
-Sample1	Sample2	Distance	Mismatches
-test_1	test_2	2.00	0.44776
+Sample1	Sample2	Distance	Mismatches (proportion)	Match count	Mismatch count
+test_1	test_2	2.00	0.44776	37	30

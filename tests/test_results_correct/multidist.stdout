@@ -1,16 +1,16 @@
-Sample1	Sample2	Distance	Mismatches
-N_test_1	N_test_2	2.00	0.51724
-N_test_1	ambig_test_1	0.00	1.00000
-N_test_1	ambig_test_2	0.00	1.00000
-N_test_1	test_1	0.00	0.25926
-N_test_1	test_2	1.00	0.42623
-N_test_2	ambig_test_1	0.00	1.00000
-N_test_2	ambig_test_2	0.00	1.00000
-N_test_2	test_1	1.00	0.57576
-N_test_2	test_2	1.00	0.28571
-ambig_test_1	ambig_test_2	0.00	0.47059
-ambig_test_1	test_1	0.00	1.00000
-ambig_test_1	test_2	0.00	1.00000
-ambig_test_2	test_1	0.00	1.00000
-ambig_test_2	test_2	0.00	1.00000
-test_1	test_2	2.00	0.44776
+Sample1	Sample2	Distance	Mismatches (proportion)	Match count	Mismatch count
+N_test_1	N_test_2	2.00	0.51724	28	30
+N_test_1	ambig_test_1	0.00	1.00000	0	53
+N_test_1	ambig_test_2	0.00	1.00000	0	61
+N_test_1	test_1	0.00	0.25926	40	14
+N_test_1	test_2	1.00	0.42623	35	26
+N_test_2	ambig_test_1	0.00	1.00000	0	53
+N_test_2	ambig_test_2	0.00	1.00000	0	61
+N_test_2	test_1	1.00	0.57576	28	38
+N_test_2	test_2	1.00	0.28571	40	16
+ambig_test_1	ambig_test_2	0.00	0.47059	9	8
+ambig_test_1	test_1	0.00	1.00000	0	63
+ambig_test_1	test_2	0.00	1.00000	0	63
+ambig_test_2	test_1	0.00	1.00000	0	71
+ambig_test_2	test_2	0.00	1.00000	0	71
+test_1	test_2	2.00	0.44776	37	30
