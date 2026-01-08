@@ -11,26 +11,25 @@
 
 ## Description
 
-This is a reimplementation of the [SKA package](https://github.com/simonrharris/SKA)
-in the rust language, by Johanna von Wachsmann, Simon Harris and John Lees. We are also grateful to have
-received user contributions from:
-
-- Romain Derelle
-- Tommi Maklin
-- Joel Hellewell
-- Timothy Russell
-- Nicholas Croucher
-- Dan Lu
-
-Split k-mer analysis (version 2) uses exact matching of split k-mer sequences to align closely related sequences, typically small haploid genomes such as bacteria and viruses.
+Split k-mer analysis (version 2) uses exact matching of split k-mer sequences to align closely related sequences, typically small haploid genomes such as bacteria and viruses. Recall drops beyond around 1% divergence (see paper).
 
 SKA can only align SNPs further than the k-mer length apart, and does not use a gap penalty approach or give alignment scores. But the advantages are speed and flexibility, particularly the ability to run on a reference-free manner (i.e. including accessory genome variation) on both assemblies and reads.
 
-### Citation
+ska.rust also incorporates 'ska lo' (left-out), which uses local assembly to recover more variants in more diverged samples, and can be run as well as/instead of ska align.
+
+### Citations
+
+ska:
 
 Romain Derelle, Johanna von Wachsmann, Tommi M&auml;klin, Joel Hellewell, Timothy Russell, Ajit Lalvani, Leonid Chindelevitch, Nicholas J. Croucher, Simon R. Harris, John A. Lees (2024). Seamless, rapid, and accurate analyses of outbreak genomic data using split k-mer analysis. Genome Research, 34(10), 1661–1673.
 
 https://genome.cshlp.org/content/34/10/1661.abstract
+
+ska lo:
+
+Romain Derelle, Kieran Madon, Joel Hellewell, V&iacute;ctor Rodr&iacute;guez-Bouza, Nimalan Arinaminpathy, Ajit Lalvani, Nicholas Croucher, Simon Harris, John Lees, Leonid Chindelevitch (2025). Reference-free variant calling with local graph construction with ska lo (SKA). Molecular Biology and Evolution, msaf077.
+
+https://academic.oup.com/mbe/article/42/4/msaf077/8103706
 
 ## Documentation
 
@@ -68,6 +67,16 @@ xattr -d "com.apple.quarantine" ./ska
 
 ## Differences from SKA1
 
+This is a reimplementation of the [SKA package](https://github.com/simonrharris/SKA)
+in the rust language, by Romain Derelle, Johanna von Wachsmann, Simon Harris and John Lees. We are also grateful to have
+received user contributions from:
+
+- Tommi Maklin
+- Joel Hellewell
+- Timothy Russell
+- Nicholas Croucher
+- Dan Lu
+
 Optimisations include:
 
 - Integer DNA encoding, optimised parsing from FASTA/FASTQ.
@@ -96,7 +105,6 @@ footprint than the original.
 ## Planned features
 
 - Sparse data structure which will reduce space and make parallelisation more efficient. [Issue #47](https://github.com/bacpop/ska.rust/issues/47).
-- 'fastcall' mode. [Issue #52](https://github.com/bacpop/ska.rust/issues/52).
 
 ## Feature ideas (not definitely planned)
 
@@ -113,3 +121,4 @@ footprint than the original.
 - `ska type` (use [PopPUNK](https://github.com/bacpop/PopPUNK) instead of MLST 🙂)
 - Ns are always skipped, and will not be found in any split k-mers.
 - `.skf` files are not backwards compatible with version 1.
+- Parallelisation is on a single node. If you want to parallelise across nodes for map see [here](https://docs.rs/ska/latest/ska/#efficiency). For build/align, you can use `ska merge` to combine .skf files at the end.
