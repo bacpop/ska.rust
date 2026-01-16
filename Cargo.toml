@@ -1,6 +1,6 @@
 [package]
 name = "ska"
-version = "0.5.1"
+version = "0.5.2"
 authors = [
     "John Lees <jlees@ebi.ac.uk>",
     "Simon Harris <simon.harris@gatesfoundation.org>",
@@ -107,7 +107,6 @@ pretty_assertions = "1.3.0"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # testing
-snapbox = "0.4.3"
 predicates = "2.1.5"
 pretty_assertions = "1.3.0"
 

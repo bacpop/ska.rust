@@ -453,17 +453,17 @@ use std::time::Instant;
 use clap::ValueEnum;
 extern crate num_cpus;
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 pub mod merge_ska_dict;
 pub mod ska_dict;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_dict::build_and_merge;
+#[cfg(target_arch = "wasm32")]
+use crate::merge_ska_dict::MergeSkaDict;
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod merge_ska_array;
-#[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_array::MergeSkaArray;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1327,6 +1327,25 @@ impl AlignData {
         }
 
         logw(&format!("The number of samples inputted is enough. Starting alignmemnt."), None);
+        // Alignment first
+        let alignment;
+        if self.k < 32 {
+            let mut merger = MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
+            for sd in self.alignment64.as_ref().unwrap().get_queries().iter() {
+                merger.append(sd);
+            }
+            let array = MergeSkaArray::<u64>::new(&merger);
+            alignment = array.write_fasta();
+        } else {
+            let mut merger = MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
+            for sd in self.alignment128.as_ref().unwrap().get_queries().iter() {
+                merger.append(sd);
+            }
+            let array = MergeSkaArray::<u128>::new(&merger);
+            alignment = array.write_fasta();
+        }
+
+        // Now get the tree
         let newick;
 
         if self.k < 32 {
@@ -1339,6 +1358,7 @@ impl AlignData {
 
         results["newick"] = newick.into();
         results["names"] = json::JsonValue::new_array();
+        results["alignment"] = json::JsonValue::from(alignment);
             for name in &self.file_names {
                 let _ = results["names"].push(name.to_string());
             }

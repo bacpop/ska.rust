@@ -13,7 +13,7 @@ use speedytree::{NeighborJoiningSolver, Canonical};
 #[derive(Debug, Clone, Default)]
 /// Main struct for alignment in a WebAssembly environment
 pub struct SkaAlign<IntT> {
-    /// Positions of mapped bases as (chrom, pos)
+    /// Vector of SkaDicts
     queries_ska: Vec<SkaDict<IntT>>,
     /// k-value being used
     k: usize,
@@ -100,5 +100,11 @@ where
     /// Gets number of queries
     pub fn get_size(&self) -> usize {
         self.queries_ska.len()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    /// Gets number of queries
+    pub fn get_queries(&self) -> &Vec<SkaDict<IntT>> {
+        &self.queries_ska
     }
 }
