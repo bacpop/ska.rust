@@ -1155,12 +1155,14 @@ impl AlignData {
                         & input_file,
                         None,
                         proportion_reads,
+                        &file_name,
                     );
                 } else {
                     self.alignment128.as_mut().unwrap().add_file(
                         & input_file,
                         None,
                         proportion_reads,
+                        &file_name,
                     );
                 }
             }
@@ -1177,12 +1179,14 @@ impl AlignData {
                         &input_files[fastq_files[0]],
                         None,
                         proportion_reads,
+                        &input_files[fastq_files[0]].name(),
                     );
                 } else {
                     self.alignment128.as_mut().unwrap().add_file(
                         &input_files[fastq_files[0]],
                         None,
                         proportion_reads,
+                        &input_files[fastq_files[0]].name(),
                     );
                 }
             },
@@ -1209,12 +1213,14 @@ impl AlignData {
                             &input_files[fastq_files[0]],
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
+                            &input_files[fastq_files[0]].name(),
                         );
                     } else {
                         self.alignment128.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
+                            &input_files[fastq_files[0]].name(),
                         );
                     }
                 } else {
@@ -1226,22 +1232,26 @@ impl AlignData {
                             &input_files[fastq_files[0]],
                             None,
                             proportion_reads,
+                            &input_files[fastq_files[0]].name(),
                         );
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
+                            &input_files[fastq_files[1]].name(),
                         );
                     } else {
                         self.alignment128.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
                             None,
                             proportion_reads,
+                            &input_files[fastq_files[0]].name(),
                         );
                         self.alignment128.as_mut().unwrap().add_file(
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
+                            &input_files[fastq_files[1]].name(),
                         );
                     }
                 }
@@ -1277,12 +1287,14 @@ impl AlignData {
                                     &input_files[fastq_files[tmpind]],
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
+                                    &input_files[tmpind].name(),
                                 );
                             } else {
                                 self.alignment128.as_mut().unwrap().add_file(
                                     &input_files[fastq_files[tmpind]],
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
+                                    &input_files[tmpind].name(),
                                 );
                             }
 
@@ -1300,12 +1312,14 @@ impl AlignData {
                                 &input_files[fastq_files[tmpind]],
                                 None,
                                 proportion_reads,
+                                &input_files[tmpind].name(),
                             );
                         } else {
                             self.alignment128.as_mut().unwrap().add_file(
                                 &input_files[fastq_files[tmpind]],
                                 None,
                                 proportion_reads,
+                                &input_files[tmpind].name(),
                             );
                         }
                     }

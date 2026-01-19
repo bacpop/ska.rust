@@ -36,12 +36,13 @@ where
         file1: & web_sys::File,
         file2: Option<& web_sys::File>,
         proportions_reads: Option<f64>,
+        name: &String,
     ) {
         self.queries_ska.push(SkaDict::new(
             self.k,
             0,
             (file1, file2),
-            "",
+            name,
             // if file2.is_some() {true} else {false},
             true,                                       // TEMP TODO: made true by default, change when web can be edited again and add a box that asks what files will be submitted
             &QualOpts {
