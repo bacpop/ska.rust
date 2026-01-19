@@ -1331,14 +1331,14 @@ impl AlignData {
         let alignment;
         if self.k < 32 {
             let mut merger = MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
-            for sd in self.alignment64.as_ref().unwrap().get_queries().iter() {
+            for sd in self.alignment64.as_ref().unwrap().get_queries() {
                 merger.append(sd);
             }
             let array = MergeSkaArray::<u64>::new(&merger);
             alignment = array.write_fasta();
         } else {
             let mut merger = MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
-            for sd in self.alignment128.as_ref().unwrap().get_queries().iter() {
+            for sd in self.alignment128.as_ref().unwrap().get_queries() {
                 merger.append(sd);
             }
             let array = MergeSkaArray::<u128>::new(&merger);

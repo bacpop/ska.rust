@@ -42,8 +42,6 @@ where
         proportions_reads: Option<f64>,
         rc: bool,
     ) -> Self {
-        // TODO - two files. Should just be able to add an 'add more k-mers' method on the struct to accept second file if given
-
         let qualities = QualOpts {
             min_count: 1,
             min_qual: 0,

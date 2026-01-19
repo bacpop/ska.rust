@@ -42,7 +42,8 @@ where
             0,
             (file1, file2),
             "",
-            if file2.is_some() {true} else {false},
+            // if file2.is_some() {true} else {false},
+            true,                                       // TEMP TODO: made true by default, change when web can be edited again and add a box that asks what files will be submitted
             &QualOpts {
                 min_count: 1,
                 min_qual: 0,
