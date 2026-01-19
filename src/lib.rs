@@ -1358,7 +1358,8 @@ impl AlignData {
             let array = MergeSkaArray::<u128>::new(&merger);
             alignment = array.write_fasta();
         }
-        logw(&alignment, None);
+        logw(&format!("Output alignment: {:?}", alignment), None);
+        
         // Now get the tree
         let newick;
 
