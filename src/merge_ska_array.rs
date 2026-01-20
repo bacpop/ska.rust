@@ -528,7 +528,7 @@ where
         let _ = self.names
             .iter()
             .zip(var_t_owned.outer_iter())
-            .map(|it| {
+            .for_each(|it| {
                 let (name, seq_u8) = it;
 
                 outputaln.push_str(&(name.to_owned() + "\n"));

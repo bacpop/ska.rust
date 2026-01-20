@@ -1156,6 +1156,7 @@ impl AlignData {
                         None,
                         proportion_reads,
                         &file_name,
+                        self.file_names.len() - 1,
                     );
                 } else {
                     self.alignment128.as_mut().unwrap().add_file(
@@ -1163,6 +1164,7 @@ impl AlignData {
                         None,
                         proportion_reads,
                         &file_name,
+                        self.file_names.len() - 1,
                     );
                 }
             }
@@ -1180,6 +1182,7 @@ impl AlignData {
                         None,
                         proportion_reads,
                         &input_files[fastq_files[0]].name(),
+                        self.file_names.len() - 1,
                     );
                 } else {
                     self.alignment128.as_mut().unwrap().add_file(
@@ -1187,6 +1190,7 @@ impl AlignData {
                         None,
                         proportion_reads,
                         &input_files[fastq_files[0]].name(),
+                        self.file_names.len() - 1,
                     );
                 }
             },
@@ -1214,6 +1218,7 @@ impl AlignData {
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
                             &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 1,
                         );
                     } else {
                         self.alignment128.as_mut().unwrap().add_file(
@@ -1221,6 +1226,7 @@ impl AlignData {
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
                             &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 1,
                         );
                     }
                 } else {
@@ -1233,12 +1239,14 @@ impl AlignData {
                             None,
                             proportion_reads,
                             &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 2,
                         );
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
                             &input_files[fastq_files[1]].name(),
+                            self.file_names.len() - 1,
                         );
                     } else {
                         self.alignment128.as_mut().unwrap().add_file(
@@ -1246,12 +1254,14 @@ impl AlignData {
                             None,
                             proportion_reads,
                             &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 2,
                         );
                         self.alignment128.as_mut().unwrap().add_file(
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
                             &input_files[fastq_files[1]].name(),
+                            self.file_names.len() - 1,
                         );
                     }
                 }
@@ -1288,6 +1298,7 @@ impl AlignData {
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
                                     &input_files[tmpind].name(),
+                                    self.file_names.len() - 1,
                                 );
                             } else {
                                 self.alignment128.as_mut().unwrap().add_file(
@@ -1295,6 +1306,7 @@ impl AlignData {
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
                                     &input_files[tmpind].name(),
+                                    self.file_names.len() - 1,
                                 );
                             }
 
@@ -1313,6 +1325,7 @@ impl AlignData {
                                 None,
                                 proportion_reads,
                                 &input_files[tmpind].name(),
+                                self.file_names.len() - 1,
                             );
                         } else {
                             self.alignment128.as_mut().unwrap().add_file(
@@ -1320,6 +1333,7 @@ impl AlignData {
                                 None,
                                 proportion_reads,
                                 &input_files[tmpind].name(),
+                                self.file_names.len() - 1,
                             );
                         }
                     }
@@ -1332,6 +1346,7 @@ impl AlignData {
 
             let mut results = json::JsonValue::new_array();
             results["newick"] = "Not enough sequences to align".into();
+            results["alignment"] = "Not enough sequences to align".into();
             results["names"] = json::JsonValue::new_array();
             for name in &self.file_names {
                 let _ = results["names"].push(name.to_string());

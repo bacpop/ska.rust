@@ -37,10 +37,11 @@ where
         file2: Option<& web_sys::File>,
         proportions_reads: Option<f64>,
         name: &String,
+        idx: usize,
     ) {
         self.queries_ska.push(SkaDict::new(
             self.k,
-            0,
+            idx,
             (file1, file2),
             name,
             // if file2.is_some() {true} else {false},
