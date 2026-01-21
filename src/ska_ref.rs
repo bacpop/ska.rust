@@ -725,11 +725,13 @@ where
     }
 
     /// Returns the k value associated with this SkaRef struct
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_k(&self) -> usize {
         return self.k;
     }
 
     /// Returns a reference to the sequence
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn get_seq(&self) ->  &Vec<Vec<u8>> {
         &self.seq
     }
