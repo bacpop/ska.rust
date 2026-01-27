@@ -532,7 +532,7 @@ where
             ),
             None,
         );
-        let _ = self
+        self
             .names
             .iter()
             .zip(var_t_owned.outer_iter())

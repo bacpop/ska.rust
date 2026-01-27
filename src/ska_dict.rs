@@ -204,7 +204,7 @@ where
             reader = ReaderType::Fastq(open_fastq(file));
         }
 
-        let step = 1 as f64 / proportion_reads.unwrap();
+        let step = 1_f64 / proportion_reads.unwrap();
 
         let mut iter_reads = 0;
         while let Some((seq, seq_len)) = match reader {
@@ -430,7 +430,7 @@ where
         qual: &QualOpts,
         proportion_reads: Option<f64>,
     ) -> Self {
-        if !(5..=63).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
         }
 

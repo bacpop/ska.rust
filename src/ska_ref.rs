@@ -331,7 +331,7 @@ where
     ) -> Self {
         let mut reader = open_fasta(file);
 
-        if !(5..=63).contains(&k) || k % 2 == 0 {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
         }
 
@@ -588,7 +588,7 @@ where
     #[cfg(target_arch = "wasm32")]
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function simply writes them out (ALN)
-    pub fn pseudoalignment(&self, mapped_bases: &Vec<Variant>) -> Vec<String> {
+    pub fn pseudoalignment(&self, mapped_bases: &[Variant]) -> Vec<String> {
         let mapped_variants: Vec<u8> = mapped_bases.iter().map(|v| v.base).collect();
         let mapped_pos: Vec<(usize, usize)> =
             mapped_bases.iter().map(|v| (v.chrom, v.pos)).collect();
@@ -753,7 +753,7 @@ where
     /// Returns the k value associated with this SkaRef struct
     #[cfg(target_arch = "wasm32")]
     pub fn get_k(&self) -> usize {
-        return self.k;
+        self.k
     }
 
     /// Returns a reference to the sequence

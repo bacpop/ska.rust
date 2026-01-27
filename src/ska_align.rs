@@ -39,7 +39,7 @@ where
         file1: &web_sys::File,
         file2: Option<&web_sys::File>,
         proportions_reads: Option<f64>,
-        name: &String,
+        name: &str,
         idx: usize,
     ) {
         self.queries_ska.push(SkaDict::new(
@@ -60,7 +60,7 @@ where
 
     #[cfg(target_arch = "wasm32")]
     /// Performs the alignment
-    pub fn align(&mut self, file_names: &Vec<String>) -> String {
+    pub fn align(&mut self, file_names: &[String]) -> String {
         logw(
             &format!(
                 "Initiating alignment in SkaAlign with {} input files.",
@@ -70,7 +70,7 @@ where
         );
 
         logw(
-            &format!("Creating pairwise distances matrix as text."),
+            "Creating pairwise distances matrix as text.",
             None,
         );
         let mut pairwise_distances = vec![vec![0; self.queries_ska.len()]; self.queries_ska.len()];
@@ -79,7 +79,7 @@ where
         phylip_format += format!("{}\n", self.queries_ska.len()).as_str();
 
         for i in 0..self.queries_ska.len() {
-            phylip_format += format!("{}", file_names[i])
+            phylip_format += file_names[i].to_string()
                 .replace(" ", "_")
                 .replace(".fasta", "")
                 .replace(".fa", "")
@@ -114,8 +114,8 @@ where
             .unwrap();
 
         logw(&format!("Obtaining tree"), None);
-        let newick = speedytree::to_newick(&tree);
-        newick
+        
+        speedytree::to_newick(&tree)
     }
 
     #[cfg(target_arch = "wasm32")]

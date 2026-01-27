@@ -502,8 +502,6 @@ extern crate console_error_panic_hook;
 #[cfg(target_arch = "wasm32")]
 pub mod fastx_wasm;
 #[cfg(target_arch = "wasm32")]
-use json;
-#[cfg(target_arch = "wasm32")]
 pub mod ska_map;
 #[cfg(target_arch = "wasm32")]
 use crate::ska_map::SkaMap;
@@ -964,11 +962,11 @@ impl SkaData {
             let reference_string = reconstruct_sequence(&reference);
 
             Self {
-                k: k,
-                rc: rc,
+                k,
+                rc,
                 reference64: Some(reference),
                 reference128: None,
-                reference_string: reference_string,
+                reference_string,
                 mapped64: Some(Vec::new()),
                 mapped128: None,
             }
@@ -981,11 +979,11 @@ impl SkaData {
             let reference_string = reconstruct_sequence(&reference);
 
             Self {
-                k: k,
-                rc: rc,
+                k,
+                rc,
                 reference64: None,
                 reference128: Some(reference),
-                reference_string: reference_string,
+                reference_string,
                 mapped64: None,
                 mapped128: Some(Vec::new()),
             }
@@ -1148,14 +1146,14 @@ impl AlignData {
     pub fn new(k: usize) -> Self {
         if k < 32 {
             Self {
-                k: k,
+                k,
                 alignment64: Some(SkaAlign::<u64>::new(k)),
                 alignment128: None,
                 file_names: Vec::new(),
             }
         } else if k < 64 {
             Self {
-                k: k,
+                k,
                 alignment64: None,
                 alignment128: Some(SkaAlign::<u128>::new(k)),
                 file_names: Vec::new(),
