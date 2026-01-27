@@ -102,18 +102,18 @@ where
 
         logw(&format!("{:?}", phylip_format), None);
         logw(
-            &format!("Converting matrix to DistanceMatrix struct."),
+            "Converting matrix to DistanceMatrix struct.",
             None,
         );
 
         let d = DistanceMatrix::read_from_phylip(phylip_format.as_bytes()).unwrap();
 
-        logw(&format!("Calculating tree"), None);
+        logw("Calculating tree", None);
         let tree = NeighborJoiningSolver::<Canonical>::default(d.clone())
             .solve()
             .unwrap();
 
-        logw(&format!("Obtaining tree"), None);
+        logw("Obtaining tree", None);
         
         speedytree::to_newick(&tree)
     }
