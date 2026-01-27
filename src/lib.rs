@@ -897,7 +897,6 @@ pub fn main() {
     log::info!("Complete");
 }
 
-
 // WASM implementation
 #[cfg(target_arch = "wasm32")]
 #[doc(hidden)]
@@ -907,7 +906,7 @@ pub fn main() {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-extern {
+extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
@@ -921,7 +920,7 @@ pub fn init_panic_hook() {
 
 /// Logging wrapper function for the WebAssembly version
 #[cfg(target_arch = "wasm32")]
-pub fn logw(text : &str, typ : Option<&str>) {
+pub fn logw(text: &str, typ: Option<&str>) {
     if typ.is_some() {
         log((String::from("ska.rust::") + typ.unwrap() + "::" + text).as_str());
     } else {
@@ -958,10 +957,10 @@ impl SkaData {
         let mut wf = WebSysFile::new(ref_file);
         if k < 32 {
             let reference = RefSka::<u64>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
-            logw(&format!(
-                "Indexed reference: {} split k-mers",
-                reference.ksize()
-            ), None);
+            logw(
+                &format!("Indexed reference: {} split k-mers", reference.ksize()),
+                None,
+            );
             let reference_string = reconstruct_sequence(&reference);
 
             Self {
@@ -975,10 +974,10 @@ impl SkaData {
             }
         } else if k < 64 {
             let reference = RefSka::<u128>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
-            logw(&format!(
-                "Indexed reference: {} split k-mers",
-                reference.ksize()
-            ), None);
+            logw(
+                &format!("Indexed reference: {} split k-mers", reference.ksize()),
+                None,
+            );
             let reference_string = reconstruct_sequence(&reference);
 
             Self {
@@ -996,7 +995,12 @@ impl SkaData {
     }
 
     /// Mapping function.
-    pub fn map(&mut self, input_file: web_sys::File, rev_reads: Option<web_sys::File>, proportion_reads: Option<f64>) -> String {
+    pub fn map(
+        &mut self,
+        input_file: web_sys::File,
+        rev_reads: Option<web_sys::File>,
+        proportion_reads: Option<f64>,
+    ) -> String {
         if rev_reads.is_some() {
             logw(&format!("Detected paired fastq input files"), None);
         }
@@ -1012,8 +1016,13 @@ impl SkaData {
                     self.rc,
                 ));
             } else {
-                self.mapped64.as_mut().unwrap()
-                    .push(SkaMap::<u64>::new(&self.reference64.as_ref().unwrap(), &mut input_file_ref, None, proportion_reads, self.rc));
+                self.mapped64.as_mut().unwrap().push(SkaMap::<u64>::new(
+                    &self.reference64.as_ref().unwrap(),
+                    &mut input_file_ref,
+                    None,
+                    proportion_reads,
+                    self.rc,
+                ));
             };
         } else {
             if let Some(mut second_file) = rev_reads {
@@ -1025,8 +1034,13 @@ impl SkaData {
                     self.rc,
                 ));
             } else {
-                self.mapped128.as_mut().unwrap()
-                    .push(SkaMap::<u128>::new(&self.reference128.as_ref().unwrap(), &mut input_file_ref, None, proportion_reads, self.rc));
+                self.mapped128.as_mut().unwrap().push(SkaMap::<u128>::new(
+                    &self.reference128.as_ref().unwrap(),
+                    &mut input_file_ref,
+                    None,
+                    proportion_reads,
+                    self.rc,
+                ));
             };
         }
 
@@ -1037,22 +1051,40 @@ impl SkaData {
         results["Mapped sequences"] = json::JsonValue::new_array();
         let whole_mapping;
         if self.k < 32 {
-            whole_mapping = self.reference64.as_ref().unwrap().pseudoalignment(self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1].get_mapped_bases())[0].clone();
+            whole_mapping = self.reference64.as_ref().unwrap().pseudoalignment(
+                self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1]
+                    .get_mapped_bases(),
+            )[0]
+            .clone();
         } else {
-            whole_mapping = self.reference128.as_ref().unwrap().pseudoalignment(self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1].get_mapped_bases())[0].clone();
+            whole_mapping = self.reference128.as_ref().unwrap().pseudoalignment(
+                self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1]
+                    .get_mapped_bases(),
+            )[0]
+            .clone();
         }
 
         let mut current_length = 0;
         for chr in 0..self.reference_string.len() {
-            let chr_mapping: String = whole_mapping[current_length..current_length + self.reference_string[chr].len()].to_string();
+            let chr_mapping: String = whole_mapping
+                [current_length..current_length + self.reference_string[chr].len()]
+                .to_string();
             let _ = results["Mapped sequences"].push(chr_mapping);
             current_length += self.reference_string[chr].len();
         }
 
         if self.k < 32 {
-            results["Number of variants"] = self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1].get_mapped_bases().len().into();
+            results["Number of variants"] = self.mapped64.as_ref().unwrap()
+                [self.mapped64.as_ref().unwrap().len() - 1]
+                .get_mapped_bases()
+                .len()
+                .into();
         } else {
-            results["Number of variants"] = self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1].get_mapped_bases().len().into();
+            results["Number of variants"] = self.mapped128.as_ref().unwrap()
+                [self.mapped128.as_ref().unwrap().len() - 1]
+                .get_mapped_bases()
+                .len()
+                .into();
         }
         // The result is a concatenated string of all the mapped bases
 
@@ -1087,12 +1119,11 @@ pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) ->
     let mut sequence_string = Vec::new();
 
     for sequence in sequence_u8 {
-        let mut current_seq= "".to_string();
+        let mut current_seq = "".to_string();
         for base in sequence {
             if *base != 10 {
                 current_seq.push(*base as char);
             }
-
         }
         sequence_string.push(current_seq);
     }
@@ -1117,7 +1148,7 @@ impl AlignData {
     pub fn new(k: usize) -> Self {
         if k < 32 {
             Self {
-                k : k,
+                k: k,
                 alignment64: Some(SkaAlign::<u64>::new(k)),
                 alignment128: None,
                 file_names: Vec::new(),
@@ -1135,15 +1166,25 @@ impl AlignData {
     }
 
     /// Alignment function.
-    pub fn align(&mut self, input_files: Vec<web_sys::File>, proportion_reads: Option<f64>) -> String {
+    pub fn align(
+        &mut self,
+        input_files: Vec<web_sys::File>,
+        proportion_reads: Option<f64>,
+    ) -> String {
         logw(&format!("Aligning reads"), None);
 
         let mut fastq_files = Vec::new();
         for (i, input_file) in input_files.iter().enumerate() {
             let file_name = input_file.name();
-            let mut file_type = file_name.split('.').nth(file_name.split('.').count() - 1).unwrap();
+            let mut file_type = file_name
+                .split('.')
+                .nth(file_name.split('.').count() - 1)
+                .unwrap();
             if file_type == "gz" {
-                file_type = file_name.split('.').nth(file_name.split('.').count() - 2).unwrap();
+                file_type = file_name
+                    .split('.')
+                    .nth(file_name.split('.').count() - 2)
+                    .unwrap();
             }
 
             if ["fq", "fastq"].contains(&file_type) {
@@ -1152,7 +1193,7 @@ impl AlignData {
                 self.file_names.push(file_name.clone());
                 if self.k < 32 {
                     self.alignment64.as_mut().unwrap().add_file(
-                        & input_file,
+                        &input_file,
                         None,
                         proportion_reads,
                         &file_name,
@@ -1160,7 +1201,7 @@ impl AlignData {
                     );
                 } else {
                     self.alignment128.as_mut().unwrap().add_file(
-                        & input_file,
+                        &input_file,
                         None,
                         proportion_reads,
                         &file_name,
@@ -1168,14 +1209,14 @@ impl AlignData {
                     );
                 }
             }
-
         }
-        
+
         match fastq_files.len() {
             0 => (),
             1 => {
                 logw(&format!("Among the uploaded files, only one fastq file has been uploaded. We'll assume it contains all reads needed for this."), None);
-                self.file_names.push(input_files[fastq_files[0]].name().clone());
+                self.file_names
+                    .push(input_files[fastq_files[0]].name().clone());
                 if self.k < 32 {
                     self.alignment64.as_mut().unwrap().add_file(
                         &input_files[fastq_files[0]],
@@ -1193,7 +1234,7 @@ impl AlignData {
                         self.file_names.len() - 1,
                     );
                 }
-            },
+            }
             2 => {
                 let filen1 = input_files[fastq_files[0]].name();
                 let filen2 = input_files[fastq_files[1]].name();
@@ -1202,7 +1243,9 @@ impl AlignData {
                 if filen1.chars().count() == filen2.chars().count() {
                     for (ic, jc) in filen1.chars().zip(filen2.chars()) {
                         if ic != jc {
-                            if ["0", "1", "2"].contains(&ic.to_string().as_str()) && ["0", "1", "2"].contains(&jc.to_string().as_str()) {
+                            if ["0", "1", "2"].contains(&ic.to_string().as_str())
+                                && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                            {
                                 samepair = true;
                                 break;
                             }
@@ -1211,7 +1254,8 @@ impl AlignData {
                 }
 
                 if samepair {
-                    self.file_names.push(input_files[fastq_files[0]].name().clone());
+                    self.file_names
+                        .push(input_files[fastq_files[0]].name().clone());
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
@@ -1230,9 +1274,16 @@ impl AlignData {
                         );
                     }
                 } else {
-                    logw(&format!("Two read files uploaded, but found to not come from the same sample."), None);
-                    self.file_names.push(input_files[fastq_files[0]].name().clone());
-                    self.file_names.push(input_files[fastq_files[1]].name().clone());
+                    logw(
+                        &format!(
+                            "Two read files uploaded, but found to not come from the same sample."
+                        ),
+                        None,
+                    );
+                    self.file_names
+                        .push(input_files[fastq_files[0]].name().clone());
+                    self.file_names
+                        .push(input_files[fastq_files[1]].name().clone());
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
@@ -1265,7 +1316,7 @@ impl AlignData {
                         );
                     }
                 }
-            },
+            }
             3.. => {
                 // Annoying situation: need to find pairs...
                 while !fastq_files.is_empty() {
@@ -1280,7 +1331,9 @@ impl AlignData {
                         if tmpnam.chars().count() == testnam.chars().count() {
                             for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
                                 if ic != jc {
-                                    if ["0", "1", "2"].contains(&ic.to_string().as_str()) && ["0", "1", "2"].contains(&jc.to_string().as_str()) {
+                                    if ["0", "1", "2"].contains(&ic.to_string().as_str())
+                                        && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                                    {
                                         samepair = true;
                                         break;
                                     }
@@ -1313,11 +1366,17 @@ impl AlignData {
                             break;
                         }
                     }
-                    
+
                     if to_erase.is_some() {
                         fastq_files.remove(to_erase.unwrap());
                     } else {
-                        logw(&format!("No pair found among input files for {}. Adding individually.", tmpnam), None);
+                        logw(
+                            &format!(
+                                "No pair found among input files for {}. Adding individually.",
+                                tmpnam
+                            ),
+                            None,
+                        );
                         self.file_names.push(input_files[tmpind].name().clone());
                         if self.k < 32 {
                             self.alignment64.as_mut().unwrap().add_file(
@@ -1338,10 +1397,12 @@ impl AlignData {
                         }
                     }
                 }
-            },
+            }
         }
 
-        if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2) || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2) {
+        if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2)
+            || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2)
+        {
             logw(&format!("The number of samples inputted are less than three. No results will be outputted now."), None);
 
             let mut results = json::JsonValue::new_array();
@@ -1355,18 +1416,23 @@ impl AlignData {
             return results.dump();
         }
 
-        logw(&format!("The number of samples inputted is enough. Starting alignmemnt."), None);
+        logw(
+            &format!("The number of samples inputted is enough. Starting alignmemnt."),
+            None,
+        );
         // Alignment first
         let alignment;
         if self.k < 32 {
-            let mut merger = MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
+            let mut merger =
+                MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
             for sd in self.alignment64.as_ref().unwrap().get_queries() {
                 merger.append(sd);
             }
             let array = MergeSkaArray::<u64>::new(&merger);
             alignment = array.write_fasta();
         } else {
-            let mut merger = MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
+            let mut merger =
+                MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
             for sd in self.alignment128.as_ref().unwrap().get_queries() {
                 merger.append(sd);
             }
@@ -1374,7 +1440,7 @@ impl AlignData {
             alignment = array.write_fasta();
         }
         logw(&format!("Output alignment: {:?}", alignment), None);
-        
+
         // Now get the tree
         let newick;
 
@@ -1389,9 +1455,9 @@ impl AlignData {
         results["newick"] = newick.into();
         results["names"] = json::JsonValue::new_array();
         results["alignment"] = json::JsonValue::from(alignment);
-            for name in &self.file_names {
-                let _ = results["names"].push(name.to_string());
-            }
+        for name in &self.file_names {
+            let _ = results["names"].push(name.to_string());
+        }
         results.dump()
     }
 }

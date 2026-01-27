@@ -32,11 +32,11 @@ use needletail::parser::write_fasta;
 use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_arch = "wasm32")]
+use crate::logw;
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::{base_to_prob, decode_kmer, is_ambiguous, UInt};
 use crate::ska_ref::RefSka;
-#[cfg(target_arch = "wasm32")]
-use crate::logw;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::cli::FilterType;
@@ -524,8 +524,16 @@ where
         let mut var_t_owned = Array2::zeros(var_t.raw_dim());
         var_t_owned.assign(&var_t);
         let mut outputaln = String::new();
-        logw(&format!("Starting alignment properly, size vars: {:?}, size names: {:?}", var_t.len(), self.names.len()), None);
-        let _ = self.names
+        logw(
+            &format!(
+                "Starting alignment properly, size vars: {:?}, size names: {:?}",
+                var_t.len(),
+                self.names.len()
+            ),
+            None,
+        );
+        let _ = self
+            .names
             .iter()
             .zip(var_t_owned.outer_iter())
             .for_each(|it| {
@@ -533,8 +541,13 @@ where
 
                 outputaln.push_str(&(name.to_owned() + "\n"));
 
-                outputaln.push_str(&(str::from_utf8(seq_u8.as_slice().expect("Array conversion error")).unwrap().to_owned() + "\n"));
-        });
+                outputaln.push_str(
+                    &(str::from_utf8(seq_u8.as_slice().expect("Array conversion error"))
+                        .unwrap()
+                        .to_owned()
+                        + "\n"),
+                );
+            });
         outputaln
     }
 

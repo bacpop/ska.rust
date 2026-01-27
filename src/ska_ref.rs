@@ -55,8 +55,6 @@ use noodles_vcf::{
 extern crate needletail;
 #[cfg(not(target_arch = "wasm32"))]
 use ndarray::{s, Array2, ArrayView};
-#[cfg(target_arch = "wasm32")]
-use ndarray::Array2;
 #[cfg(not(target_arch = "wasm32"))]
 use needletail::{
     parse_fastx_file,
@@ -72,24 +70,22 @@ use crate::ska_ref::idx_check::IdxCheck;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_dict::MergeSkaDict;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 #[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
 
 #[cfg(target_arch = "wasm32")]
-use std::io::Read;
-#[cfg(target_arch = "wasm32")]
 use crate::fastx_wasm::open_fasta;
-#[cfg(target_arch = "wasm32")]
-use seq_io::fasta::Record;
 #[cfg(target_arch = "wasm32")]
 use crate::logw;
 #[cfg(target_arch = "wasm32")]
 use crate::ska_map::Variant;
-
-
+#[cfg(target_arch = "wasm32")]
+use seq_io::fasta::Record;
+#[cfg(target_arch = "wasm32")]
+use std::io::Read;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
 #[derive(Debug, Clone)]
@@ -126,6 +122,7 @@ where
 
     /// Input sequence
     /// Chromosome names
+    #[cfg(not(target_arch = "wasm32"))]
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
@@ -134,10 +131,13 @@ where
 
     /// Mapping information
     /// Positions of mapped bases as (chrom, pos)
+    #[cfg(not(target_arch = "wasm32"))]
     mapped_pos: Vec<(usize, usize)>,
     /// Array of mapped bases, rows loci, columns samples
+    #[cfg(not(target_arch = "wasm32"))]
     mapped_variants: Array2<u8>,
     /// Names of the mapped samples
+    #[cfg(not(target_arch = "wasm32"))]
     mapped_names: Vec<String>,
 }
 
@@ -309,8 +309,6 @@ where
         }
     }
 
-
-
     /// Create a list of split k-mers from an input FASTA file.
     ///
     /// Input may have multiple sequences (which are treated as chromosomes and
@@ -339,20 +337,42 @@ where
 
         let mut split_kmer_pos = Vec::new();
         let mut seq = Vec::new();
-        let mut chrom_names = Vec::new();
+        // let mut chrom_names = Vec::new();
         let mut singles = HashSet::new();
         let mut repeats = HashSet::new();
 
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            chrom_names.push(seqrec.id().unwrap().to_owned());
-            split_kmer_pos.reserve(seqrec.full_seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect::<Vec<_>>().len());
+            // chrom_names.push(seqrec.id().unwrap().to_owned());
+            split_kmer_pos.reserve(
+                seqrec
+                    .full_seq()
+                    .to_vec()
+                    .iter()
+                    .filter(|&x| *x != 10)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .len(),
+            );
 
             let kmer_opt = SplitKmer::new(
                 // Remove \n characters from the sequence
-                seqrec.seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect(),
-                seqrec.seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect::<Vec<_>>().len(),
+                seqrec
+                    .seq()
+                    .to_vec()
+                    .iter()
+                    .filter(|&x| *x != 10)
+                    .cloned()
+                    .collect(),
+                seqrec
+                    .seq()
+                    .to_vec()
+                    .iter()
+                    .filter(|&x| *x != 10)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .len(),
                 None,
                 k,
                 rc,
@@ -389,7 +409,15 @@ where
             }
             chrom += 1;
             // Remove \n characters from the sequence
-            seq.push(seqrec.seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect::<Vec<_>>());
+            seq.push(
+                seqrec
+                    .seq()
+                    .to_vec()
+                    .iter()
+                    .filter(|&x| *x != 10)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
         }
         if split_kmer_pos.is_empty() {
             panic!("No valid sequence");
@@ -429,11 +457,14 @@ where
                 }
             }
             if cfg!(debug_assertions) {
-                logw(&format!(
-                    "Masking {} unique split k-mer repeats spanning {} bases",
-                    repeats.len(),
-                    repeat_coors.len()
-                ), None);
+                logw(
+                    &format!(
+                        "Masking {} unique split k-mer repeats spanning {} bases",
+                        repeats.len(),
+                        repeat_coors.len()
+                    ),
+                    None,
+                );
             }
         }
 
@@ -441,16 +472,14 @@ where
             k,
             seq,
             ambig_mask,
-            chrom_names,
+            // chrom_names,
             split_kmer_pos,
             repeat_coors,
-            mapped_pos: Vec::new(),
-            mapped_variants: Array2::zeros((0, 0)),
-            mapped_names: Vec::new(),
+            // mapped_pos: Vec::new(),
+            // mapped_variants: Array2::zeros((0, 0)),
+            // mapped_names: Vec::new(),
         }
     }
-
-
 
     // Keeps track of split k-mers in the ref, any found before are moved
     // to the repeats set
@@ -560,22 +589,18 @@ where
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function simply writes them out (ALN)
     pub fn pseudoalignment(&self, mapped_bases: &Vec<Variant>) -> Vec<String> {
-
         let mapped_variants: Vec<u8> = mapped_bases.iter().map(|v| v.base).collect();
-        let mapped_pos: Vec<(usize, usize)> = mapped_bases.iter().map(|v| (v.chrom, v.pos)).collect();
+        let mapped_pos: Vec<(usize, usize)> =
+            mapped_bases.iter().map(|v| (v.chrom, v.pos)).collect();
 
         let mut seq_writers =
-            vec![
-                AlnWriter::new(&self.seq, self.k, &self.repeat_coors, self.ambig_mask);
-                1
-            ];
+            vec![AlnWriter::new(&self.seq, self.k, &self.repeat_coors, self.ambig_mask); 1];
         seq_writers
             .par_iter_mut()
             .enumerate()
             .for_each(|(_idx, seq)| {
                 let sample_vars = mapped_variants.clone();
-                for ((mapped_chrom, mapped_pos), base) in
-                    mapped_pos.iter().zip(sample_vars.iter())
+                for ((mapped_chrom, mapped_pos), base) in mapped_pos.iter().zip(sample_vars.iter())
                 {
                     if *base != b'-' {
                         seq.write_split_kmer(*mapped_pos, *mapped_chrom, *base);
@@ -733,7 +758,7 @@ where
 
     /// Returns a reference to the sequence
     #[cfg(target_arch = "wasm32")]
-    pub fn get_seq(&self) ->  &Vec<Vec<u8>> {
+    pub fn get_seq(&self) -> &Vec<Vec<u8>> {
         &self.seq
     }
 }

@@ -37,8 +37,6 @@ use crate::ska_dict::bloom_filter::KmerFilter;
 pub mod nthash;
 
 #[cfg(target_arch = "wasm32")]
-use std::io::Read;
-#[cfg(target_arch = "wasm32")]
 use crate::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
 #[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Reader as FastaReader;
@@ -48,6 +46,8 @@ use seq_io::fasta::Record as FastaRecord;
 use seq_io::fastq::Reader as FastqReader;
 #[cfg(target_arch = "wasm32")]
 use seq_io::fastq::Record as FastqRecord;
+#[cfg(target_arch = "wasm32")]
+use std::io::Read;
 // #[cfg(target_arch = "wasm32")]
 // use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
@@ -191,7 +191,6 @@ where
         qual: &QualOpts,
         proportion_reads: Option<f64>,
     ) {
-
         enum ReaderType<'a, F: Read + 'a> {
             Fasta(FastaReader<ReaderEnum<'a, F>>), // replace with actual type
             Fastq(FastqReader<ReaderEnum<'a, F>>), // replace with actual type
@@ -210,10 +209,16 @@ where
         let mut iter_reads = 0;
         while let Some((seq, seq_len)) = match reader {
             ReaderType::Fasta(ref mut r) => {
-                if let Some(record) = r.next(){
+                if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTA record");
                     // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec.seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect();
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .to_vec()
+                        .iter()
+                        .filter(|&x| *x != 10)
+                        .cloned()
+                        .collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
                 } else {
@@ -221,10 +226,16 @@ where
                 }
             }
             ReaderType::Fastq(ref mut r) => {
-                if let Some(record) = r.next(){
+                if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTQ record");
                     // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec.seq().to_vec().iter().filter(|&x| *x != 10).cloned().collect();
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .to_vec()
+                        .iter()
+                        .filter(|&x| *x != 10)
+                        .cloned()
+                        .collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
                 } else {
@@ -424,12 +435,18 @@ where
         }
 
         let file_name = input_files.0.name();
-        let mut file_type = file_name.split('.').nth(file_name.split('.').count() - 1).unwrap();
+        let mut file_type = file_name
+            .split('.')
+            .nth(file_name.split('.').count() - 1)
+            .unwrap();
         if file_type == "gz" {
-            file_type = file_name.split('.').nth(file_name.split('.').count() - 2).unwrap();
+            file_type = file_name
+                .split('.')
+                .nth(file_name.split('.').count() - 2)
+                .unwrap();
         }
 
-        let is_reads : bool;
+        let is_reads: bool;
         if ["fasta", "fa"].contains(&file_type) {
             is_reads = false;
         } else if ["fastq", "fq"].contains(&file_type) {
@@ -447,27 +464,21 @@ where
             kmer_filter: KmerFilter::new(qual.min_count),
         };
 
-        // TODO Check if we're working with reads, and initalise the CM filter if so
-        // and self.is_reads
-        /*
-        let mut reader_peek =
-            parse_fastx_file(files.0).unwrap_or_else(|_| panic!("Invalid path/file: {}", files.0));
-        let seq_peek = reader_peek
-            .next()
-            .expect("Invalid FASTA/Q record")
-            .expect("Invalid FASTA/Q record");
-        let mut is_reads = false;
-        if seq_peek.format() == Format::Fastq {
-            sk_dict.kmer_filter.init();
-            is_reads = true;
-        }
-        */
-
         // Build the dict
-        sk_dict.add_file_kmers(&mut WebSysFile::new(input_files.0.clone()), is_reads, qual, proportion_reads);
+        sk_dict.add_file_kmers(
+            &mut WebSysFile::new(input_files.0.clone()),
+            is_reads,
+            qual,
+            proportion_reads,
+        );
 
         if let Some(second_file) = input_files.1 {
-            sk_dict.add_file_kmers(&mut WebSysFile::new(second_file.clone()), is_reads, qual, proportion_reads);
+            sk_dict.add_file_kmers(
+                &mut WebSysFile::new(second_file.clone()),
+                is_reads,
+                qual,
+                proportion_reads,
+            );
         }
 
         if sk_dict.ksize() == 0 {

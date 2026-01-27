@@ -1,7 +1,7 @@
 //! Library that implements mapping sequences for a WebAssembly environment
 
-use crate::ska_dict::SkaDict;
 use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
+use crate::ska_dict::SkaDict;
 use crate::ska_ref::RefSka;
 use crate::QualFilter;
 use crate::QualOpts;
