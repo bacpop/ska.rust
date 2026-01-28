@@ -1239,11 +1239,11 @@ impl AlignData {
                     for (ic, jc) in filen1.chars().zip(filen2.chars()) {
                         if ic != jc
                             && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                                && ["0", "1", "2"].contains(&jc.to_string().as_str())
-                            {
-                                samepair = true;
-                                break;
-                            }
+                            && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                        {
+                            samepair = true;
+                            break;
+                        }
                     }
                 }
 
@@ -1312,7 +1312,6 @@ impl AlignData {
             3.. => {
                 // Annoying situation: need to find pairs...
                 while let Some(tmpind) = fastq_files.pop() {
-                    
                     let tmpnam = input_files[fastq_files[tmpind]].name();
                     let mut to_erase = None;
 
@@ -1324,11 +1323,11 @@ impl AlignData {
                             for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
                                 if ic != jc
                                     && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                                        && ["0", "1", "2"].contains(&jc.to_string().as_str())
-                                    {
-                                        samepair = true;
-                                        break;
-                                    }
+                                    && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                                {
+                                    samepair = true;
+                                    break;
+                                }
                             }
                         }
                         if samepair {

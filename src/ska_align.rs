@@ -69,17 +69,15 @@ where
             None,
         );
 
-        logw(
-            "Creating pairwise distances matrix as text.",
-            None,
-        );
+        logw("Creating pairwise distances matrix as text.", None);
         let mut pairwise_distances = vec![vec![0; self.queries_ska.len()]; self.queries_ska.len()];
 
         let mut phylip_format = "".to_string();
         phylip_format += format!("{}\n", self.queries_ska.len()).as_str();
 
         for i in 0..self.queries_ska.len() {
-            phylip_format += file_names[i].to_string()
+            phylip_format += file_names[i]
+                .to_string()
                 .replace(" ", "_")
                 .replace(".fasta", "")
                 .replace(".fa", "")
@@ -101,10 +99,7 @@ where
         }
 
         logw(&format!("{:?}", phylip_format), None);
-        logw(
-            "Converting matrix to DistanceMatrix struct.",
-            None,
-        );
+        logw("Converting matrix to DistanceMatrix struct.", None);
 
         let d = DistanceMatrix::read_from_phylip(phylip_format.as_bytes()).unwrap();
 
@@ -114,7 +109,7 @@ where
             .unwrap();
 
         logw("Obtaining tree", None);
-        
+
         speedytree::to_newick(&tree)
     }
 

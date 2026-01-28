@@ -532,8 +532,7 @@ where
             ),
             None,
         );
-        self
-            .names
+        self.names
             .iter()
             .zip(var_t_owned.outer_iter())
             .for_each(|it| {
