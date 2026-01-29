@@ -37,7 +37,7 @@ use crate::ska_dict::bloom_filter::KmerFilter;
 pub mod nthash;
 
 #[cfg(target_arch = "wasm32")]
-use crate::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
+use crate::wasm::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
 #[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Reader as FastaReader;
 #[cfg(target_arch = "wasm32")]
@@ -48,8 +48,6 @@ use seq_io::fastq::Reader as FastqReader;
 use seq_io::fastq::Record as FastqRecord;
 #[cfg(target_arch = "wasm32")]
 use std::io::Read;
-// #[cfg(target_arch = "wasm32")]
-// use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_file_reader::WebSysFile;
 

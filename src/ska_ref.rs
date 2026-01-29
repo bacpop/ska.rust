@@ -77,11 +77,12 @@ use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
 
 #[cfg(target_arch = "wasm32")]
-use crate::fastx_wasm::open_fasta;
+use crate::wasm::{
+    fastx_wasm::open_fasta,
+    ska_map::Variant,
+};
 #[cfg(target_arch = "wasm32")]
 use crate::logw;
-#[cfg(target_arch = "wasm32")]
-use crate::ska_map::Variant;
 #[cfg(target_arch = "wasm32")]
 use seq_io::fasta::Record;
 #[cfg(target_arch = "wasm32")]

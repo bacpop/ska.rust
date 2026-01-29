@@ -500,15 +500,11 @@ use wasm_bindgen_file_reader::WebSysFile;
 #[cfg(target_arch = "wasm32")]
 extern crate console_error_panic_hook;
 #[cfg(target_arch = "wasm32")]
-pub mod fastx_wasm;
+pub mod wasm;
 #[cfg(target_arch = "wasm32")]
-pub mod ska_map;
+use crate::wasm::ska_map::SkaMap;
 #[cfg(target_arch = "wasm32")]
-use crate::ska_map::SkaMap;
-#[cfg(target_arch = "wasm32")]
-pub mod ska_align;
-#[cfg(target_arch = "wasm32")]
-use crate::ska_align::SkaAlign;
+use crate::wasm::ska_align::SkaAlign;
 #[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
 
