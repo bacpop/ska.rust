@@ -19,7 +19,9 @@
 use std::cmp::Ordering;
 
 use hashbrown::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 extern crate needletail;
+#[cfg(not(target_arch = "wasm32"))]
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
@@ -33,6 +35,21 @@ pub mod bloom_filter;
 use crate::ska_dict::bloom_filter::KmerFilter;
 
 pub mod nthash;
+
+#[cfg(target_arch = "wasm32")]
+use crate::wasm::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
+#[cfg(target_arch = "wasm32")]
+use seq_io::fasta::Reader as FastaReader;
+#[cfg(target_arch = "wasm32")]
+use seq_io::fasta::Record as FastaRecord;
+#[cfg(target_arch = "wasm32")]
+use seq_io::fastq::Reader as FastqReader;
+#[cfg(target_arch = "wasm32")]
+use seq_io::fastq::Record as FastqRecord;
+#[cfg(target_arch = "wasm32")]
+use std::io::Read;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_file_reader::WebSysFile;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone, Default)]
@@ -97,6 +114,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
+    #[cfg(not(target_arch = "wasm32"))]
     fn add_file_kmers(
         &mut self,
         filename: &str,
@@ -127,6 +145,113 @@ where
                 seqrec.seq(),
                 seqrec.num_bases(),
                 seqrec.qual(),
+                self.k,
+                self.rc,
+                qual.min_qual,
+                qual.qual_filter,
+                is_reads,
+            );
+            if let Some(mut kmer_it) = kmer_opt {
+                if !is_reads
+                    || (kmer_it.middle_base_qual()
+                        && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
+                {
+                    let (kmer, base, _rc) = kmer_it.get_curr_kmer();
+                    if kmer_it.self_palindrome() {
+                        self.add_palindrome_to_dict(kmer, base);
+                    } else {
+                        self.add_to_dict(kmer, base);
+                    }
+                }
+                while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
+                    if !is_reads
+                        || (kmer_it.middle_base_qual()
+                            && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
+                    {
+                        if kmer_it.self_palindrome() {
+                            self.add_palindrome_to_dict(kmer, base);
+                        } else {
+                            self.add_to_dict(kmer, base);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Iterates through all the k-mers from an input fastx file and adds them
+    /// to the dictionary
+    #[cfg(target_arch = "wasm32")]
+    pub fn add_file_kmers<F: Read>(
+        &mut self,
+        file: &mut F,
+        is_reads: bool,
+        qual: &QualOpts,
+        proportion_reads: Option<f64>,
+    ) {
+        enum ReaderType<'a, F: Read + 'a> {
+            Fasta(FastaReader<ReaderEnum<'a, F>>), // replace with actual type
+            Fastq(FastqReader<ReaderEnum<'a, F>>), // replace with actual type
+        }
+
+        let mut reader;
+
+        if !is_reads {
+            reader = ReaderType::Fasta(open_fasta(file));
+        } else {
+            reader = ReaderType::Fastq(open_fastq(file));
+        }
+
+        let step = 1_f64 / proportion_reads.unwrap();
+
+        let mut iter_reads = 0;
+        while let Some((seq, seq_len)) = match reader {
+            ReaderType::Fasta(ref mut r) => {
+                if let Some(record) = r.next() {
+                    let seqrec = record.expect("Invalid FASTA record");
+                    // There can be \n in the sequence, its ascii code is 10
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .to_vec()
+                        .iter()
+                        .filter(|&x| *x != 10)
+                        .cloned()
+                        .collect();
+                    let seq_len = seq.len();
+                    Some((seq, seq_len))
+                } else {
+                    None
+                }
+            }
+            ReaderType::Fastq(ref mut r) => {
+                if let Some(record) = r.next() {
+                    let seqrec = record.expect("Invalid FASTQ record");
+                    // There can be \n in the sequence, its ascii code is 10
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .to_vec()
+                        .iter()
+                        .filter(|&x| *x != 10)
+                        .cloned()
+                        .collect();
+                    let seq_len = seq.len();
+                    Some((seq, seq_len))
+                } else {
+                    None
+                }
+            }
+        } {
+            if (iter_reads as f64 % step) as i32 != 0 {
+                iter_reads += 1;
+                continue;
+            } else {
+                iter_reads += 1;
+            }
+
+            let kmer_opt = SplitKmer::new(
+                seq.into(),
+                seq_len,
+                None,
                 self.k,
                 self.rc,
                 qual.min_qual,
@@ -203,6 +328,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
+    #[cfg(not(target_arch = "wasm32"))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
@@ -247,6 +373,114 @@ where
 
         if sk_dict.ksize() == 0 {
             panic!("{} has no valid sequence", files.0);
+        }
+        sk_dict
+    }
+
+    /// Build a split-kmer dictionary from input fastx file(s)
+    ///
+    /// Prefer to use [`crate::merge_ska_dict::build_and_merge()`] over this
+    /// function directly.
+    ///
+    /// # Examples
+    ///
+    /// To build with a FASTA
+    /// ```
+    /// use ska::ska_dict::SkaDict;
+    /// use ska::{QualOpts, QualFilter};
+    ///
+    /// let k = 31;
+    /// let sample_idx = 0;
+    /// let quality = QualOpts {min_count: 1, min_qual: 0, qual_filter: QualFilter::NoFilter};
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx, (&"tests/test_files_in/test_1.fa", None), "test_1", true, &quality);
+    /// ```
+    ///
+    /// With FASTQ pair, only allowing k-mers with a count over 2, and where all
+    /// bases have a PHRED score of 20 or more
+    /// ```
+    /// use ska::ska_dict::SkaDict;
+    /// use ska::{QualOpts, QualFilter};
+    ///
+    /// let quality = QualOpts {min_count: 2, min_qual: 20, qual_filter: QualFilter::Middle};
+    /// let k = 9;
+    /// let sample_idx = 0;
+    /// let ska_dict = SkaDict::<u64>::new(k, sample_idx,
+    ///                             (&"tests/test_files_in/test_1_fwd.fastq.gz",
+    ///                             Some(&"tests/test_files_in/test_2_fwd.fastq.gz".to_string())),
+    ///                             "sample1", true, &quality);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if:
+    /// - k-mer length is invalid (<5, >63 or even)
+    /// - Input file cannot be read
+    /// - Input file contains invalid fastx record
+    /// - Input file contains no valid sequence to find at least on split k-mer
+    #[cfg(target_arch = "wasm32")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        k: usize,
+        sample_idx: usize,
+        input_files: (&web_sys::File, Option<&web_sys::File>),
+        name: &str,
+        rc: bool,
+        qual: &QualOpts,
+        proportion_reads: Option<f64>,
+    ) -> Self {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
+            panic!("Invalid k-mer length");
+        }
+
+        let file_name = input_files.0.name();
+        let mut file_type = file_name
+            .split('.')
+            .nth(file_name.split('.').count() - 1)
+            .unwrap();
+        if file_type == "gz" {
+            file_type = file_name
+                .split('.')
+                .nth(file_name.split('.').count() - 2)
+                .unwrap();
+        }
+
+        let is_reads: bool;
+        if ["fasta", "fa"].contains(&file_type) {
+            is_reads = false;
+        } else if ["fastq", "fq"].contains(&file_type) {
+            is_reads = true;
+        } else {
+            panic!("Unsupported file type.")
+        }
+
+        let mut sk_dict = Self {
+            k,
+            rc,
+            sample_idx,
+            name: name.to_string(),
+            split_kmers: HashMap::default(),
+            kmer_filter: KmerFilter::new(qual.min_count),
+        };
+
+        // Build the dict
+        sk_dict.add_file_kmers(
+            &mut WebSysFile::new(input_files.0.clone()),
+            is_reads,
+            qual,
+            proportion_reads,
+        );
+
+        if let Some(second_file) = input_files.1 {
+            sk_dict.add_file_kmers(
+                &mut WebSysFile::new(second_file.clone()),
+                is_reads,
+                qual,
+                proportion_reads,
+            );
+        }
+
+        if sk_dict.ksize() == 0 {
+            panic!("File has no valid sequence");
         }
         sk_dict
     }

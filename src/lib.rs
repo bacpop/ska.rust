@@ -447,35 +447,66 @@
 
 #![warn(missing_docs)]
 use std::fmt;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 use clap::ValueEnum;
 extern crate num_cpus;
 
+// #[cfg(not(target_arch = "wasm32"))]
 pub mod merge_ska_dict;
 pub mod ska_dict;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::merge_ska_dict::build_and_merge;
+#[cfg(target_arch = "wasm32")]
+use crate::merge_ska_dict::MergeSkaDict;
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
 pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod generic_modes;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::generic_modes::*;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod cli;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::cli::*;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod io_utils;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::io_utils::*;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod coverage;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::coverage::CoverageHistogram;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod skalo;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::io_utils::load_array;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::skalo::utils::Config;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_file_reader::WebSysFile;
+#[cfg(target_arch = "wasm32")]
+extern crate console_error_panic_hook;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+#[cfg(target_arch = "wasm32")]
+use crate::wasm::ska_map::SkaMap;
+#[cfg(target_arch = "wasm32")]
+use crate::wasm::ska_align::SkaAlign;
+#[cfg(target_arch = "wasm32")]
+use crate::ska_dict::bit_encoding::UInt;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -521,6 +552,7 @@ impl fmt::Display for QualOpts {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[doc(hidden)]
 pub fn main() {
     let args = cli_args();
@@ -857,4 +889,558 @@ pub fn main() {
     eprintln!("⬛⬜⬛⬜⬛⬜⬛");
     eprintln!("⬜⬛⬜⬛⬜⬛⬜");
     log::info!("Complete");
+}
+
+// WASM implementation
+#[cfg(target_arch = "wasm32")]
+#[doc(hidden)]
+pub fn main() {
+    panic!("You've compiled Ska2 for WebAssembly support, you cannot use it as a normal binary anymore!");
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+/// Function that allows to propagate panic error messages when compiling to wasm, see https://github.com/rustwasm/console_error_panic_hook
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
+
+/// Logging wrapper function for the WebAssembly version
+#[cfg(target_arch = "wasm32")]
+pub fn logw(text: &str, typ: Option<&str>) {
+    if let Some(thetyp) = typ {
+        log((String::from("ska.rust::") + thetyp + "::" + text).as_str());
+    } else {
+        log(text);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+/// Struct to interact with JS when working with WebAssembly
+pub struct SkaData {
+    k: usize,
+    rc: bool,
+    reference64: Option<RefSka<u64>>,
+    reference128: Option<RefSka<u128>>,
+    reference_string: Vec<String>,
+    mapped64: Option<Vec<SkaMap<u64>>>,
+    mapped128: Option<Vec<SkaMap<u128>>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl SkaData {
+    /// Constructor of the SkaData struct
+    pub fn new(ref_file: web_sys::File, k: usize) -> Self {
+        if cfg!(debug_assertions) {
+            init_panic_hook();
+        }
+
+        let rc = true;
+        let ambig_mask = false;
+        let repeat_mask = false;
+
+        let mut wf = WebSysFile::new(ref_file);
+        if k < 32 {
+            let reference = RefSka::<u64>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
+            logw(
+                &format!("Indexed reference: {} split k-mers", reference.ksize()),
+                None,
+            );
+            let reference_string = reconstruct_sequence(&reference);
+
+            Self {
+                k,
+                rc,
+                reference64: Some(reference),
+                reference128: None,
+                reference_string,
+                mapped64: Some(Vec::new()),
+                mapped128: None,
+            }
+        } else if k < 64 {
+            let reference = RefSka::<u128>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
+            logw(
+                &format!("Indexed reference: {} split k-mers", reference.ksize()),
+                None,
+            );
+            let reference_string = reconstruct_sequence(&reference);
+
+            Self {
+                k,
+                rc,
+                reference64: None,
+                reference128: Some(reference),
+                reference_string,
+                mapped64: None,
+                mapped128: Some(Vec::new()),
+            }
+        } else {
+            panic!("k values larger than 64 not supported");
+        }
+    }
+
+    /// Mapping function.
+    pub fn map(
+        &mut self,
+        input_file: web_sys::File,
+        rev_reads: Option<web_sys::File>,
+        proportion_reads: Option<f64>,
+    ) -> String {
+        if rev_reads.is_some() {
+            logw("Detected paired fastq input files", None);
+        }
+        logw("Mapping reads to reference", None);
+        let input_file_ref = input_file;
+        if self.k < 32 {
+            if let Some(second_file) = rev_reads {
+                self.mapped64.as_mut().unwrap().push(SkaMap::<u64>::new(
+                    self.reference64.as_ref().unwrap(),
+                    &input_file_ref,
+                    Some(&second_file),
+                    proportion_reads,
+                    self.rc,
+                ));
+            } else {
+                self.mapped64.as_mut().unwrap().push(SkaMap::<u64>::new(
+                    self.reference64.as_ref().unwrap(),
+                    &input_file_ref,
+                    None,
+                    proportion_reads,
+                    self.rc,
+                ));
+            };
+        } else if let Some(second_file) = rev_reads {
+            self.mapped128.as_mut().unwrap().push(SkaMap::<u128>::new(
+                self.reference128.as_ref().unwrap(),
+                &input_file_ref,
+                Some(&second_file),
+                proportion_reads,
+                self.rc,
+            ));
+        } else {
+            self.mapped128.as_mut().unwrap().push(SkaMap::<u128>::new(
+                self.reference128.as_ref().unwrap(),
+                &input_file_ref,
+                None,
+                proportion_reads,
+                self.rc,
+            ));
+        }
+
+        logw("Reads mapped successfully!", None);
+
+        let mut results = json::JsonValue::new_array();
+
+        results["Mapped sequences"] = json::JsonValue::new_array();
+        let whole_mapping = if self.k < 32 {
+            self.reference64.as_ref().unwrap().pseudoalignment(
+                self.mapped64.as_ref().unwrap()[self.mapped64.as_ref().unwrap().len() - 1]
+                    .get_mapped_bases(),
+            )[0]
+            .clone()
+        } else {
+            self.reference128.as_ref().unwrap().pseudoalignment(
+                self.mapped128.as_ref().unwrap()[self.mapped128.as_ref().unwrap().len() - 1]
+                    .get_mapped_bases(),
+            )[0]
+            .clone()
+        };
+
+        let mut current_length = 0;
+        for chr in 0..self.reference_string.len() {
+            let chr_mapping: String = whole_mapping
+                [current_length..current_length + self.reference_string[chr].len()]
+                .to_string();
+            let _ = results["Mapped sequences"].push(chr_mapping);
+            current_length += self.reference_string[chr].len();
+        }
+
+        if self.k < 32 {
+            results["Number of variants"] = self.mapped64.as_ref().unwrap()
+                [self.mapped64.as_ref().unwrap().len() - 1]
+                .get_mapped_bases()
+                .len()
+                .into();
+        } else {
+            results["Number of variants"] = self.mapped128.as_ref().unwrap()
+                [self.mapped128.as_ref().unwrap().len() - 1]
+                .get_mapped_bases()
+                .len()
+                .into();
+        }
+        // The result is a concatenated string of all the mapped bases
+
+        let mut count_mapped_bases = 0;
+        let mut count_total_bases = 0;
+        for base in whole_mapping.chars() {
+            if base != '-' {
+                count_mapped_bases += 1;
+                count_total_bases += 1;
+            } else {
+                count_total_bases += 1;
+            }
+        }
+
+        results["Coverage"] = (count_mapped_bases as f64 / count_total_bases as f64).into();
+
+        logw("Results computed successfully!", None);
+
+        results.dump()
+    }
+
+    /// Retrieves the reference sequence
+    pub fn get_reference(&self) -> String {
+        self.reference_string.join("\n")
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+/// Reconstructs a sequence beginning from a reference
+pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) -> Vec<String> {
+    let sequence_u8 = reference.get_seq();
+    let mut sequence_string = Vec::new();
+
+    for sequence in sequence_u8 {
+        let mut current_seq = "".to_string();
+        for base in sequence {
+            if *base != 10 {
+                current_seq.push(*base as char);
+            }
+        }
+        sequence_string.push(current_seq);
+    }
+
+    sequence_string
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+/// AlignData struct for doing alignment while in WebAssembly
+pub struct AlignData {
+    k: usize,
+    alignment64: Option<SkaAlign<u64>>,
+    alignment128: Option<SkaAlign<u128>>,
+    file_names: Vec<String>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl AlignData {
+    /// Constructor of the AlignData struct
+    pub fn new(k: usize) -> Self {
+        if k < 32 {
+            Self {
+                k,
+                alignment64: Some(SkaAlign::<u64>::new(k)),
+                alignment128: None,
+                file_names: Vec::new(),
+            }
+        } else if k < 64 {
+            Self {
+                k,
+                alignment64: None,
+                alignment128: Some(SkaAlign::<u128>::new(k)),
+                file_names: Vec::new(),
+            }
+        } else {
+            panic!("k values larger than 64 are not supported.");
+        }
+    }
+
+    /// Alignment function.
+    pub fn align(
+        &mut self,
+        input_files: Vec<web_sys::File>,
+        proportion_reads: Option<f64>,
+    ) -> String {
+        logw("Aligning reads", None);
+
+        let mut fastq_files = Vec::new();
+        for (i, input_file) in input_files.iter().enumerate() {
+            let file_name = input_file.name();
+            let mut file_type = file_name
+                .split('.')
+                .nth(file_name.split('.').count() - 1)
+                .unwrap();
+            if file_type == "gz" {
+                file_type = file_name
+                    .split('.')
+                    .nth(file_name.split('.').count() - 2)
+                    .unwrap();
+            }
+
+            if ["fq", "fastq"].contains(&file_type) {
+                fastq_files.push(i);
+            } else {
+                self.file_names.push(file_name.clone());
+                if self.k < 32 {
+                    self.alignment64.as_mut().unwrap().add_file(
+                        input_file,
+                        None,
+                        proportion_reads,
+                        &file_name,
+                        self.file_names.len() - 1,
+                    );
+                } else {
+                    self.alignment128.as_mut().unwrap().add_file(
+                        input_file,
+                        None,
+                        proportion_reads,
+                        &file_name,
+                        self.file_names.len() - 1,
+                    );
+                }
+            }
+        }
+
+        match fastq_files.len() {
+            0 => (),
+            1 => {
+                logw("Among the uploaded files, only one fastq file has been uploaded. We'll assume it contains all reads needed for this.", None);
+                self.file_names
+                    .push(input_files[fastq_files[0]].name().clone());
+                if self.k < 32 {
+                    self.alignment64.as_mut().unwrap().add_file(
+                        &input_files[fastq_files[0]],
+                        None,
+                        proportion_reads,
+                        &input_files[fastq_files[0]].name(),
+                        self.file_names.len() - 1,
+                    );
+                } else {
+                    self.alignment128.as_mut().unwrap().add_file(
+                        &input_files[fastq_files[0]],
+                        None,
+                        proportion_reads,
+                        &input_files[fastq_files[0]].name(),
+                        self.file_names.len() - 1,
+                    );
+                }
+            }
+            2 => {
+                let filen1 = input_files[fastq_files[0]].name();
+                let filen2 = input_files[fastq_files[1]].name();
+
+                let mut samepair = false;
+                if filen1.chars().count() == filen2.chars().count() {
+                    for (ic, jc) in filen1.chars().zip(filen2.chars()) {
+                        if ic != jc
+                            && ["0", "1", "2"].contains(&ic.to_string().as_str())
+                            && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                        {
+                            samepair = true;
+                            break;
+                        }
+                    }
+                }
+
+                if samepair {
+                    self.file_names
+                        .push(input_files[fastq_files[0]].name().clone());
+                    if self.k < 32 {
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            Some(&input_files[fastq_files[1]]),
+                            proportion_reads,
+                            &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 1,
+                        );
+                    } else {
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            Some(&input_files[fastq_files[1]]),
+                            proportion_reads,
+                            &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 1,
+                        );
+                    }
+                } else {
+                    logw(
+                        "Two read files uploaded, but found to not come from the same sample.",
+                        None,
+                    );
+                    self.file_names
+                        .push(input_files[fastq_files[0]].name().clone());
+                    self.file_names
+                        .push(input_files[fastq_files[1]].name().clone());
+                    if self.k < 32 {
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            None,
+                            proportion_reads,
+                            &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 2,
+                        );
+                        self.alignment64.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[1]],
+                            None,
+                            proportion_reads,
+                            &input_files[fastq_files[1]].name(),
+                            self.file_names.len() - 1,
+                        );
+                    } else {
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[0]],
+                            None,
+                            proportion_reads,
+                            &input_files[fastq_files[0]].name(),
+                            self.file_names.len() - 2,
+                        );
+                        self.alignment128.as_mut().unwrap().add_file(
+                            &input_files[fastq_files[1]],
+                            None,
+                            proportion_reads,
+                            &input_files[fastq_files[1]].name(),
+                            self.file_names.len() - 1,
+                        );
+                    }
+                }
+            }
+            3.. => {
+                // Annoying situation: need to find pairs...
+                while let Some(tmpind) = fastq_files.pop() {
+                    let tmpnam = input_files[fastq_files[tmpind]].name();
+                    let mut to_erase = None;
+
+                    for (i, testind) in fastq_files.iter().enumerate() {
+                        let testnam = input_files[fastq_files[*testind]].name();
+
+                        let mut samepair = false;
+                        if tmpnam.chars().count() == testnam.chars().count() {
+                            for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
+                                if ic != jc
+                                    && ["0", "1", "2"].contains(&ic.to_string().as_str())
+                                    && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                                {
+                                    samepair = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if samepair {
+                            // Great!
+                            to_erase = Some(i);
+
+                            self.file_names.push(input_files[tmpind].name().clone());
+                            if self.k < 32 {
+                                self.alignment64.as_mut().unwrap().add_file(
+                                    &input_files[fastq_files[tmpind]],
+                                    Some(&input_files[fastq_files[*testind]]),
+                                    proportion_reads,
+                                    &input_files[tmpind].name(),
+                                    self.file_names.len() - 1,
+                                );
+                            } else {
+                                self.alignment128.as_mut().unwrap().add_file(
+                                    &input_files[fastq_files[tmpind]],
+                                    Some(&input_files[fastq_files[*testind]]),
+                                    proportion_reads,
+                                    &input_files[tmpind].name(),
+                                    self.file_names.len() - 1,
+                                );
+                            }
+
+                            break;
+                        }
+                    }
+
+                    if let Some(whattoerase) = to_erase {
+                        fastq_files.remove(whattoerase);
+                    } else {
+                        logw(
+                            &format!(
+                                "No pair found among input files for {}. Adding individually.",
+                                tmpnam
+                            ),
+                            None,
+                        );
+                        self.file_names.push(input_files[tmpind].name().clone());
+                        if self.k < 32 {
+                            self.alignment64.as_mut().unwrap().add_file(
+                                &input_files[fastq_files[tmpind]],
+                                None,
+                                proportion_reads,
+                                &input_files[tmpind].name(),
+                                self.file_names.len() - 1,
+                            );
+                        } else {
+                            self.alignment128.as_mut().unwrap().add_file(
+                                &input_files[fastq_files[tmpind]],
+                                None,
+                                proportion_reads,
+                                &input_files[tmpind].name(),
+                                self.file_names.len() - 1,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2)
+            || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2)
+        {
+            logw("The number of samples inputted are less than three. No results will be outputted now.", None);
+
+            let mut results = json::JsonValue::new_array();
+            results["newick"] = "Not enough sequences to align".into();
+            results["alignment"] = "Not enough sequences to align".into();
+            results["names"] = json::JsonValue::new_array();
+            for name in &self.file_names {
+                let _ = results["names"].push(name.to_string());
+            }
+
+            return results.dump();
+        }
+
+        logw(
+            "The number of samples inputted is enough. Starting alignmemnt.",
+            None,
+        );
+        // Alignment first
+        let alignment = if self.k < 32 {
+            let mut merger =
+                MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
+            for sd in self.alignment64.as_ref().unwrap().get_queries() {
+                merger.append(sd);
+            }
+            let array = MergeSkaArray::<u64>::new(&merger);
+            array.write_fasta()
+        } else {
+            let mut merger =
+                MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
+            for sd in self.alignment128.as_ref().unwrap().get_queries() {
+                merger.append(sd);
+            }
+            let array = MergeSkaArray::<u128>::new(&merger);
+            array.write_fasta()
+        };
+        logw(&format!("Output alignment: {:?}", alignment), None);
+
+        // Now get the tree
+        let newick = if self.k < 32 {
+            self.alignment64.as_mut().unwrap().align(&self.file_names)
+        } else {
+            self.alignment128.as_mut().unwrap().align(&self.file_names)
+        };
+
+        let mut results = json::JsonValue::new_array();
+
+        results["newick"] = newick.into();
+        results["names"] = json::JsonValue::new_array();
+        results["alignment"] = json::JsonValue::from(alignment);
+        for name in &self.file_names {
+            let _ = results["names"].push(name.to_string());
+        }
+        results.dump()
+    }
 }
