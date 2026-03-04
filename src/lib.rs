@@ -1317,8 +1317,8 @@ impl AlignData {
                 if filen1.chars().count() == filen2.chars().count() {
                     for (ic, jc) in filen1.chars().zip(filen2.chars()) {
                         if ic != jc
-                            && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                            && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                            && ["1", "2"].contains(&ic.to_string().as_str())
+                            && ["1", "2"].contains(&jc.to_string().as_str())
                         {
                             samepair = true;
                             break;
@@ -1328,7 +1328,7 @@ impl AlignData {
 
                 if samepair {
                     self.file_names
-                        .push(input_files[fastq_files[0]].name().clone());
+                        .push(input_files[fastq_files[0]].name().replace("_1", "").replace("_2", "").clone());
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
@@ -1455,8 +1455,8 @@ impl AlignData {
                         if tmpnam.chars().count() == testnam.chars().count() {
                             for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
                                 if ic != jc
-                                    && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                                    && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                                    && ["1", "2"].contains(&ic.to_string().as_str())
+                                    && ["1", "2"].contains(&jc.to_string().as_str())
                                 {
                                     samepair = true;
                                     break;
@@ -1467,7 +1467,7 @@ impl AlignData {
                             // Great!
                             to_erase = Some(i);
 
-                            self.file_names.push(input_files[tmpind].name().clone());
+                            self.file_names.push(input_files[tmpind].name().replace("_1", "").replace("_2", "").clone());
                             if self.k < 32 {
                                 self.alignment64.as_mut().unwrap().add_file(
                                     &input_files[fastq_files[tmpind]],
