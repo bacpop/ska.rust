@@ -1225,7 +1225,7 @@ impl AlignData {
                     .unwrap();
             }
 
-            if ["fq", "fastq"].contains(&file_type) {
+            if ["fnq", "fq", "fastq"].contains(&file_type) {
                 fastq_files.push(i);
             } else {
                 self.file_names.push(file_name.clone());
