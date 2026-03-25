@@ -1586,8 +1586,8 @@ impl AlignData {
                 self.alignment64.as_ref().unwrap().get_size(),
                 self.rc,
             );
-            for sd in self.alignment64.as_ref().unwrap().get_queries() {
-                merger.append(sd);
+            for (idx, name, kmers) in self.alignment64.as_ref().unwrap().iter_kmers() {
+                merger.append_raw(idx, name, kmers);
             }
             let array = MergeSkaArray::<u64>::new(&merger);
             array.write_fasta()
@@ -1597,8 +1597,8 @@ impl AlignData {
                 self.alignment128.as_ref().unwrap().get_size(),
                 self.rc,
             );
-            for sd in self.alignment128.as_ref().unwrap().get_queries() {
-                merger.append(sd);
+            for (idx, name, kmers) in self.alignment128.as_ref().unwrap().iter_kmers() {
+                merger.append_raw(idx, name, kmers);
             }
             let array = MergeSkaArray::<u128>::new(&merger);
             array.write_fasta()

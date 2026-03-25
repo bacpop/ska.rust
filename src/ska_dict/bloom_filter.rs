@@ -111,6 +111,15 @@ impl KmerFilter {
         }
     }
 
+    /// Free the bloom buffer and counts table after the dict has been built.
+    ///
+    /// The filter is no longer needed once all k-mers have been processed.
+    /// Calling this after [`SkaDict::new()`] recovers ~24 MB per sample.
+    pub fn free_buffer(&mut self) {
+        self.buffer = Vec::new();
+        self.counts = HashMap::new();
+    }
+
     /// Add an observation of a k-mer and middle base to the filter, and return if it passed
     /// minimum count filtering criterion.
     pub fn filter<IntT: for<'a> UInt<'a>>(&mut self, kmer: &SplitKmer<IntT>) -> Ordering {
