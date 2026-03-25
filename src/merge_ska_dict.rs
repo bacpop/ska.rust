@@ -108,6 +108,39 @@ where
         }
     }
 
+    /// Add a raw kmer map directly, without requiring a full [`SkaDict`].
+    ///
+    /// Used by the WASM alignment path where only `HashMap<IntT, u8>` maps are
+    /// retained after distances are computed (bloom buffers freed).
+    ///
+    /// # Panics
+    ///
+    /// If `idx >= n_samples`
+    #[cfg(target_arch = "wasm32")]
+    pub fn append_raw(&mut self, idx: usize, name: &str, kmers: &HashMap<IntT, u8>) {
+        self.names[idx] = name.to_string();
+        if self.ksize() == 0 {
+            for (kmer, base) in kmers {
+                let mut base_vec: Vec<u8> = vec![0; self.n_samples];
+                base_vec[idx] = *base;
+                self.split_kmers.insert(*kmer, base_vec);
+            }
+        } else {
+            for (kmer, base) in kmers {
+                self.split_kmers
+                    .entry(*kmer)
+                    .and_modify(|b| {
+                        b[idx] = *base;
+                    })
+                    .or_insert_with(|| {
+                        let mut new_base_vec: Vec<u8> = vec![0; self.n_samples];
+                        new_base_vec[idx] = *base;
+                        new_base_vec
+                    });
+            }
+        }
+    }
+
     /// Combine with another [`MergeSkaDict`] with non-overlapping samples
     ///
     /// Used when building, when individual dicts have been joined using append

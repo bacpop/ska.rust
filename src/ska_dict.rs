@@ -212,10 +212,9 @@ where
                     // There can be \n in the sequence, its ascii code is 10
                     let seq: Vec<u8> = seqrec
                         .seq()
-                        .to_vec()
                         .iter()
-                        .filter(|&x| *x != 10)
-                        .cloned()
+                        .filter(|&&x| x != 10)
+                        .copied()
                         .collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
@@ -229,10 +228,9 @@ where
                     // There can be \n in the sequence, its ascii code is 10
                     let seq: Vec<u8> = seqrec
                         .seq()
-                        .to_vec()
                         .iter()
-                        .filter(|&x| *x != 10)
-                        .cloned()
+                        .filter(|&&x| x != 10)
+                        .copied()
                         .collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
@@ -374,6 +372,7 @@ where
         if sk_dict.ksize() == 0 {
             panic!("{} has no valid sequence", files.0);
         }
+        sk_dict.kmer_filter.free_buffer();
         sk_dict
     }
 
@@ -462,6 +461,10 @@ where
             kmer_filter: KmerFilter::new(qual.min_count),
         };
 
+        if is_reads {
+            sk_dict.kmer_filter.init();
+        }
+
         // Build the dict
         sk_dict.add_file_kmers(
             &mut WebSysFile::new(input_files.0.clone()),
@@ -482,6 +485,7 @@ where
         if sk_dict.ksize() == 0 {
             panic!("File has no valid sequence");
         }
+        sk_dict.kmer_filter.free_buffer();
         sk_dict
     }
 
@@ -513,6 +517,15 @@ where
     /// Sample name
     pub fn name(&self) -> &String {
         &self.name
+    }
+
+    /// Consume this dict and return the raw split-kmer map.
+    ///
+    /// Used by [`crate::wasm::ska_align::SkaAlign`] to retain only the HashMap
+    /// after incremental distance computation, freeing all other SkaDict overhead.
+    #[cfg(target_arch = "wasm32")]
+    pub fn into_kmers(self) -> HashMap<IntT, u8> {
+        self.split_kmers
     }
 }
 
