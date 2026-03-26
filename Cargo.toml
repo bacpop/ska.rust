@@ -53,6 +53,8 @@ num-traits = "0.2"
 libm = "0.2"
 argmin = { version = "0.9", features = ["slog-logger"] }
 argmin-math = "0.3"
+# clustering
+petgraph = "0.6"
 # skalo
 bit-set = "0.8.0"
 dashmap = "6.1.0"

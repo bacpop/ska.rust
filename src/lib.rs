@@ -487,6 +487,9 @@ pub mod coverage;
 use crate::coverage::CoverageHistogram;
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod cluster;
+
+#[cfg(not(target_arch = "wasm32"))]
 pub mod skalo;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::io_utils::load_array;
@@ -710,17 +713,20 @@ pub fn main() {
             min_freq,
             allow_ambiguous,
             threads,
+            clusters,
+            snp_threshold,
         } => {
             check_threads(*threads);
             let filter_ambiguous = !*allow_ambiguous;
+            let cluster_threshold = if *clusters { Some(*snp_threshold) } else { None };
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
+                distance(&mut ska_array, output, *min_freq, filter_ambiguous, cluster_threshold);
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
+                distance(&mut ska_array, output, *min_freq, filter_ambiguous, cluster_threshold);
             } else {
                 panic!("Could not read input file(s): {skf_file}");
             }

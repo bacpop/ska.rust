@@ -3,6 +3,8 @@ use snapbox::cmd::{self, Command};
 pub mod common;
 use crate::common::*;
 
+// Cluster tests
+
 // NB: to view output, uncomment the current_dir lines
 
 // With two samples
@@ -126,4 +128,81 @@ fn multisample_dists() {
         .arg("--allow-ambiguous")
         .assert()
         .stdout_eq_path(sandbox.file_string("multidist.ambig.stdout", TestDir::Correct));
+}
+
+#[test]
+fn cluster_default_threshold() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cmd::cargo_bin!("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("build")
+        .arg(sandbox.file_string("N_test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("N_test_2.fa", TestDir::Input))
+        .arg(sandbox.file_string("ambig_test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("ambig_test_2.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_1.fa", TestDir::Input))
+        .arg(sandbox.file_string("test_2.fa", TestDir::Input))
+        .arg("-k")
+        .arg("9")
+        .arg("-o")
+        .arg("multidist")
+        .assert()
+        .success();
+
+    Command::new(cmd::cargo_bin!("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg("multidist.skf")
+        .args(["--clusters", "--snp-threshold", "10", "-o", "output"])
+        .assert()
+        .success();
+
+    assert!(sandbox.file_check(
+        "output.clusters.csv",
+        "multidist_clusters.clusters.csv"
+    ));
+    assert!(sandbox.file_check(
+        "output.graph.dot",
+        "multidist_clusters.graph.dot"
+    ));
+}
+
+#[test]
+fn cluster_singletons() {
+    let sandbox = TestSetup::setup();
+
+    // threshold=0 → each sample is its own cluster (2 SNPs between test_1 and test_2)
+    Command::new(cmd::cargo_bin!("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .args(["--clusters", "--snp-threshold", "0", "-o", "output"])
+        .assert()
+        .success();
+
+    assert!(sandbox.file_check(
+        "output.clusters.csv",
+        "merge_clusters_t0.clusters.csv"
+    ));
+    assert!(sandbox.file_check(
+        "output.graph.dot",
+        "merge_clusters_t0.graph.dot"
+    ));
+}
+
+#[test]
+fn cluster_default_output_prefix() {
+    let sandbox = TestSetup::setup();
+
+    Command::new(cmd::cargo_bin!("ska"))
+        .current_dir(sandbox.get_wd())
+        .arg("distance")
+        .arg(sandbox.file_string("merge.skf", TestDir::Input))
+        .arg("--clusters")
+        .assert()
+        .success();
+
+    assert!(sandbox.file_exists("ska_dist_clusters.clusters.csv"));
+    assert!(sandbox.file_exists("ska_dist_clusters.graph.dot"));
 }

@@ -138,6 +138,7 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
     output_prefix: &Option<String>,
     min_freq: f64,
     filt_ambig: bool,
+    cluster_threshold: Option<f64>,
 ) {
     // In debug mode (cannot be set from CLI, give details)
     log::debug!("{ska_array}");
@@ -185,6 +186,12 @@ pub fn distance<IntT: for<'a> UInt<'a>>(
         }) {
             writeln!(&mut f, "{sample1}\t{}\t{dist}", sample_names[j]).unwrap();
         }
+    }
+
+    if let Some(threshold) = cluster_threshold {
+        let (cluster_map, graph) =
+            crate::cluster::cluster_distances(sample_names, &distances, threshold);
+        crate::cluster::write_graph(&graph, &cluster_map, output_prefix);
     }
 }
 
