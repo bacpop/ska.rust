@@ -486,7 +486,6 @@ pub mod coverage;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::coverage::CoverageHistogram;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub mod cluster;
 
 #[cfg(not(target_arch = "wasm32"))]

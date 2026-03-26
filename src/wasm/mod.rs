@@ -2,3 +2,4 @@
 pub mod fastx_wasm;
 pub mod ska_align;
 pub mod ska_map;
+pub mod ska_cluster;
