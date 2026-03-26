@@ -3,24 +3,18 @@
 use wasm_bindgen::prelude::*;
 
 use crate::cluster::cluster_distances_flat;
+use crate::AlignData;
 
 #[wasm_bindgen]
-/// Cluster samples by SNP distance threshold.
-/// `names` – JS Array of strings
-/// `distances` – flat Float64Array, upper triangle (n*(n-1)/2 entries, row-major)
+/// Cluster samples by SNP distance threshold using a pre-computed `AlignData`.
+///
+/// Call this after `AlignData.align()` has been run.
 /// `threshold` – SNP distance cutoff
-/// Returns JSON string: {"sample_name": cluster_id, ...}
-pub fn ska_cluster(
-    names: js_sys::Array,
-    distances: js_sys::Float64Array,
-    threshold: f64,
-) -> String {
-    let names_vec: Vec<String> = names
-        .iter()
-        .map(|v| v.as_string().unwrap_or_default())
-        .collect();
-    let flat: Vec<f64> = distances.to_vec();
-    let (cluster_map, _graph) = cluster_distances_flat(&names_vec, &flat, threshold);
+/// Returns JSON string: `{"sample_name": cluster_id, ...}` (1-indexed, largest cluster = 1).
+pub fn ska_cluster(data: &AlignData, threshold: f64) -> String {
+    let names = data.names();
+    let flat = data.flat_distances();
+    let (cluster_map, _graph) = cluster_distances_flat(names, flat, threshold);
     let mut result = json::JsonValue::new_object();
     for (name, id) in &cluster_map {
         result[name] = (*id).into();

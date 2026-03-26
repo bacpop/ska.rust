@@ -139,6 +139,8 @@ where
             phylip_format += "\n";
         }
 
+        self.distances = pairwise_distances.clone();
+
         logw(&format!("{:?}", phylip_format), None);
         logw("Converting matrix to DistanceMatrix struct.", None);
 
@@ -152,6 +154,20 @@ where
         logw("Obtaining tree", None);
 
         speedytree::to_newick(&tree)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    /// Returns upper-triangle pairwise distances as a flat Vec<f64>.
+    /// Entry for pair (i, j) with i < j is at index i*n - i*(i+1)/2 + (j-i-1).
+    pub fn get_flat_distances(&self) -> Vec<f64> {
+        let n = self.queries_ska.len();
+        let mut flat = Vec::with_capacity(n * (n - 1) / 2);
+        for i in 0..n {
+            for j in (i + 1)..n {
+                flat.push(self.distances[i][j] as f64);
+            }
+        }
+        flat
     }
 
     #[cfg(target_arch = "wasm32")]

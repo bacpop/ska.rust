@@ -509,6 +509,11 @@ use crate::ska_dict::bit_encoding::UInt;
 use crate::wasm::ska_align::SkaAlign;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_map::SkaMap;
+use crate::ska_dict::bit_encoding::UInt;
+#[cfg(target_arch = "wasm32")]
+use crate::cluster::cluster_distances_flat;
+#[cfg(target_arch = "wasm32")]
+use petgraph::visit::EdgeRef;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -1177,6 +1182,7 @@ pub struct AlignData {
     alignment64: Option<SkaAlign<u64>>,
     alignment128: Option<SkaAlign<u128>>,
     file_names: Vec<String>,
+    flat_distances: Vec<f64>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1191,6 +1197,7 @@ impl AlignData {
                 alignment64: Some(SkaAlign::<u64>::new(k, rc)),
                 alignment128: None,
                 file_names: Vec::new(),
+                flat_distances: Vec::new(),
             }
         } else if k < 64 {
             Self {
@@ -1199,6 +1206,7 @@ impl AlignData {
                 alignment64: None,
                 alignment128: Some(SkaAlign::<u128>::new(k, rc)),
                 file_names: Vec::new(),
+                flat_distances: Vec::new(),
             }
         } else {
             panic!("k values larger than 64 are not supported.");
@@ -1610,11 +1618,18 @@ impl AlignData {
         };
         logw(&format!("Output alignment: {:?}", alignment), None);
 
-        // Now get the tree
+        // Now get the tree (also stores pairwise distances internally)
         let newick = if self.k < 32 {
             self.alignment64.as_mut().unwrap().align(&self.file_names)
         } else {
             self.alignment128.as_mut().unwrap().align(&self.file_names)
+        };
+
+        // Persist flat upper-triangle distances for later clustering
+        self.flat_distances = if self.k < 32 {
+            self.alignment64.as_ref().unwrap().get_flat_distances()
+        } else {
+            self.alignment128.as_ref().unwrap().get_flat_distances()
         };
 
         let mut results = json::JsonValue::new_array();
@@ -1626,5 +1641,55 @@ impl AlignData {
             let _ = results["names"].push(name.to_string());
         }
         results.dump()
+    }
+
+    /// Returns sample names (crate-internal, not exposed to JS).
+    pub(crate) fn names(&self) -> &[String] {
+        &self.file_names
+    }
+
+    /// Returns flat upper-triangle distances (crate-internal, not exposed to JS).
+    pub(crate) fn flat_distances(&self) -> &[f64] {
+        &self.flat_distances
+    }
+
+    /// Returns graph JSON for the given SNP threshold.
+    ///
+    /// Format: `{"nodes":[{"id":"sample","cluster":1},...],
+    ///           "links":[{"source":"s1","target":"s2","snp_distance":3.0},...]}`.
+    pub fn get_graph_json(&self, threshold: f64) -> String {
+        if self.flat_distances.is_empty() {
+            return "{\"nodes\":[],\"links\":[]}".to_string();
+        }
+        let n = self.file_names.len();
+        let (cluster_map, graph) =
+            cluster_distances_flat(&self.file_names, &self.flat_distances, threshold);
+
+        let mut nodes = json::JsonValue::new_array();
+        for name in &self.file_names {
+            let mut node = json::JsonValue::new_object();
+            node["id"] = name.clone().into();
+            node["cluster"] = cluster_map[name].into();
+            let _ = nodes.push(node);
+        }
+
+        let mut links = json::JsonValue::new_array();
+        for edge in graph.edge_references() {
+            let si = edge.source().index();
+            let ti = edge.target().index();
+            let (i, j) = if si < ti { (si, ti) } else { (ti, si) };
+            let flat_idx = i * n - i * (i + 1) / 2 + (j - i - 1);
+            let dist = self.flat_distances[flat_idx];
+            let mut link = json::JsonValue::new_object();
+            link["source"] = self.file_names[si].clone().into();
+            link["target"] = self.file_names[ti].clone().into();
+            link["snp_distance"] = dist.into();
+            let _ = links.push(link);
+        }
+
+        let mut result = json::JsonValue::new_object();
+        result["nodes"] = nodes;
+        result["links"] = links;
+        result.dump()
     }
 }
