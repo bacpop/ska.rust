@@ -502,11 +502,11 @@ extern crate console_error_panic_hook;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(target_arch = "wasm32")]
-use crate::wasm::ska_map::SkaMap;
+use crate::ska_dict::bit_encoding::UInt;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_align::SkaAlign;
 #[cfg(target_arch = "wasm32")]
-use crate::ska_dict::bit_encoding::UInt;
+use crate::wasm::ska_map::SkaMap;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -939,14 +939,16 @@ pub struct SkaData {
 #[wasm_bindgen]
 impl SkaData {
     /// Constructor of the SkaData struct
-    pub fn new(ref_file: web_sys::File, k: usize) -> Self {
+    pub fn new(
+        ref_file: web_sys::File,
+        k: usize,
+        rc: bool,
+        ambig_mask: bool,
+        repeat_mask: bool,
+    ) -> Self {
         if cfg!(debug_assertions) {
             init_panic_hook();
         }
-
-        let rc = true;
-        let ambig_mask = false;
-        let repeat_mask = false;
 
         let mut wf = WebSysFile::new(ref_file);
         if k < 32 {
@@ -994,6 +996,9 @@ impl SkaData {
         input_file: web_sys::File,
         rev_reads: Option<web_sys::File>,
         proportion_reads: Option<f64>,
+        min_count: u16,
+        min_qual: u8,
+        qual_filter: u8,
     ) -> String {
         if rev_reads.is_some() {
             logw("Detected paired fastq input files", None);
@@ -1008,6 +1013,15 @@ impl SkaData {
                     Some(&second_file),
                     proportion_reads,
                     self.rc,
+                    min_count,
+                    min_qual,
+                    if qual_filter == 0 {
+                        QualFilter::NoFilter
+                    } else if qual_filter == 1 {
+                        QualFilter::Middle
+                    } else {
+                        QualFilter::Strict
+                    },
                 ));
             } else {
                 self.mapped64.as_mut().unwrap().push(SkaMap::<u64>::new(
@@ -1016,6 +1030,15 @@ impl SkaData {
                     None,
                     proportion_reads,
                     self.rc,
+                    min_count,
+                    min_qual,
+                    if qual_filter == 0 {
+                        QualFilter::NoFilter
+                    } else if qual_filter == 1 {
+                        QualFilter::Middle
+                    } else {
+                        QualFilter::Strict
+                    },
                 ));
             };
         } else if let Some(second_file) = rev_reads {
@@ -1025,6 +1048,15 @@ impl SkaData {
                 Some(&second_file),
                 proportion_reads,
                 self.rc,
+                min_count,
+                min_qual,
+                if qual_filter == 0 {
+                    QualFilter::NoFilter
+                } else if qual_filter == 1 {
+                    QualFilter::Middle
+                } else {
+                    QualFilter::Strict
+                },
             ));
         } else {
             self.mapped128.as_mut().unwrap().push(SkaMap::<u128>::new(
@@ -1033,6 +1065,15 @@ impl SkaData {
                 None,
                 proportion_reads,
                 self.rc,
+                min_count,
+                min_qual,
+                if qual_filter == 0 {
+                    QualFilter::NoFilter
+                } else if qual_filter == 1 {
+                    QualFilter::Middle
+                } else {
+                    QualFilter::Strict
+                },
             ));
         }
 
@@ -1127,6 +1168,7 @@ pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) ->
 /// AlignData struct for doing alignment while in WebAssembly
 pub struct AlignData {
     k: usize,
+    rc: bool,
     alignment64: Option<SkaAlign<u64>>,
     alignment128: Option<SkaAlign<u128>>,
     file_names: Vec<String>,
@@ -1136,19 +1178,21 @@ pub struct AlignData {
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct
-    pub fn new(k: usize) -> Self {
+    pub fn new(k: usize, rc: bool) -> Self {
         if k < 32 {
             Self {
                 k,
-                alignment64: Some(SkaAlign::<u64>::new(k)),
+                rc,
+                alignment64: Some(SkaAlign::<u64>::new(k, rc)),
                 alignment128: None,
                 file_names: Vec::new(),
             }
         } else if k < 64 {
             Self {
                 k,
+                rc,
                 alignment64: None,
-                alignment128: Some(SkaAlign::<u128>::new(k)),
+                alignment128: Some(SkaAlign::<u128>::new(k, rc)),
                 file_names: Vec::new(),
             }
         } else {
@@ -1161,6 +1205,9 @@ impl AlignData {
         &mut self,
         input_files: Vec<web_sys::File>,
         proportion_reads: Option<f64>,
+        min_count: u16,
+        min_qual: u8,
+        qual_filter: u8,
     ) -> String {
         logw("Aligning reads", None);
 
@@ -1178,7 +1225,7 @@ impl AlignData {
                     .unwrap();
             }
 
-            if ["fq", "fastq"].contains(&file_type) {
+            if ["fnq", "fq", "fastq"].contains(&file_type) {
                 fastq_files.push(i);
             } else {
                 self.file_names.push(file_name.clone());
@@ -1187,6 +1234,15 @@ impl AlignData {
                         input_file,
                         None,
                         proportion_reads,
+                        min_count,
+                        min_qual,
+                        if qual_filter == 0 {
+                            QualFilter::NoFilter
+                        } else if qual_filter == 1 {
+                            QualFilter::Middle
+                        } else {
+                            QualFilter::Strict
+                        },
                         &file_name,
                         self.file_names.len() - 1,
                     );
@@ -1195,6 +1251,15 @@ impl AlignData {
                         input_file,
                         None,
                         proportion_reads,
+                        min_count,
+                        min_qual,
+                        if qual_filter == 0 {
+                            QualFilter::NoFilter
+                        } else if qual_filter == 1 {
+                            QualFilter::Middle
+                        } else {
+                            QualFilter::Strict
+                        },
                         &file_name,
                         self.file_names.len() - 1,
                     );
@@ -1213,6 +1278,15 @@ impl AlignData {
                         &input_files[fastq_files[0]],
                         None,
                         proportion_reads,
+                        min_count,
+                        min_qual,
+                        if qual_filter == 0 {
+                            QualFilter::NoFilter
+                        } else if qual_filter == 1 {
+                            QualFilter::Middle
+                        } else {
+                            QualFilter::Strict
+                        },
                         &input_files[fastq_files[0]].name(),
                         self.file_names.len() - 1,
                     );
@@ -1221,6 +1295,15 @@ impl AlignData {
                         &input_files[fastq_files[0]],
                         None,
                         proportion_reads,
+                        min_count,
+                        min_qual,
+                        if qual_filter == 0 {
+                            QualFilter::NoFilter
+                        } else if qual_filter == 1 {
+                            QualFilter::Middle
+                        } else {
+                            QualFilter::Strict
+                        },
                         &input_files[fastq_files[0]].name(),
                         self.file_names.len() - 1,
                     );
@@ -1234,8 +1317,8 @@ impl AlignData {
                 if filen1.chars().count() == filen2.chars().count() {
                     for (ic, jc) in filen1.chars().zip(filen2.chars()) {
                         if ic != jc
-                            && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                            && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                            && ["1", "2"].contains(&ic.to_string().as_str())
+                            && ["1", "2"].contains(&jc.to_string().as_str())
                         {
                             samepair = true;
                             break;
@@ -1245,12 +1328,21 @@ impl AlignData {
 
                 if samepair {
                     self.file_names
-                        .push(input_files[fastq_files[0]].name().clone());
+                        .push(input_files[fastq_files[0]].name().replace("_1", "").replace("_2", "").clone());
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[0]].name(),
                             self.file_names.len() - 1,
                         );
@@ -1259,6 +1351,15 @@ impl AlignData {
                             &input_files[fastq_files[0]],
                             Some(&input_files[fastq_files[1]]),
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[0]].name(),
                             self.file_names.len() - 1,
                         );
@@ -1277,6 +1378,15 @@ impl AlignData {
                             &input_files[fastq_files[0]],
                             None,
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[0]].name(),
                             self.file_names.len() - 2,
                         );
@@ -1284,6 +1394,15 @@ impl AlignData {
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[1]].name(),
                             self.file_names.len() - 1,
                         );
@@ -1292,6 +1411,15 @@ impl AlignData {
                             &input_files[fastq_files[0]],
                             None,
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[0]].name(),
                             self.file_names.len() - 2,
                         );
@@ -1299,6 +1427,15 @@ impl AlignData {
                             &input_files[fastq_files[1]],
                             None,
                             proportion_reads,
+                            min_count,
+                            min_qual,
+                            if qual_filter == 0 {
+                                QualFilter::NoFilter
+                            } else if qual_filter == 1 {
+                                QualFilter::Middle
+                            } else {
+                                QualFilter::Strict
+                            },
                             &input_files[fastq_files[1]].name(),
                             self.file_names.len() - 1,
                         );
@@ -1318,8 +1455,8 @@ impl AlignData {
                         if tmpnam.chars().count() == testnam.chars().count() {
                             for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
                                 if ic != jc
-                                    && ["0", "1", "2"].contains(&ic.to_string().as_str())
-                                    && ["0", "1", "2"].contains(&jc.to_string().as_str())
+                                    && ["1", "2"].contains(&ic.to_string().as_str())
+                                    && ["1", "2"].contains(&jc.to_string().as_str())
                                 {
                                     samepair = true;
                                     break;
@@ -1330,12 +1467,21 @@ impl AlignData {
                             // Great!
                             to_erase = Some(i);
 
-                            self.file_names.push(input_files[tmpind].name().clone());
+                            self.file_names.push(input_files[tmpind].name().replace("_1", "").replace("_2", "").clone());
                             if self.k < 32 {
                                 self.alignment64.as_mut().unwrap().add_file(
                                     &input_files[fastq_files[tmpind]],
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
+                                    min_count,
+                                    min_qual,
+                                    if qual_filter == 0 {
+                                        QualFilter::NoFilter
+                                    } else if qual_filter == 1 {
+                                        QualFilter::Middle
+                                    } else {
+                                        QualFilter::Strict
+                                    },
                                     &input_files[tmpind].name(),
                                     self.file_names.len() - 1,
                                 );
@@ -1344,6 +1490,15 @@ impl AlignData {
                                     &input_files[fastq_files[tmpind]],
                                     Some(&input_files[fastq_files[*testind]]),
                                     proportion_reads,
+                                    min_count,
+                                    min_qual,
+                                    if qual_filter == 0 {
+                                        QualFilter::NoFilter
+                                    } else if qual_filter == 1 {
+                                        QualFilter::Middle
+                                    } else {
+                                        QualFilter::Strict
+                                    },
                                     &input_files[tmpind].name(),
                                     self.file_names.len() - 1,
                                 );
@@ -1369,6 +1524,15 @@ impl AlignData {
                                 &input_files[fastq_files[tmpind]],
                                 None,
                                 proportion_reads,
+                                min_count,
+                                min_qual,
+                                if qual_filter == 0 {
+                                    QualFilter::NoFilter
+                                } else if qual_filter == 1 {
+                                    QualFilter::Middle
+                                } else {
+                                    QualFilter::Strict
+                                },
                                 &input_files[tmpind].name(),
                                 self.file_names.len() - 1,
                             );
@@ -1377,6 +1541,15 @@ impl AlignData {
                                 &input_files[fastq_files[tmpind]],
                                 None,
                                 proportion_reads,
+                                min_count,
+                                min_qual,
+                                if qual_filter == 0 {
+                                    QualFilter::NoFilter
+                                } else if qual_filter == 1 {
+                                    QualFilter::Middle
+                                } else {
+                                    QualFilter::Strict
+                                },
                                 &input_files[tmpind].name(),
                                 self.file_names.len() - 1,
                             );
@@ -1408,18 +1581,24 @@ impl AlignData {
         );
         // Alignment first
         let alignment = if self.k < 32 {
-            let mut merger =
-                MergeSkaDict::new(self.k, self.alignment64.as_ref().unwrap().get_size(), true);
-            for sd in self.alignment64.as_ref().unwrap().get_queries() {
-                merger.append(sd);
+            let mut merger = MergeSkaDict::new(
+                self.k,
+                self.alignment64.as_ref().unwrap().get_size(),
+                self.rc,
+            );
+            for (idx, name, kmers) in self.alignment64.as_ref().unwrap().iter_kmers() {
+                merger.append_raw(idx, name, kmers);
             }
             let array = MergeSkaArray::<u64>::new(&merger);
             array.write_fasta()
         } else {
-            let mut merger =
-                MergeSkaDict::new(self.k, self.alignment128.as_ref().unwrap().get_size(), true);
-            for sd in self.alignment128.as_ref().unwrap().get_queries() {
-                merger.append(sd);
+            let mut merger = MergeSkaDict::new(
+                self.k,
+                self.alignment128.as_ref().unwrap().get_size(),
+                self.rc,
+            );
+            for (idx, name, kmers) in self.alignment128.as_ref().unwrap().iter_kmers() {
+                merger.append_raw(idx, name, kmers);
             }
             let array = MergeSkaArray::<u128>::new(&merger);
             array.write_fasta()

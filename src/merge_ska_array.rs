@@ -538,7 +538,7 @@ where
             .for_each(|it| {
                 let (name, seq_u8) = it;
 
-                outputaln.push_str(&(name.to_owned() + "\n"));
+                outputaln.push_str(&("> ".to_owned() + &(name.to_owned() + "\n")));
 
                 outputaln.push_str(
                     &(str::from_utf8(seq_u8.as_slice().expect("Array conversion error"))

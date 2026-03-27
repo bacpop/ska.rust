@@ -41,11 +41,14 @@ where
         file2: Option<&web_sys::File>,
         proportions_reads: Option<f64>,
         rc: bool,
+        min_count: u16,
+        min_qual: u8,
+        qual_filter: QualFilter,
     ) -> Self {
         let qualities = QualOpts {
-            min_count: 1,
-            min_qual: 0,
-            qual_filter: QualFilter::NoFilter,
+            min_count,
+            min_qual,
+            qual_filter,
         };
 
         let query_ska = SkaDict::<IntT>::new(

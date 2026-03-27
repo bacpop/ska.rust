@@ -1,5 +1,7 @@
 //! Library that implements sequence alignment for a WebAssembly environment
 
+use hashbrown::HashMap;
+
 use crate::logw;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
@@ -11,12 +13,23 @@ use speedytree::{Canonical, NeighborJoiningSolver};
 
 #[cfg(target_arch = "wasm32")]
 #[derive(Debug, Clone, Default)]
-/// Main struct for alignment in a WebAssembly environment
+/// Main struct for alignment in a WebAssembly environment.
+///
+/// Distances are computed incrementally as files are added with [`add_file()`],
+/// so only the raw split-kmer HashMaps (one per past sample) stay in memory —
+/// not the full [`SkaDict`] objects with their bloom filter buffers.
 pub struct SkaAlign<IntT> {
-    /// Vector of SkaDicts
-    queries_ska: Vec<SkaDict<IntT>>,
+    /// Raw split-kmer maps for all samples loaded so far
+    past_kmers: Vec<HashMap<IntT, u8>>,
+    /// Pairwise distance matrix stored as rows; distances[i] has i+1 entries
+    /// where distances[i][j] (j <= i) = SNP distance between sample j and i.
+    distances: Vec<Vec<u32>>,
+    /// Sample names in insertion order
+    names: Vec<String>,
     /// k-value being used
     k: usize,
+    /// Use canonical k-mers or not
+    rc: bool,
 }
 
 impl<IntT> SkaAlign<IntT>
@@ -25,57 +38,85 @@ where
 {
     #[cfg(target_arch = "wasm32")]
     /// Constructor of a SkaAlign struct
-    pub fn new(k: usize) -> Self {
+    pub fn new(k: usize, rc: bool) -> Self {
         Self {
-            queries_ska: Vec::new(),
+            past_kmers: Vec::new(),
+            distances: Vec::new(),
+            names: Vec::new(),
             k,
+            rc,
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    /// Adds a file through a SkaDict.
+    /// Adds a file, builds its split-kmer dict, computes distances against all
+    /// previously loaded samples, then retains only the raw kmer map.
+    ///
+    /// This keeps peak memory at O(N × dict_size) rather than O(N × SkaDict_size),
+    /// saving the ~24 MB bloom filter buffer per FASTQ sample.
     pub fn add_file(
         &mut self,
         file1: &web_sys::File,
         file2: Option<&web_sys::File>,
         proportions_reads: Option<f64>,
+        min_count: u16,
+        min_qual: u8,
+        qual_filter: QualFilter,
         name: &str,
         idx: usize,
     ) {
-        self.queries_ska.push(SkaDict::new(
+        let ska_dict = SkaDict::new(
             self.k,
             idx,
             (file1, file2),
             name,
-            // if file2.is_some() {true} else {false},
-            true, // TEMP TODO: made true by default, change when web can be edited again and add a box that asks what files will be submitted
+            self.rc,
             &QualOpts {
-                min_count: 1,
-                min_qual: 0,
-                qual_filter: QualFilter::NoFilter,
+                min_count,
+                min_qual,
+                qual_filter,
             },
             proportions_reads,
-        ));
+        );
+
+        // Compute distances against all already-loaded samples (lower triangle)
+        let n_prev = self.past_kmers.len();
+        let mut row = vec![0u32; n_prev + 1]; // last entry = self-distance (0)
+        for (j, prev_kmers) in self.past_kmers.iter().enumerate() {
+            let mut dist = 0u32;
+            for (kmer, base) in ska_dict.kmers().iter() {
+                if let Some(prev_base) = prev_kmers.get(kmer) {
+                    if prev_base != base {
+                        dist += 1;
+                    }
+                }
+            }
+            row[j] = dist;
+        }
+        self.distances.push(row);
+        self.names.push(name.to_string());
+
+        // Keep only the kmer map — drops the bloom buffer and SkaDict wrapper
+        self.past_kmers.push(ska_dict.into_kmers());
     }
 
     #[cfg(target_arch = "wasm32")]
-    /// Performs the alignment
+    /// Performs the alignment using precomputed pairwise distances.
     pub fn align(&mut self, file_names: &[String]) -> String {
+        let n = self.names.len();
         logw(
             &format!(
                 "Initiating alignment in SkaAlign with {} input files.",
-                file_names.len(),
+                n,
             ),
             None,
         );
 
         logw("Creating pairwise distances matrix as text.", None);
-        let mut pairwise_distances = vec![vec![0; self.queries_ska.len()]; self.queries_ska.len()];
 
-        let mut phylip_format = "".to_string();
-        phylip_format += format!("{}\n", self.queries_ska.len()).as_str();
+        let mut phylip_format = format!("{}\n", n);
 
-        for i in 0..self.queries_ska.len() {
+        for i in 0..n {
             phylip_format += file_names[i]
                 .to_string()
                 .replace(" ", "_")
@@ -84,16 +125,16 @@ where
                 .replace(".fastq", "")
                 .replace(".fq", "")
                 .as_str();
-            for j in 0..self.queries_ska.len() {
-                // Do it on only half of the matrix
-                for ref_kmer in self.queries_ska[i].kmers().iter() {
-                    if let Some(kmer_match) = self.queries_ska[j].kmers().get(ref_kmer.0) {
-                        if *kmer_match != *ref_kmer.1 {
-                            pairwise_distances[i][j] += 1;
-                        }
-                    }
-                }
-                phylip_format += format!("\t{}", pairwise_distances[i][j]).as_str();
+            for j in 0..n {
+                // distances matrix is lower-triangular: distances[i][j] exists for j <= i
+                let dist = if i == j {
+                    0u32
+                } else if j < i {
+                    self.distances[i][j]
+                } else {
+                    self.distances[j][i]
+                };
+                phylip_format += &format!("\t{dist}");
             }
             phylip_format += "\n";
         }
@@ -114,14 +155,20 @@ where
     }
 
     #[cfg(target_arch = "wasm32")]
-    /// Gets number of queries
+    /// Gets number of loaded samples
     pub fn get_size(&self) -> usize {
-        self.queries_ska.len()
+        self.names.len()
     }
 
     #[cfg(target_arch = "wasm32")]
-    /// Gets number of queries
-    pub fn get_queries(&self) -> &Vec<SkaDict<IntT>> {
-        &self.queries_ska
+    /// Iterate over (sample_index, sample_name, kmer_map) for all loaded samples.
+    ///
+    /// Used to build a [`crate::merge_ska_dict::MergeSkaDict`] for FASTA output
+    /// without needing the full [`crate::ska_dict::SkaDict`] objects.
+    pub fn iter_kmers(&self) -> impl Iterator<Item = (usize, &str, &HashMap<IntT, u8>)> {
+        self.past_kmers
+            .iter()
+            .enumerate()
+            .map(|(i, km)| (i, self.names[i].as_str(), km))
     }
 }
