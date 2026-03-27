@@ -1718,4 +1718,36 @@ impl AlignData {
         result["links"] = links;
         result.dump()
     }
+
+    pub fn get_distances_csv(&self) -> String {
+        if self.file_names.is_empty() {
+            return String::new();
+        }
+        let n = self.file_names.len();
+        let mut out = String::new();
+        // Header
+        out.push(',');
+        out.push_str(&self.file_names.join(","));
+        out.push('\n');
+        for i in 0..n {
+            out.push_str(&self.file_names[i]);
+            for j in 0..n {
+                out.push(',');
+                if i == j {
+                    out.push('0');
+                } else {
+                    let (a, b) = if i < j { (i, j) } else { (j, i) };
+                    let flat_idx = a * n - a * (a + 1) / 2 + (b - a - 1);
+                    let d = self.flat_distances[flat_idx];
+                    if d == d.floor() {
+                        out.push_str(&(d as u64).to_string());
+                    } else {
+                        out.push_str(&d.to_string());
+                    }
+                }
+            }
+            out.push('\n');
+        }
+        out
+    }
 }
