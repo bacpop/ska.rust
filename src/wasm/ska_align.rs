@@ -21,8 +21,9 @@ use speedytree::{Canonical, NeighborJoiningSolver};
 pub struct SkaAlign<IntT> {
     /// Raw split-kmer maps for all samples loaded so far
     past_kmers: Vec<HashMap<IntT, u8>>,
-    /// Pairwise distance matrix stored as rows; distances[i] has i+1 entries
-    /// where distances[i][j] (j <= i) = SNP distance between sample j and i.
+    /// Pairwise distance matrix in lower-triangular row storage: `distances[i]`
+    /// has `i + 1` entries and `distances[i][j]` (j ≤ i) = SNP distance between
+    /// sample i and sample j. Use `get_flat_distances()` for upper-triangle order.
     distances: Vec<Vec<u32>>,
     /// Sample names in insertion order
     names: Vec<String>,
@@ -105,10 +106,7 @@ where
     pub fn align(&mut self, file_names: &[String]) -> String {
         let n = self.names.len();
         logw(
-            &format!(
-                "Initiating alignment in SkaAlign with {} input files.",
-                n,
-            ),
+            &format!("Initiating alignment in SkaAlign with {} input files.", n,),
             None,
         );
 
@@ -139,8 +137,6 @@ where
             phylip_format += "\n";
         }
 
-        self.distances = pairwise_distances.clone();
-
         logw(&format!("{:?}", phylip_format), None);
         logw("Converting matrix to DistanceMatrix struct.", None);
 
@@ -157,14 +153,16 @@ where
     }
 
     #[cfg(target_arch = "wasm32")]
-    /// Returns upper-triangle pairwise distances as a flat Vec<f64>.
-    /// Entry for pair (i, j) with i < j is at index i*n - i*(i+1)/2 + (j-i-1).
+    /// Returns pairwise distances as a flat `Vec<f64>` in upper-triangle row-major
+    /// order: all pairs (i, j) with i < j, i increasing from 0. The distance
+    /// between sample i and sample j (i < j) is at index `i*n - i*(i+1)/2 + (j-i-1)`.
+    /// Internally reads from the lower-triangular store as `distances[j][i]`.
     pub fn get_flat_distances(&self) -> Vec<f64> {
-        let n = self.queries_ska.len();
+        let n = self.names.len();
         let mut flat = Vec::with_capacity(n * (n - 1) / 2);
         for i in 0..n {
             for j in (i + 1)..n {
-                flat.push(self.distances[i][j] as f64);
+                flat.push(self.distances[j][i] as f64);
             }
         }
         flat

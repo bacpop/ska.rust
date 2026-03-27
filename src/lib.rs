@@ -504,14 +504,13 @@ extern crate console_error_panic_hook;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(target_arch = "wasm32")]
+use crate::cluster::cluster_distances_flat;
+#[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_align::SkaAlign;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_map::SkaMap;
-use crate::ska_dict::bit_encoding::UInt;
-#[cfg(target_arch = "wasm32")]
-use crate::cluster::cluster_distances_flat;
 #[cfg(target_arch = "wasm32")]
 use petgraph::visit::EdgeRef;
 
@@ -722,15 +721,31 @@ pub fn main() {
         } => {
             check_threads(*threads);
             let filter_ambiguous = !*allow_ambiguous;
-            let cluster_threshold = if *clusters { Some(*snp_threshold) } else { None };
+            let cluster_threshold = if *clusters {
+                Some(*snp_threshold)
+            } else {
+                None
+            };
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous, cluster_threshold);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    filter_ambiguous,
+                    cluster_threshold,
+                );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous, cluster_threshold);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    filter_ambiguous,
+                    cluster_threshold,
+                );
             } else {
                 panic!("Could not read input file(s): {skf_file}");
             }
@@ -1340,8 +1355,13 @@ impl AlignData {
                 }
 
                 if samepair {
-                    self.file_names
-                        .push(input_files[fastq_files[0]].name().replace("_1", "").replace("_2", "").clone());
+                    self.file_names.push(
+                        input_files[fastq_files[0]]
+                            .name()
+                            .replace("_1", "")
+                            .replace("_2", "")
+                            .clone(),
+                    );
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
@@ -1480,7 +1500,13 @@ impl AlignData {
                             // Great!
                             to_erase = Some(i);
 
-                            self.file_names.push(input_files[tmpind].name().replace("_1", "").replace("_2", "").clone());
+                            self.file_names.push(
+                                input_files[tmpind]
+                                    .name()
+                                    .replace("_1", "")
+                                    .replace("_2", "")
+                                    .clone(),
+                            );
                             if self.k < 32 {
                                 self.alignment64.as_mut().unwrap().add_file(
                                     &input_files[fastq_files[tmpind]],

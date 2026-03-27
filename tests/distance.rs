@@ -158,14 +158,8 @@ fn cluster_default_threshold() {
         .assert()
         .success();
 
-    assert!(sandbox.file_check(
-        "output.clusters.csv",
-        "multidist_clusters.clusters.csv"
-    ));
-    assert!(sandbox.file_check(
-        "output.graph.dot",
-        "multidist_clusters.graph.dot"
-    ));
+    assert!(sandbox.file_check("output.clusters.csv", "multidist_clusters.clusters.csv"));
+    assert!(sandbox.file_check("output.graph.dot", "multidist_clusters.graph.dot"));
 }
 
 #[test]
@@ -181,14 +175,8 @@ fn cluster_singletons() {
         .assert()
         .success();
 
-    assert!(sandbox.file_check(
-        "output.clusters.csv",
-        "merge_clusters_t0.clusters.csv"
-    ));
-    assert!(sandbox.file_check(
-        "output.graph.dot",
-        "merge_clusters_t0.graph.dot"
-    ));
+    assert!(sandbox.file_check("output.clusters.csv", "merge_clusters_t0.clusters.csv"));
+    assert!(sandbox.file_check("output.graph.dot", "merge_clusters_t0.graph.dot"));
 }
 
 #[test]
