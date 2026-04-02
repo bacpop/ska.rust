@@ -22,7 +22,9 @@ use hashbrown::HashMap;
 #[cfg(not(target_arch = "wasm32"))]
 extern crate needletail;
 #[cfg(not(target_arch = "wasm32"))]
-use needletail::{parse_fastx_file, parser::Format};
+use needletail::{parse_fastx_file, parser::Format, parse_fastx_reader, FastxReader};
+
+use std::io::Read;
 
 pub mod split_kmer;
 use super::QualOpts;
@@ -112,12 +114,12 @@ where
             });
     }
 
-    /// Iterates through all the k-mers from an input fastx file and adds them
+    /// Iterates through all the k-mers from an input fastx reader and adds them
     /// to the dictionary
     #[cfg(not(target_arch = "wasm32"))]
-    fn add_file_kmers(
+    fn add_reader_kmers(
         &mut self,
-        filename: &str,
+        mut reader: Box<dyn FastxReader>,
         is_reads: bool,
         qual: &QualOpts,
         proportion_reads: Option<f64>,
@@ -127,9 +129,6 @@ where
         if let Some(prop) = proportion_reads {
             step = (1.0 / prop).round() as usize;
         }
-
-        let mut reader =
-            parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
 
         let mut iter_reads: usize = 0;
         while let Some(record) = reader.next() {
@@ -365,15 +364,68 @@ where
             is_reads = true;
         }
 
-        // Build the dict
-        sk_dict.add_file_kmers(files.0, is_reads, qual, proportion_reads);
+        // Build the dict using our new generic reader function
+        let fwd_reader = parse_fastx_file(files.0)
+            .unwrap_or_else(|_| panic!("Invalid path/file: {}", files.0));
+        sk_dict.add_reader_kmers(fwd_reader, is_reads, qual, proportion_reads);
+        
         if let Some(second_filename) = files.1 {
-            sk_dict.add_file_kmers(second_filename, is_reads, qual, proportion_reads);
+            let rev_reader = parse_fastx_file(second_filename)
+                .unwrap_or_else(|_| panic!("Invalid path/file: {}", second_filename));
+            sk_dict.add_reader_kmers(rev_reader, is_reads, qual, proportion_reads);
         }
 
         if sk_dict.ksize() == 0 {
             panic!("{} has no valid sequence", files.0);
         }
+        sk_dict
+    }
+
+    /// Build a split-kmer dictionary from generic Read traits (e.g., in-memory bytes)
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_reader<R1: Read + Send + 'static, R2: Read + Send + 'static>(
+        k: usize,
+        sample_idx: usize,
+        fwd: R1,
+        rev: Option<R2>,
+        name: &str,
+        rc: bool,
+        qual: &QualOpts,
+        proportion_reads: Option<f64>,
+        is_reads: bool,
+    ) -> Self {
+        if !(5..=63).contains(&k) || k.is_multiple_of(2) {
+            panic!("Invalid k-mer length");
+        }
+
+        let mut sk_dict = Self {
+            k,
+            rc,
+            sample_idx,
+            name: name.to_string(),
+            split_kmers: HashMap::default(),
+            kmer_filter: KmerFilter::new(qual.min_count),
+        };
+
+        if is_reads {
+            sk_dict.kmer_filter.init();
+        }
+
+        // Use Needletail's generic reader parser
+        let fwd_reader = parse_fastx_reader(fwd)
+            .expect("Failed to parse forward reader stream");
+        sk_dict.add_reader_kmers(fwd_reader, is_reads, qual, proportion_reads);
+
+        if let Some(rev_stream) = rev {
+            let rev_reader = parse_fastx_reader(rev_stream)
+                .expect("Failed to parse reverse reader stream");
+            sk_dict.add_reader_kmers(rev_reader, is_reads, qual, proportion_reads);
+        }
+
+        if sk_dict.ksize() == 0 {
+            panic!("Stream has no valid sequence");
+        }
+        
         sk_dict
     }
 
