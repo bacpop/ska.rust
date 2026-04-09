@@ -1,0 +1,4 @@
+graph {
+    0 [ label = "\"test_1\"" ]
+    1 [ label = "\"test_2\"" ]
+}

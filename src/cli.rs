@@ -296,6 +296,14 @@ pub enum Commands {
         /// Number of CPU threads
         #[arg(long, value_parser = valid_cpus, default_value_t = 1)]
         threads: usize,
+
+        /// Cluster samples by SNP distance threshold (outputs .clusters.csv and .graph.dot)
+        #[arg(long, default_value_t = false)]
+        clusters: bool,
+
+        /// SNP distance threshold for clustering (used with --clusters, default 10)
+        #[arg(long, default_value_t = 10.0)]
+        snp_threshold: f64,
     },
     /// Combine multiple split k-mer files
     Merge {

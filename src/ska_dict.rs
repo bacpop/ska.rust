@@ -210,12 +210,7 @@ where
                 if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTA record");
                     // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec
-                        .seq()
-                        .iter()
-                        .filter(|&&x| x != 10)
-                        .copied()
-                        .collect();
+                    let seq: Vec<u8> = seqrec.seq().iter().filter(|&&x| x != 10).copied().collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
                 } else {
@@ -226,12 +221,7 @@ where
                 if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTQ record");
                     // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec
-                        .seq()
-                        .iter()
-                        .filter(|&&x| x != 10)
-                        .copied()
-                        .collect();
+                    let seq: Vec<u8> = seqrec.seq().iter().filter(|&&x| x != 10).copied().collect();
                     let seq_len = seq.len();
                     Some((seq, seq_len))
                 } else {

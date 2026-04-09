@@ -53,6 +53,13 @@ pub struct VariantDist {
     mismatch_count: usize,
 }
 
+impl VariantDist {
+    /// Returns the SNP distance value.
+    pub fn distance(&self) -> f64 {
+        self.distance
+    }
+}
+
 /// Prints distance, mismatch proportion, count matching, count mismatching (tab separated)
 impl fmt::Display for VariantDist {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -486,6 +486,8 @@ pub mod coverage;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::coverage::CoverageHistogram;
 
+pub mod cluster;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub mod skalo;
 #[cfg(not(target_arch = "wasm32"))]
@@ -502,11 +504,15 @@ extern crate console_error_panic_hook;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(target_arch = "wasm32")]
+use crate::cluster::cluster_distances_flat;
+#[cfg(target_arch = "wasm32")]
 use crate::ska_dict::bit_encoding::UInt;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_align::SkaAlign;
 #[cfg(target_arch = "wasm32")]
 use crate::wasm::ska_map::SkaMap;
+#[cfg(target_arch = "wasm32")]
+use petgraph::visit::EdgeRef;
 
 /// Possible quality score filters when building with reads
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -710,17 +716,36 @@ pub fn main() {
             min_freq,
             allow_ambiguous,
             threads,
+            clusters,
+            snp_threshold,
         } => {
             check_threads(*threads);
             let filter_ambiguous = !*allow_ambiguous;
+            let cluster_threshold = if *clusters {
+                Some(*snp_threshold)
+            } else {
+                None
+            };
             if let Ok(mut ska_array) = MergeSkaArray::<u64>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    filter_ambiguous,
+                    cluster_threshold,
+                );
             } else if let Ok(mut ska_array) = MergeSkaArray::<u128>::load(skf_file) {
                 // In debug mode (cannot be set from CLI, give details)
                 log::debug!("{ska_array}");
-                distance(&mut ska_array, output, *min_freq, filter_ambiguous);
+                distance(
+                    &mut ska_array,
+                    output,
+                    *min_freq,
+                    filter_ambiguous,
+                    cluster_threshold,
+                );
             } else {
                 panic!("Could not read input file(s): {skf_file}");
             }
@@ -1172,6 +1197,7 @@ pub struct AlignData {
     alignment64: Option<SkaAlign<u64>>,
     alignment128: Option<SkaAlign<u128>>,
     file_names: Vec<String>,
+    flat_distances: Vec<f64>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1186,6 +1212,7 @@ impl AlignData {
                 alignment64: Some(SkaAlign::<u64>::new(k, rc)),
                 alignment128: None,
                 file_names: Vec::new(),
+                flat_distances: Vec::new(),
             }
         } else if k < 64 {
             Self {
@@ -1194,6 +1221,7 @@ impl AlignData {
                 alignment64: None,
                 alignment128: Some(SkaAlign::<u128>::new(k, rc)),
                 file_names: Vec::new(),
+                flat_distances: Vec::new(),
             }
         } else {
             panic!("k values larger than 64 are not supported.");
@@ -1327,8 +1355,13 @@ impl AlignData {
                 }
 
                 if samepair {
-                    self.file_names
-                        .push(input_files[fastq_files[0]].name().replace("_1", "").replace("_2", "").clone());
+                    self.file_names.push(
+                        input_files[fastq_files[0]]
+                            .name()
+                            .replace("_1", "")
+                            .replace("_2", "")
+                            .clone(),
+                    );
                     if self.k < 32 {
                         self.alignment64.as_mut().unwrap().add_file(
                             &input_files[fastq_files[0]],
@@ -1467,7 +1500,13 @@ impl AlignData {
                             // Great!
                             to_erase = Some(i);
 
-                            self.file_names.push(input_files[tmpind].name().replace("_1", "").replace("_2", "").clone());
+                            self.file_names.push(
+                                input_files[tmpind]
+                                    .name()
+                                    .replace("_1", "")
+                                    .replace("_2", "")
+                                    .clone(),
+                            );
                             if self.k < 32 {
                                 self.alignment64.as_mut().unwrap().add_file(
                                     &input_files[fastq_files[tmpind]],
@@ -1605,11 +1644,18 @@ impl AlignData {
         };
         logw(&format!("Output alignment: {:?}", alignment), None);
 
-        // Now get the tree
+        // Now get the tree (also stores pairwise distances internally)
         let newick = if self.k < 32 {
             self.alignment64.as_mut().unwrap().align(&self.file_names)
         } else {
             self.alignment128.as_mut().unwrap().align(&self.file_names)
+        };
+
+        // Persist flat upper-triangle distances for later clustering
+        self.flat_distances = if self.k < 32 {
+            self.alignment64.as_ref().unwrap().get_flat_distances()
+        } else {
+            self.alignment128.as_ref().unwrap().get_flat_distances()
         };
 
         let mut results = json::JsonValue::new_array();
@@ -1621,5 +1667,87 @@ impl AlignData {
             let _ = results["names"].push(name.to_string());
         }
         results.dump()
+    }
+
+    /// Returns sample names (crate-internal, not exposed to JS).
+    pub(crate) fn names(&self) -> &[String] {
+        &self.file_names
+    }
+
+    /// Returns flat upper-triangle distances (crate-internal, not exposed to JS).
+    pub(crate) fn flat_distances(&self) -> &[f64] {
+        &self.flat_distances
+    }
+
+    /// Returns graph JSON for the given SNP threshold.
+    ///
+    /// Format: `{"nodes":[{"id":"sample","cluster":1},...],
+    ///           "links":[{"source":"s1","target":"s2","snp_distance":3.0},...]}`.
+    pub fn get_graph_json(&self, threshold: f64) -> String {
+        if self.flat_distances.is_empty() {
+            return "{\"nodes\":[],\"links\":[]}".to_string();
+        }
+        let n = self.file_names.len();
+        let (cluster_map, graph) =
+            cluster_distances_flat(&self.file_names, &self.flat_distances, threshold);
+
+        let mut nodes = json::JsonValue::new_array();
+        for name in &self.file_names {
+            let mut node = json::JsonValue::new_object();
+            node["id"] = name.clone().into();
+            node["cluster"] = cluster_map[name].into();
+            let _ = nodes.push(node);
+        }
+
+        let mut links = json::JsonValue::new_array();
+        for edge in graph.edge_references() {
+            let si = edge.source().index();
+            let ti = edge.target().index();
+            let (i, j) = if si < ti { (si, ti) } else { (ti, si) };
+            let flat_idx = i * n - i * (i + 1) / 2 + (j - i - 1);
+            let dist = self.flat_distances[flat_idx];
+            let mut link = json::JsonValue::new_object();
+            link["source"] = self.file_names[si].clone().into();
+            link["target"] = self.file_names[ti].clone().into();
+            link["snp_distance"] = dist.into();
+            let _ = links.push(link);
+        }
+
+        let mut result = json::JsonValue::new_object();
+        result["nodes"] = nodes;
+        result["links"] = links;
+        result.dump()
+    }
+
+    pub fn get_distances_csv(&self) -> String {
+        if self.file_names.is_empty() {
+            return String::new();
+        }
+        let n = self.file_names.len();
+        let mut out = String::new();
+        // Header
+        out.push(',');
+        out.push_str(&self.file_names.join(","));
+        out.push('\n');
+        for i in 0..n {
+            out.push_str(&self.file_names[i]);
+            for j in 0..n {
+                out.push(',');
+                if i == j {
+                    out.push('0');
+                } else {
+                    let (a, b) = if i < j { (i, j) } else { (j, i) };
+                    let flat_idx = a * n - a * (a + 1) / 2 + (b - a - 1);
+                    let d = self.flat_distances[flat_idx];
+                    if d == d.floor() {
+                        out.push_str(&(d as u64).to_string());
+                    } else {
+                        out.push_str(&d.to_string());
+                    }
+                }
+            }
+            out.push('\n');
+        }
+        out
     }
 }
