@@ -447,18 +447,18 @@
 
 #![warn(missing_docs)]
 use std::fmt;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::Instant;
 
 use clap::ValueEnum;
 extern crate num_cpus;
 
-// #[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_family = "wasm"))]
 pub mod merge_ska_dict;
 pub mod ska_dict;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::merge_ska_dict::build_and_merge;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::merge_ska_dict::MergeSkaDict;
 
 pub mod ska_ref;
@@ -466,52 +466,52 @@ use crate::ska_ref::RefSka;
 pub mod merge_ska_array;
 use crate::merge_ska_array::MergeSkaArray;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub mod generic_modes;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::generic_modes::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub mod cli;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::cli::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub mod io_utils;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::io_utils::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub mod coverage;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::coverage::CoverageHistogram;
 
 pub mod cluster;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub mod skalo;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::io_utils::load_array;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::skalo::utils::Config;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use wasm_bindgen_file_reader::WebSysFile;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 extern crate console_error_panic_hook;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 pub mod wasm;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::cluster::cluster_distances_flat;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::ska_dict::bit_encoding::UInt;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::wasm::ska_align::SkaAlign;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::wasm::ska_map::SkaMap;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use petgraph::visit::EdgeRef;
 
 /// Possible quality score filters when building with reads
@@ -558,7 +558,7 @@ impl fmt::Display for QualOpts {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[doc(hidden)]
 pub fn main() {
     let args = cli_args();
@@ -917,20 +917,20 @@ pub fn main() {
 }
 
 // WASM implementation
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[doc(hidden)]
 pub fn main() {
     panic!("You've compiled Ska2 for WebAssembly support, you cannot use it as a normal binary anymore!");
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 /// Function that allows to propagate panic error messages when compiling to wasm, see https://github.com/rustwasm/console_error_panic_hook
 pub fn init_panic_hook() {
@@ -938,7 +938,7 @@ pub fn init_panic_hook() {
 }
 
 /// Logging wrapper function for the WebAssembly version
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 pub fn logw(text: &str, typ: Option<&str>) {
     if let Some(thetyp) = typ {
         log((String::from("ska.rust::") + thetyp + "::" + text).as_str());
@@ -947,7 +947,7 @@ pub fn logw(text: &str, typ: Option<&str>) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 /// Struct to interact with JS when working with WebAssembly
 pub struct SkaData {
@@ -958,9 +958,10 @@ pub struct SkaData {
     reference_string: Vec<String>,
     mapped64: Option<Vec<SkaMap<u64>>>,
     mapped128: Option<Vec<SkaMap<u128>>>,
+    sample_names: Vec<String>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl SkaData {
     /// Constructor of the SkaData struct
@@ -992,6 +993,7 @@ impl SkaData {
                 reference_string,
                 mapped64: Some(Vec::new()),
                 mapped128: None,
+                sample_names: Vec::new(),
             }
         } else if k < 64 {
             let reference = RefSka::<u128>::new(k, &mut wf, rc, ambig_mask, repeat_mask);
@@ -1009,6 +1011,7 @@ impl SkaData {
                 reference_string,
                 mapped64: None,
                 mapped128: Some(Vec::new()),
+                sample_names: Vec::new(),
             }
         } else {
             panic!("k values larger than 64 not supported");
@@ -1024,6 +1027,7 @@ impl SkaData {
         min_count: u16,
         min_qual: u8,
         qual_filter: u8,
+        sample_name: String,
     ) -> String {
         if rev_reads.is_some() {
             logw("Detected paired fastq input files", None);
@@ -1102,6 +1106,8 @@ impl SkaData {
             ));
         }
 
+        self.sample_names.push(sample_name);
+
         logw("Reads mapped successfully!", None);
 
         let mut results = json::JsonValue::new_array();
@@ -1157,10 +1163,39 @@ impl SkaData {
         }
 
         results["Coverage"] = (count_mapped_bases as f64 / count_total_bases as f64).into();
+        results["VCF"] = self.current_vcf_text().into();
 
         logw("Results computed successfully!", None);
 
         results.dump()
+    }
+
+    fn current_vcf_text(&self) -> String {
+        if self.k < 32 {
+            let sample_maps: Vec<Vec<_>> = self
+                .mapped64
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|mapped| mapped.get_mapped_bases().clone())
+                .collect();
+            self.reference64
+                .as_ref()
+                .unwrap()
+                .write_vcf_text_from_sparse_maps(&self.sample_names, &sample_maps)
+        } else {
+            let sample_maps: Vec<Vec<_>> = self
+                .mapped128
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|mapped| mapped.get_mapped_bases().clone())
+                .collect();
+            self.reference128
+                .as_ref()
+                .unwrap()
+                .write_vcf_text_from_sparse_maps(&self.sample_names, &sample_maps)
+        }
     }
 
     /// Retrieves the reference sequence
@@ -1169,7 +1204,7 @@ impl SkaData {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 /// Reconstructs a sequence beginning from a reference
 pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) -> Vec<String> {
     let sequence_u8 = reference.get_seq();
@@ -1188,7 +1223,7 @@ pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) ->
     sequence_string
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 /// AlignData struct for doing alignment while in WebAssembly
 pub struct AlignData {
@@ -1200,7 +1235,7 @@ pub struct AlignData {
     flat_distances: Vec<f64>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 struct EncodedAlignmentSequence {
     name: String,
     lo: Vec<u64>,
@@ -1208,7 +1243,7 @@ struct EncodedAlignmentSequence {
     valid: Vec<u64>,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn concrete_base_bits(base: u8) -> Option<(bool, bool)> {
     match base.to_ascii_uppercase() {
         b'A' => Some((false, false)),
@@ -1219,7 +1254,7 @@ fn concrete_base_bits(base: u8) -> Option<(bool, bool)> {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn encode_alignment_sequence(
     name: String,
     sequence: &[u8],
@@ -1255,7 +1290,7 @@ fn encode_alignment_sequence(
     Ok(encoded)
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn packed_snp_distance(a: &EncodedAlignmentSequence, b: &EncodedAlignmentSequence) -> u64 {
     let mut distance = 0u64;
 
@@ -1270,7 +1305,7 @@ fn packed_snp_distance(a: &EncodedAlignmentSequence, b: &EncodedAlignmentSequenc
     distance
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn parse_fasta_alignment(text: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> {
     let mut records: Vec<(String, Vec<u8>)> = Vec::new();
     let mut current_name: Option<String> = None;
@@ -1357,7 +1392,7 @@ fn parse_fasta_alignment(text: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> 
     Ok(records)
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct

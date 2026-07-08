@@ -3,11 +3,11 @@
 //! Builds an undirected graph where edges connect samples within a SNP distance
 //! threshold, then extracts connected components as clusters.
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::io::Write;
 
 use hashbrown::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use petgraph::dot::{Config, Dot};
 use petgraph::graph::NodeIndex;
 use petgraph::visit::Bfs;
@@ -84,8 +84,8 @@ pub fn cluster_distances(
     build_clusters(names, threshold, |i, j| distances[i][j - i - 1].distance())
 }
 
-/// Build clusters from a flat upper-triangle distance array (wasm32 entry point).
-#[cfg(target_arch = "wasm32")]
+/// Build clusters from a flat upper-triangle distance array (wasm entry point).
+#[cfg(target_family = "wasm")]
 pub fn cluster_distances_flat(
     names: &[String],
     flat: &[f64],
@@ -102,7 +102,7 @@ pub fn cluster_distances_flat(
 }
 
 /// Write cluster CSV and DOT graph files.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub fn write_graph(
     graph: &Graph<String, (), petgraph::Undirected>,
     cluster_map: &HashMap<String, usize>,

@@ -30,16 +30,18 @@
 //! ref_kmers.write_aln(&mut out_stream, threads);
 //! ```
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::io::Write;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::str;
 
 use hashbrown::hash_set::Entry::*;
 use hashbrown::HashSet;
+#[cfg(target_family = "wasm")]
+use hashbrown::HashMap;
 use rayon::prelude::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use noodles_vcf::{
     self as vcf,
     header::record::value::{map::Contig, Map},
@@ -51,11 +53,11 @@ use noodles_vcf::{
     },
 };
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 extern crate needletail;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use ndarray::{s, Array2, ArrayView};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use needletail::{
     parse_fastx_file,
     parser::{write_fasta, Format},
@@ -65,24 +67,24 @@ use super::QualFilter;
 pub mod aln_writer;
 use crate::ska_ref::aln_writer::AlnWriter;
 pub mod idx_check;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::ska_ref::idx_check::IdxCheck;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::merge_ska_dict::MergeSkaDict;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::ska_dict::bit_encoding::UInt;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::logw;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::wasm::{fastx_wasm::open_fasta, ska_map::Variant};
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use seq_io::fasta::Record;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use std::io::Read;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
@@ -120,7 +122,6 @@ where
 
     /// Input sequence
     /// Chromosome names
-    #[cfg(not(target_arch = "wasm32"))]
     chrom_names: Vec<String>,
     /// Sequence, indexed by chromosome, then position
     seq: Vec<Vec<u8>>,
@@ -129,18 +130,18 @@ where
 
     /// Mapping information
     /// Positions of mapped bases as (chrom, pos)
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     mapped_pos: Vec<(usize, usize)>,
     /// Array of mapped bases, rows loci, columns samples
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     mapped_variants: Array2<u8>,
     /// Names of the mapped samples
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     mapped_names: Vec<String>,
 }
 
 /// [`u8`] representation used elsewhere to [`noodles_vcf::record::reference_bases::Base`]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[inline]
 fn u8_to_base(ref_base: u8) -> Base {
     match ref_base {
@@ -154,7 +155,7 @@ fn u8_to_base(ref_base: u8) -> Base {
 
 /// The VCF KEYS field used is currently just genotype (GT)
 /// These can be used as [`Keys`] in the genotype builder
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[inline]
 fn gt_keys() -> Keys {
     Keys::try_from(vec![key::GENOTYPE]).unwrap()
@@ -164,7 +165,7 @@ impl<IntT> RefSka<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     /// Whether [`map`] has been run
     fn is_mapped(&self) -> bool {
         self.mapped_variants.nrows() > 0
@@ -182,7 +183,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn new(k: usize, filename: &str, rc: bool, ambig_mask: bool, repeat_mask: bool) -> Self {
         if !(5..=63).contains(&k) || k.is_multiple_of(2) {
             panic!("Invalid k-mer length");
@@ -319,7 +320,7 @@ where
     /// - File doesn't exist or can't be opened.
     /// - File cannot be parsed as FASTA (FASTQ is not supported).
     /// - If there are no valid split k-mers.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn new<F: Read>(
         k: usize,
         file: &mut F,
@@ -335,14 +336,14 @@ where
 
         let mut split_kmer_pos = Vec::new();
         let mut seq = Vec::new();
-        // let mut chrom_names = Vec::new();
+        let mut chrom_names = Vec::new();
         let mut singles = HashSet::new();
         let mut repeats = HashSet::new();
 
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            // chrom_names.push(seqrec.id().unwrap().to_owned());
+            chrom_names.push(seqrec.id().map_or_else(|_| format!("contig_{}", chrom + 1), |id| id.to_string()));
             split_kmer_pos.reserve(
                 seqrec
                     .full_seq()
@@ -470,7 +471,7 @@ where
             k,
             seq,
             ambig_mask,
-            // chrom_names,
+            chrom_names,
             split_kmer_pos,
             repeat_coors,
             // mapped_pos: Vec::new(),
@@ -501,7 +502,7 @@ where
     /// # Panics
     ///
     /// If k-mer sizes are incompatible
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn map(&mut self, ska_dict: &MergeSkaDict<IntT>) {
         if self.k != ska_dict.kmer_len() {
             panic!(
@@ -540,12 +541,12 @@ where
     }
 
     /// A direct [`Iterator`] over the reference's split-kmers.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn kmers(&self) -> impl Iterator<Item = &RefKmer<IntT>> + '_ {
         self.split_kmer_pos.iter()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function either modifies these (VCF) or
     /// simply writes them out (ALN)
@@ -583,7 +584,7 @@ where
         seq_writers
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Calls the necessary parts of AlnWriter (in parallel) to produce all the
     /// pseudoalignments. The calling function simply writes them out (ALN)
     pub fn pseudoalignment(&self, mapped_bases: &[Variant]) -> Vec<String> {
@@ -629,7 +630,7 @@ where
     /// # Panics
     ///
     /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn write_aln<W: Write>(
         &self,
         f: &mut W,
@@ -665,7 +666,7 @@ where
     ///
     /// If [`RefSka::map()`] has not been run yet, or no split-kmers mapped to
     /// the reference.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn write_vcf<W: Write>(&self, f: &mut W, threads: usize) -> Result<(), std::io::Error> {
         if !self.is_mapped() {
             panic!("No split k-mers mapped to reference");
@@ -748,14 +749,128 @@ where
         Ok(())
     }
 
+    #[cfg(target_family = "wasm")]
+    fn sanitise_vcf_sample_name(name: &str) -> String {
+        name.chars()
+            .map(|c| match c {
+                '\t' | '\r' | '\n' => '_',
+                _ => c,
+            })
+            .collect()
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn normalise_vcf_base(base: u8) -> u8 {
+        match base.to_ascii_uppercase() {
+            b'A' | b'C' | b'G' | b'T' => base.to_ascii_uppercase(),
+            _ => b'N',
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn format_wasm_gt(base: u8, ref_base: u8, alt_bases: &mut Vec<u8>) -> String {
+        if base == b'-' {
+            return String::from(".");
+        }
+
+        let normalised_base = Self::normalise_vcf_base(base);
+        if normalised_base == ref_base {
+            return String::from("0");
+        }
+
+        if let Some(idx) = alt_bases.iter().position(|alt| *alt == normalised_base) {
+            (idx + 1).to_string()
+        } else {
+            alt_bases.push(normalised_base);
+            alt_bases.len().to_string()
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    /// Writes mapped variants for browser use as combined VCF text.
+    pub fn write_vcf_text_from_sparse_maps(
+        &self,
+        sample_names: &[String],
+        sample_maps: &[Vec<Variant>],
+    ) -> String {
+        let mut mapped_by_sample: Vec<HashMap<(usize, usize), u8>> = Vec::with_capacity(sample_maps.len());
+        for sample_map in sample_maps {
+            let mut mapped = HashMap::with_capacity(sample_map.len());
+            for variant in sample_map {
+                mapped.insert((variant.chrom, variant.pos), variant.base);
+            }
+            mapped_by_sample.push(mapped);
+        }
+
+        let mut vcf = String::new();
+        vcf.push_str("##fileformat=VCFv4.3\n");
+        vcf.push_str("##source=ska.rust\n");
+        for chrom_name in &self.chrom_names {
+            vcf.push_str("##contig=<ID=");
+            vcf.push_str(chrom_name);
+            vcf.push_str(">\n");
+        }
+        vcf.push_str("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
+        vcf.push_str("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
+        for sample_name in sample_names {
+            vcf.push('\t');
+            vcf.push_str(&Self::sanitise_vcf_sample_name(sample_name));
+        }
+        vcf.push('\n');
+
+        for ref_kmer in self.kmers() {
+            let ref_base = Self::normalise_vcf_base(self.seq[ref_kmer.chrom][ref_kmer.pos]);
+            let mut alt_bases: Vec<u8> = Vec::new();
+            let mut genotypes: Vec<String> = Vec::with_capacity(mapped_by_sample.len());
+
+            for mapped in &mapped_by_sample {
+                let base = mapped
+                    .get(&(ref_kmer.chrom, ref_kmer.pos))
+                    .copied()
+                    .unwrap_or(b'-');
+                genotypes.push(Self::format_wasm_gt(base, ref_base, &mut alt_bases));
+            }
+
+            if alt_bases.is_empty() {
+                continue;
+            }
+
+            let chrom_name = self
+                .chrom_names
+                .get(ref_kmer.chrom)
+                .map(String::as_str)
+                .unwrap_or("contig");
+            vcf.push_str(chrom_name);
+            vcf.push('\t');
+            vcf.push_str(&(ref_kmer.pos + 1).to_string());
+            vcf.push_str("\t.\t");
+            vcf.push(ref_base as char);
+            vcf.push('\t');
+            for (idx, alt_base) in alt_bases.iter().enumerate() {
+                if idx > 0 {
+                    vcf.push(',');
+                }
+                vcf.push(*alt_base as char);
+            }
+            vcf.push_str("\t.\t.\t.\tGT");
+            for genotype in genotypes {
+                vcf.push('\t');
+                vcf.push_str(&genotype);
+            }
+            vcf.push('\n');
+        }
+
+        vcf
+    }
+
     /// Returns the k value associated with this SkaRef struct
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn get_k(&self) -> usize {
         self.k
     }
 
     /// Returns a reference to the sequence
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn get_seq(&self) -> &Vec<Vec<u8>> {
         &self.seq
     }

@@ -11,7 +11,7 @@ use crate::QualOpts;
 use speedytree::DistanceMatrix;
 use speedytree::{Canonical, NeighborJoiningSolver};
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 #[derive(Debug, Clone, Default)]
 /// Main struct for alignment in a WebAssembly environment.
 ///
@@ -37,7 +37,7 @@ impl<IntT> SkaAlign<IntT>
 where
     IntT: for<'a> UInt<'a>,
 {
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Constructor of a SkaAlign struct
     pub fn new(k: usize, rc: bool) -> Self {
         Self {
@@ -49,7 +49,7 @@ where
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Adds a file, builds its split-kmer dict, computes distances against all
     /// previously loaded samples, then retains only the raw kmer map.
     ///
@@ -101,7 +101,7 @@ where
         self.past_kmers.push(ska_dict.into_kmers());
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Performs the alignment using precomputed pairwise distances.
     pub fn align(&mut self, file_names: &[String]) -> String {
         let n = self.names.len();
@@ -152,7 +152,7 @@ where
         speedytree::to_newick(&tree)
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Returns pairwise distances as a flat `Vec<f64>` in upper-triangle row-major
     /// order: all pairs (i, j) with i < j, i increasing from 0. The distance
     /// between sample i and sample j (i < j) is at index `i*n - i*(i+1)/2 + (j-i-1)`.
@@ -168,13 +168,13 @@ where
         flat
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Gets number of loaded samples
     pub fn get_size(&self) -> usize {
         self.names.len()
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     /// Iterate over (sample_index, sample_name, kmer_map) for all loaded samples.
     ///
     /// Used to build a [`crate::merge_ska_dict::MergeSkaDict`] for FASTA output

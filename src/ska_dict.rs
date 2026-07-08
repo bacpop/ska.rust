@@ -19,9 +19,9 @@
 use std::cmp::Ordering;
 
 use hashbrown::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 extern crate needletail;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use needletail::{parse_fastx_file, parser::Format};
 
 pub mod split_kmer;
@@ -36,19 +36,19 @@ use crate::ska_dict::bloom_filter::KmerFilter;
 
 pub mod nthash;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use crate::wasm::fastx_wasm::{open_fasta, open_fastq, ReaderEnum};
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use seq_io::fasta::Reader as FastaReader;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use seq_io::fasta::Record as FastaRecord;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use seq_io::fastq::Reader as FastqReader;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use seq_io::fastq::Record as FastqRecord;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use std::io::Read;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use wasm_bindgen_file_reader::WebSysFile;
 
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
@@ -114,7 +114,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     fn add_file_kmers(
         &mut self,
         filename: &str,
@@ -181,7 +181,7 @@ where
 
     /// Iterates through all the k-mers from an input fastx file and adds them
     /// to the dictionary
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn add_file_kmers<F: Read>(
         &mut self,
         file: &mut F,
@@ -316,7 +316,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
@@ -406,7 +406,7 @@ where
     /// - Input file cannot be read
     /// - Input file contains invalid fastx record
     /// - Input file contains no valid sequence to find at least on split k-mer
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         k: usize,
@@ -513,7 +513,7 @@ where
     ///
     /// Used by [`crate::wasm::ska_align::SkaAlign`] to retain only the HashMap
     /// after incremental distance computation, freeing all other SkaDict overhead.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn into_kmers(self) -> HashMap<IntT, u8> {
         self.split_kmers
     }

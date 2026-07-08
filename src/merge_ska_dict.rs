@@ -11,12 +11,12 @@ use core::panic;
 use std::mem;
 
 use hashbrown::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use indicatif::ProgressIterator;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use super::QualOpts;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use crate::io_utils::any_fastq;
 use crate::ska_dict::bit_encoding::UInt;
 use crate::ska_dict::SkaDict;
@@ -116,7 +116,7 @@ where
     /// # Panics
     ///
     /// If `idx >= n_samples`
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn append_raw(&mut self, idx: usize, name: &str, kmers: &HashMap<IntT, u8>) {
         self.names[idx] = name.to_string();
         if self.ksize() == 0 {
@@ -259,7 +259,7 @@ where
 // Functions to created merged dicts from files
 
 /// Serial `MergeSkaDict::append()` into a [`MergeSkaDict`]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn multi_append<IntT>(
     input_files: &[InputFastx],
     offset: usize,
@@ -293,7 +293,7 @@ where
 /// Depth sets number of splits into two
 /// i.e. depth 1 splits in 2, depth 2 splits in 4
 #[allow(clippy::too_many_arguments)]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 fn parallel_append<IntT>(
     depth: usize,
     offset: usize,
@@ -383,7 +383,7 @@ where
 /// # Panics
 ///
 /// If any input files are invalid
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub fn build_and_merge<IntT>(
     input_files: &[InputFastx],
     k: usize,
