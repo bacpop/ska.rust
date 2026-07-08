@@ -1201,6 +1201,163 @@ pub struct AlignData {
 }
 
 #[cfg(target_arch = "wasm32")]
+struct EncodedAlignmentSequence {
+    name: String,
+    lo: Vec<u64>,
+    hi: Vec<u64>,
+    valid: Vec<u64>,
+}
+
+#[cfg(target_arch = "wasm32")]
+fn concrete_base_bits(base: u8) -> Option<(bool, bool)> {
+    match base.to_ascii_uppercase() {
+        b'A' => Some((false, false)),
+        b'C' => Some((true, false)),
+        b'G' => Some((false, true)),
+        b'T' | b'U' => Some((true, true)),
+        _ => None,
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn encode_alignment_sequence(
+    name: String,
+    sequence: &[u8],
+    n_words: usize,
+) -> Result<EncodedAlignmentSequence, JsValue> {
+    let mut encoded = EncodedAlignmentSequence {
+        name: name.clone(),
+        lo: vec![0; n_words],
+        hi: vec![0; n_words],
+        valid: vec![0; n_words],
+    };
+
+    for (pos, base) in sequence.iter().enumerate() {
+        if !base.is_ascii() {
+            return Err(JsValue::from_str(&format!(
+                "Alignment sequence for {name} contains non-ASCII characters."
+            )));
+        }
+
+        if let Some((lo_bit, hi_bit)) = concrete_base_bits(*base) {
+            let word = pos / 64;
+            let mask = 1u64 << (pos % 64);
+            encoded.valid[word] |= mask;
+            if lo_bit {
+                encoded.lo[word] |= mask;
+            }
+            if hi_bit {
+                encoded.hi[word] |= mask;
+            }
+        }
+    }
+
+    Ok(encoded)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn packed_snp_distance(a: &EncodedAlignmentSequence, b: &EncodedAlignmentSequence) -> u64 {
+    let mut distance = 0u64;
+
+    for word_idx in 0..a.valid.len() {
+        let comparable = a.valid[word_idx] & b.valid[word_idx];
+        let lo_diff = a.lo[word_idx] ^ b.lo[word_idx];
+        let hi_diff = a.hi[word_idx] ^ b.hi[word_idx];
+        let snp_bits = (lo_diff | hi_diff) & comparable;
+        distance += snp_bits.count_ones() as u64;
+    }
+
+    distance
+}
+
+#[cfg(target_arch = "wasm32")]
+fn parse_fasta_alignment(text: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> {
+    let mut records: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut current_name: Option<String> = None;
+    let mut current_sequence: Vec<u8> = Vec::new();
+    let mut seen_names = std::collections::HashSet::new();
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(header) = line.strip_prefix('>') {
+            if let Some(name) = current_name.take() {
+                if current_sequence.is_empty() {
+                    return Err(JsValue::from_str(&format!(
+                        "Alignment record {name} has no sequence."
+                    )));
+                }
+                records.push((name, std::mem::take(&mut current_sequence)));
+            }
+
+            let name = header
+                .split_whitespace()
+                .next()
+                .ok_or_else(|| JsValue::from_str("FASTA headers must include a sample ID."))?
+                .to_string();
+            if name.is_empty() {
+                return Err(JsValue::from_str("FASTA headers must include a sample ID."));
+            }
+            if !seen_names.insert(name.clone()) {
+                return Err(JsValue::from_str(&format!(
+                    "Duplicate sample ID in alignment: {name}."
+                )));
+            }
+            current_name = Some(name);
+        } else {
+            if current_name.is_none() {
+                return Err(JsValue::from_str(
+                    "Alignment files must be FASTA-formatted and start with a '>' header.",
+                ));
+            }
+            for base in line.bytes() {
+                if !base.is_ascii() {
+                    let name = current_name.as_deref().unwrap_or("unknown sample");
+                    return Err(JsValue::from_str(&format!(
+                        "Alignment sequence for {name} contains non-ASCII characters."
+                    )));
+                }
+                if !base.is_ascii_whitespace() {
+                    current_sequence.push(base.to_ascii_uppercase());
+                }
+            }
+        }
+    }
+
+    if let Some(name) = current_name.take() {
+        if current_sequence.is_empty() {
+            return Err(JsValue::from_str(&format!(
+                "Alignment record {name} has no sequence."
+            )));
+        }
+        records.push((name, current_sequence));
+    }
+
+    if records.len() < 2 {
+        return Err(JsValue::from_str(
+            "Transmission clustering requires at least two aligned sequences.",
+        ));
+    }
+
+    let alignment_len = records[0].1.len();
+    if alignment_len == 0 {
+        return Err(JsValue::from_str("Alignment sequences must not be empty."));
+    }
+
+    for (name, sequence) in &records {
+        if sequence.len() != alignment_len {
+            return Err(JsValue::from_str(&format!(
+                "Alignment sequence {name} has length {}, expected {alignment_len}.",
+                sequence.len()
+            )));
+        }
+    }
+
+    Ok(records)
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct
@@ -1226,6 +1383,40 @@ impl AlignData {
         } else {
             panic!("k values larger than 64 are not supported.");
         }
+    }
+
+    /// Builds clustering-ready alignment data from an already aligned FASTA file.
+    pub fn from_alignment_text(text: String) -> Result<AlignData, JsValue> {
+        let records = parse_fasta_alignment(&text)?;
+        let alignment_len = records[0].1.len();
+        let n_words = (alignment_len + 63) / 64;
+        let mut encoded = Vec::with_capacity(records.len());
+
+        for (name, sequence) in records {
+            encoded.push(encode_alignment_sequence(name, &sequence, n_words)?);
+        }
+
+        let mut file_names = Vec::with_capacity(encoded.len());
+        for sequence in &encoded {
+            file_names.push(sequence.name.clone());
+        }
+
+        let n = encoded.len();
+        let mut flat_distances = Vec::with_capacity(n * (n - 1) / 2);
+        for i in 0..n {
+            for j in (i + 1)..n {
+                flat_distances.push(packed_snp_distance(&encoded[i], &encoded[j]) as f64);
+            }
+        }
+
+        Ok(Self {
+            k: 31,
+            rc: false,
+            alignment64: None,
+            alignment128: None,
+            file_names,
+            flat_distances,
+        })
     }
 
     /// Alignment function.
