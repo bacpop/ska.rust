@@ -967,11 +967,13 @@ impl SkaData {
     /// Constructor of the SkaData struct
     pub fn new(
         ref_file: web_sys::File,
-        k: usize,
+        k: u32,
         rc: bool,
         ambig_mask: bool,
         repeat_mask: bool,
     ) -> Self {
+        let k = k as usize;
+
         if cfg!(debug_assertions) {
             init_panic_hook();
         }
@@ -1396,7 +1398,9 @@ fn parse_fasta_alignment(text: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> 
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct
-    pub fn new(k: usize, rc: bool) -> Self {
+    pub fn new(k: u32, rc: bool) -> Self {
+        let k = k as usize;
+
         if k < 32 {
             Self {
                 k,
