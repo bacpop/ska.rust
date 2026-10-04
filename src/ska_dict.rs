@@ -205,14 +205,19 @@ where
         let step = 1_f64 / proportion_reads.unwrap();
 
         let mut iter_reads = 0;
-        while let Some((seq, seq_len)) = match reader {
+        while let Some((seq, seq_len, quality)) = match reader {
             ReaderType::Fasta(ref mut r) => {
                 if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTA record");
-                    // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec.seq().iter().filter(|&&x| x != 10).copied().collect();
+                    // Remove line endings from wrapped sequence records.
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .iter()
+                        .filter(|&&x| x != b'\n' && x != b'\r')
+                        .copied()
+                        .collect();
                     let seq_len = seq.len();
-                    Some((seq, seq_len))
+                    Some((seq, seq_len, None))
                 } else {
                     None
                 }
@@ -220,10 +225,21 @@ where
             ReaderType::Fastq(ref mut r) => {
                 if let Some(record) = r.next() {
                     let seqrec = record.expect("Invalid FASTQ record");
-                    // There can be \n in the sequence, its ascii code is 10
-                    let seq: Vec<u8> = seqrec.seq().iter().filter(|&&x| x != 10).copied().collect();
+                    // Remove line endings from wrapped sequence records.
+                    let seq: Vec<u8> = seqrec
+                        .seq()
+                        .iter()
+                        .filter(|&&x| x != b'\n' && x != b'\r')
+                        .copied()
+                        .collect();
                     let seq_len = seq.len();
-                    Some((seq, seq_len))
+                    let quality = seqrec
+                        .qual()
+                        .iter()
+                        .filter(|&&x| x != b'\n' && x != b'\r')
+                        .copied()
+                        .collect::<Vec<_>>();
+                    Some((seq, seq_len, Some(quality)))
                 } else {
                     None
                 }
@@ -239,7 +255,7 @@ where
             let kmer_opt = SplitKmer::new(
                 seq.into(),
                 seq_len,
-                None,
+                quality.as_deref(),
                 self.k,
                 self.rc,
                 qual.min_qual,
@@ -349,7 +365,9 @@ where
             .expect("Invalid FASTA/Q record");
         let mut is_reads = false;
         if seq_peek.format() == Format::Fastq {
-            sk_dict.kmer_filter.init();
+            if qual.min_count > 1 {
+                sk_dict.kmer_filter.init();
+            }
             is_reads = true;
         }
 
@@ -451,7 +469,7 @@ where
             kmer_filter: KmerFilter::new(qual.min_count),
         };
 
-        if is_reads {
+        if is_reads && qual.min_count > 1 {
             sk_dict.kmer_filter.init();
         }
 

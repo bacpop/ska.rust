@@ -24,6 +24,7 @@ use std::io::{BufReader, BufWriter, Write};
 use std::mem;
 
 use hashbrown::{HashMap, HashSet};
+#[cfg(not(target_family = "wasm"))]
 use indicatif::ParallelProgressIterator;
 use ndarray::parallel::prelude::*;
 use ndarray::{Array2, ArrayView, Axis, Dim};
@@ -422,11 +423,10 @@ where
     ///   the denominator of mismatch proportion
     pub fn distance(&self, constant: f64, filt_ambig: bool) -> Vec<Vec<VariantDist>> {
         let mut distances: Vec<Vec<VariantDist>> = Vec::new();
-        self.variants
-            .axis_iter(Axis(1))
-            .into_par_iter()
-            .progress_count(self.variants.ncols() as u64)
-            .enumerate()
+        let rows = self.variants.axis_iter(Axis(1)).into_par_iter();
+        #[cfg(not(target_family = "wasm"))] // This is needed because we don't use indicatif for wasm
+        let rows = rows.progress_count(self.variants.ncols() as u64);
+        rows.enumerate()
             .map(|(i, row)| {
                 let mut partial_dists: Vec<VariantDist> =
                     Vec::with_capacity(self.variants.ncols() - (i + 1));

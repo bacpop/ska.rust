@@ -70,7 +70,6 @@ snap = { version = "1.1" }
 # logging
 log = { version = "0.4" }
 simple_logger = { version = "4", features = ["stderr"] }
-indicatif = { version = "0.17", features = ["rayon"] }
 # cli
 clap = { version = "4.5", features = ["derive"] }
 regex = { version = "1.10" }

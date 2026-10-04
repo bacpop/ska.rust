@@ -36,9 +36,9 @@ use std::io::Write;
 use std::str;
 
 use hashbrown::hash_set::Entry::*;
-use hashbrown::HashSet;
 #[cfg(target_family = "wasm")]
 use hashbrown::HashMap;
+use hashbrown::HashSet;
 use rayon::prelude::*;
 
 #[cfg(not(target_family = "wasm"))]
@@ -343,7 +343,11 @@ where
         let mut chrom = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA record");
-            chrom_names.push(seqrec.id().map_or_else(|_| format!("contig_{}", chrom + 1), |id| id.to_string()));
+            chrom_names.push(
+                seqrec
+                    .id()
+                    .map_or_else(|_| format!("contig_{}", chrom + 1), |id| id.to_string()),
+            );
             split_kmer_pos.reserve(
                 seqrec
                     .full_seq()
@@ -793,7 +797,8 @@ where
         sample_names: &[String],
         sample_maps: &[Vec<Variant>],
     ) -> String {
-        let mut mapped_by_sample: Vec<HashMap<(usize, usize), u8>> = Vec::with_capacity(sample_maps.len());
+        let mut mapped_by_sample: Vec<HashMap<(usize, usize), u8>> =
+            Vec::with_capacity(sample_maps.len());
         for sample_map in sample_maps {
             let mut mapped = HashMap::with_capacity(sample_map.len());
             for variant in sample_map {

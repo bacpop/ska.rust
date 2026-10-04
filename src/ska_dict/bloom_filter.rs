@@ -89,10 +89,9 @@ impl KmerFilter {
     ///
     /// Note:
     /// - Maximum count is [`u16::MAX`] i.e. 65535
-    /// - Must call [`KmerFilter::init()`] before using.
+    /// - Call [`KmerFilter::init()`] before filtering when `min_count > 1`.
     pub fn new(min_count: u16) -> Self {
-        let buf_size =
-            f64::round(BLOOM_WIDTH as f64 * (BITS_PER_ENTRY as f64 / 8.0) / (u64::BITS as f64))
+        let buf_size = f64::round((BLOOM_WIDTH as f64 * BITS_PER_ENTRY as f64) / (u64::BITS as f64))
                 as u64;
         Self {
             buf_size,
@@ -106,7 +105,7 @@ impl KmerFilter {
     ///
     /// Allocates memory for bloom filter (which can be avoided with FASTA input)
     pub fn init(&mut self) {
-        if self.buffer.is_empty() {
+        if self.min_count > 1 && self.buffer.is_empty() {
             self.buffer.resize(self.buf_size as usize, 0);
         }
     }
@@ -114,7 +113,7 @@ impl KmerFilter {
     /// Free the bloom buffer and counts table after the dict has been built.
     ///
     /// The filter is no longer needed once all k-mers have been processed.
-    /// Calling this after [`SkaDict::new()`] recovers ~24 MB per sample.
+    /// Calling this after [`SkaDict::new()`] recovers up to 192 MiB per sample.
     pub fn free_buffer(&mut self) {
         self.buffer = Vec::new();
         self.counts = HashMap::new();

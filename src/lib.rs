@@ -446,7 +446,13 @@
 //!
 
 #![warn(missing_docs)]
+#[cfg(any(target_family = "wasm", test))]
+use flate2::write::GzEncoder;
+#[cfg(any(target_family = "wasm", test))]
+use flate2::Compression;
 use std::fmt;
+#[cfg(any(target_family = "wasm", test))]
+use std::io::Write;
 #[cfg(not(target_family = "wasm"))]
 use std::time::Instant;
 
@@ -454,16 +460,17 @@ use clap::ValueEnum;
 extern crate num_cpus;
 
 // #[cfg(not(target_family = "wasm"))]
+#[cfg(any(target_family = "wasm", test))]
+pub(crate) mod alignment_matrix;
 pub mod merge_ska_dict;
 pub mod ska_dict;
 #[cfg(not(target_family = "wasm"))]
 use crate::merge_ska_dict::build_and_merge;
-#[cfg(target_family = "wasm")]
-use crate::merge_ska_dict::MergeSkaDict;
 
 pub mod ska_ref;
 use crate::ska_ref::RefSka;
 pub mod merge_ska_array;
+#[cfg(not(target_family = "wasm"))]
 use crate::merge_ska_array::MergeSkaArray;
 
 #[cfg(not(target_family = "wasm"))]
@@ -928,6 +935,46 @@ pub fn main() {
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
+
+    #[wasm_bindgen(js_name = postMessage)]
+    fn post_message(data: &JsValue);
+}
+
+/// This allows to send a JS object with data included as message, altogether, along the post_message method previously defined.
+#[cfg(target_family = "wasm")]
+pub(crate) fn post_alignment_progress(
+    run_id: u32,
+    stage: &str,
+    sample_index: Option<usize>,
+    sample_total: Option<usize>,
+    sample_name: Option<&str>,
+) {
+    let progress = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(
+        &progress,
+        &"runId".into(),
+        &JsValue::from_f64(run_id as f64),
+    );
+    let _ = js_sys::Reflect::set(&progress, &"stage".into(), &JsValue::from_str(stage));
+    let _ = js_sys::Reflect::set(
+        &progress,
+        &"sampleIndex".into(),
+        &sample_index.map_or(JsValue::NULL, |index| JsValue::from_f64(index as f64)),
+    );
+    let _ = js_sys::Reflect::set(
+        &progress,
+        &"sampleTotal".into(),
+        &sample_total.map_or(JsValue::NULL, |total| JsValue::from_f64(total as f64)),
+    );
+    let _ = js_sys::Reflect::set(
+        &progress,
+        &"sampleName".into(),
+        &sample_name.map_or(JsValue::NULL, JsValue::from_str),
+    );
+
+    let message = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&message, &"alignmentProgress".into(), &progress);
+    post_message(&message.into());
 }
 
 #[cfg(target_family = "wasm")]
@@ -1229,12 +1276,165 @@ pub fn reconstruct_sequence<IntT: for<'a> UInt<'a>>(reference: &RefSka<IntT>) ->
 #[wasm_bindgen]
 /// AlignData struct for doing alignment while in WebAssembly
 pub struct AlignData {
+    run_id: u32,
     k: usize,
-    rc: bool,
     alignment64: Option<SkaAlign<u64>>,
     alignment128: Option<SkaAlign<u128>>,
     file_names: Vec<String>,
     flat_distances: Vec<f64>,
+    sample_total: usize,
+}
+
+
+/// Get the distances and compress them to gz directly.
+#[cfg(any(target_family = "wasm", test))]
+fn distances_csv_gzip(names: &[String], flat_distances: &[f64]) -> std::io::Result<Vec<u8>> {
+    if names.len() < 3 {
+        return Ok(Vec::new());
+    }
+
+    let n = names.len();
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(b",")?;
+    for (index, name) in names.iter().enumerate() {
+        if index > 0 {
+            encoder.write_all(b",")?;
+        }
+        encoder.write_all(name.as_bytes())?;
+    }
+    encoder.write_all(b"\n")?;
+
+    for i in 0..n {
+        encoder.write_all(names[i].as_bytes())?;
+        for j in 0..n {
+            encoder.write_all(b",")?;
+            if i == j {
+                encoder.write_all(b"0")?;
+            } else {
+                let (a, b) = if i < j { (i, j) } else { (j, i) };
+                let flat_idx = a * n - a * (a + 1) / 2 + (b - a - 1);
+                let distance = flat_distances[flat_idx];
+                if distance == distance.floor() {
+                    write!(encoder, "{}", distance as u64)?;
+                } else {
+                    write!(encoder, "{distance}")?;
+                }
+            }
+        }
+        encoder.write_all(b"\n")?;
+    }
+
+    encoder.finish()
+}
+
+#[cfg(test)]
+mod alignment_export_tests {
+    use super::distances_csv_gzip;
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+
+    #[test]
+    fn gzip_distance_csv_preserves_square_matrix_and_fractional_values() {
+        let names = vec![
+            "sample-a".to_string(),
+            "sample-b".to_string(),
+            "sample-c".to_string(),
+        ];
+        let compressed = distances_csv_gzip(&names, &[1.0, 2.5, 3.0]).unwrap();
+        let mut decoded = String::new();
+        GzDecoder::new(compressed.as_slice())
+            .read_to_string(&mut decoded)
+            .unwrap();
+
+        assert_eq!(
+            decoded,
+            ",sample-a,sample-b,sample-c\nsample-a,0,1,2.5\nsample-b,1,0,3\nsample-c,2.5,3,0\n"
+        );
+    }
+
+    #[test]
+    fn gzip_distance_csv_is_empty_when_alignment_is_too_small() {
+        assert!(
+            distances_csv_gzip(&["one".to_string(), "two".to_string()], &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen]
+/// Extracts one sample's split-kmer dictionary into compact, transferable words.
+#[allow(clippy::too_many_arguments)]
+pub fn extract_alignment_sample(
+    file1: web_sys::File,
+    file2: Option<web_sys::File>,
+    k: u32,
+    sample_index: u32,
+    sample_name: String,
+    rc: bool,
+    proportion_reads: Option<f64>,
+    min_count: u16,
+    min_qual: u8,
+    qual_filter: u8,
+) -> Result<js_sys::Uint32Array, JsValue> {
+    init_panic_hook();
+    let qual_filter = match qual_filter {
+        0 => QualFilter::NoFilter,
+        1 => QualFilter::Middle,
+        _ => QualFilter::Strict,
+    };
+    let qual = QualOpts {
+        min_count,
+        min_qual,
+        qual_filter,
+    };
+
+    logw(
+        &format!("Extracting split k-mers for sample {}", sample_name),
+        Some("info"),
+    );
+    let words = if k < 32 {
+        let dictionary = crate::ska_dict::SkaDict::<u64>::new(
+            k as usize,
+            sample_index as usize,
+            (&file1, file2.as_ref()),
+            &sample_name,
+            rc,
+            &qual,
+            proportion_reads,
+        );
+        let mut words = Vec::with_capacity(dictionary.ksize() * 2);
+        for (kmer, base) in dictionary.into_kmers() {
+            words.extend(crate::alignment_matrix::pack_entry_u64(kmer, base));
+        }
+        words
+    } else {
+        let dictionary = crate::ska_dict::SkaDict::<u128>::new(
+            k as usize,
+            sample_index as usize,
+            (&file1, file2.as_ref()),
+            &sample_name,
+            rc,
+            &qual,
+            proportion_reads,
+        );
+        let mut words = Vec::with_capacity(dictionary.ksize() * 4);
+        for (kmer, base) in dictionary.into_kmers() {
+            words.extend(crate::alignment_matrix::pack_entry_u128(kmer, base));
+        }
+        words
+    };
+
+    logw(
+        &format!(
+            "Extracted {} split k-mers for sample {}",
+            words.len() / if k < 32 { 2 } else { 4 },
+            sample_name
+        ),
+        Some("info"),
+    );
+    Ok(js_sys::Uint32Array::from(words.as_slice()))
 }
 
 #[cfg(target_family = "wasm")]
@@ -1394,30 +1594,306 @@ fn parse_fasta_alignment(text: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> 
     Ok(records)
 }
 
+/// Return a normalised pair key, the mate number, and a sample name for a FASTQ
+/// filename with a recognised mate suffix (`_1`, `_2`, `_R1`, or `_R2`).
+#[cfg(any(target_family = "wasm", test))]
+fn fastq_pair_info(filename: &str) -> Option<(String, u8, String)> {
+    let without_gzip = filename.strip_suffix(".gz").unwrap_or(filename);
+    let extension_start = without_gzip.rfind('.')?;
+    let extension = &without_gzip[extension_start + 1..];
+    if !["fastq", "fq", "fnq"].contains(&extension) {
+        return None;
+    }
+
+    let stem = &without_gzip[..extension_start];
+    let bytes = stem.as_bytes();
+    let is_delimiter = |byte| matches!(byte, b'_' | b'.' | b'-');
+
+    // Prefer the explicit R1/R2 marker, which may be followed by an Illumina
+    // chunk suffix such as `_001`.
+    let mut marker = None;
+    for index in 1..bytes.len().saturating_sub(1) {
+        if bytes[index] == b'R'
+            && is_delimiter(bytes[index - 1])
+            && matches!(bytes[index + 1], b'1' | b'2')
+        {
+            let suffix = &stem[index + 2..];
+            let valid_suffix = suffix.is_empty()
+                || suffix.strip_prefix('_').is_some_and(|digits| {
+                    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+                });
+            if valid_suffix {
+                marker = Some((index - 1, index + 1, index + 2, bytes[index + 1] - b'0'));
+            }
+        }
+    }
+
+    // Also accept the common terminal `_1` / `_2` and `.1` / `.2` forms.
+    if marker.is_none() && bytes.len() >= 2 {
+        let digit_index = bytes.len() - 1;
+        if matches!(bytes[digit_index], b'1' | b'2') && is_delimiter(bytes[digit_index - 1]) {
+            marker = Some((
+                digit_index - 1,
+                digit_index,
+                digit_index + 1,
+                bytes[digit_index] - b'0',
+            ));
+        }
+    }
+
+    let (marker_start, mate_index, marker_end, mate) = marker?;
+    let mut key = bytes.to_vec();
+    key[mate_index] = b'X';
+    let pair_key = String::from_utf8(key).ok()?;
+    let sample_stem = format!("{}{}", &stem[..marker_start], &stem[marker_end..]);
+    let sample_name = format!("{sample_stem}{}", &filename[stem.len()..]);
+
+    Some((pair_key, mate, sample_name))
+}
+
+#[cfg(any(target_family = "wasm", test))]
+fn fastq_files_are_mates(first: &str, second: &str) -> bool {
+    matches!(
+        (fastq_pair_info(first), fastq_pair_info(second)),
+        (Some((key1, mate1, _)), Some((key2, mate2, _)))
+            if key1 == key2 && mate1 != mate2
+    )
+}
+
+#[cfg(any(target_family = "wasm", test))]
+#[derive(Debug, PartialEq, Eq)]
+struct AlignmentSample {
+    name: String,
+    first_index: usize,
+    second_index: Option<usize>,
+}
+
+#[cfg(any(target_family = "wasm", test))]
+fn is_fastq_filename(filename: &str) -> bool {
+    let mut file_type = filename.rsplit('.').next().unwrap_or("");
+    if file_type == "gz" {
+        file_type = filename.rsplit('.').nth(1).unwrap_or("");
+    }
+    ["fnq", "fq", "fastq"].contains(&file_type)
+}
+
+#[cfg(any(target_family = "wasm", test))]
+fn alignment_sample_for_read(names: &[String], index: usize) -> AlignmentSample {
+    AlignmentSample {
+        name: names[index].clone(),
+        first_index: index,
+        second_index: None,
+    }
+}
+
+/// Group the selected inputs in the same order as the alignment workflow:
+/// non-FASTQ inputs first, then paired or individual FASTQ samples.
+#[cfg(any(target_family = "wasm", test))]
+fn prepare_alignment_samples(names: &[String]) -> Vec<AlignmentSample> {
+    let mut samples = Vec::with_capacity(names.len());
+    let mut fastq_files = Vec::new();
+
+    for (index, filename) in names.iter().enumerate() {
+        if is_fastq_filename(filename) {
+            fastq_files.push(index);
+        } else {
+            samples.push(AlignmentSample {
+                name: filename.clone(),
+                first_index: index,
+                second_index: None,
+            });
+        }
+    }
+
+    match fastq_files.len() {
+        0 => {}
+        1 => {
+            #[cfg(target_family = "wasm")]
+            logw("Among the uploaded files, only one fastq file has been uploaded. We'll assume it contains all reads needed for this.", None);
+            samples.push(alignment_sample_for_read(names, fastq_files[0]));
+        }
+        2 => {
+            let first = fastq_files[0];
+            let second = fastq_files[1];
+            if fastq_files_are_mates(&names[first], &names[second]) {
+                let sample_name = fastq_pair_info(&names[first])
+                    .expect("paired FASTQ filename should have mate information")
+                    .2;
+                samples.push(AlignmentSample {
+                    name: sample_name,
+                    first_index: first,
+                    second_index: Some(second),
+                });
+            } else {
+                #[cfg(target_family = "wasm")]
+                logw(
+                    "Two read files uploaded, but found to not come from the same sample.",
+                    None,
+                );
+                samples.push(alignment_sample_for_read(names, first));
+                samples.push(alignment_sample_for_read(names, second));
+            }
+        }
+        _ => {
+            while let Some(first) = fastq_files.pop() {
+                let mate_position = fastq_files
+                    .iter()
+                    .position(|&second| fastq_files_are_mates(&names[first], &names[second]));
+
+                if let Some(position) = mate_position {
+                    let second = fastq_files.remove(position);
+                    #[cfg(target_family = "wasm")]
+                    logw(
+                        &format!("Matched FASTQ pair: {} and {}", names[first], names[second]),
+                        Some("info"),
+                    );
+                    let sample_name = fastq_pair_info(&names[first])
+                        .expect("paired FASTQ filename should have mate information")
+                        .2;
+                    samples.push(AlignmentSample {
+                        name: sample_name,
+                        first_index: first,
+                        second_index: Some(second),
+                    });
+                } else {
+                    #[cfg(target_family = "wasm")]
+                    logw(
+                        &format!(
+                            "No pair found among input files for {}. Adding individually.",
+                            names[first]
+                        ),
+                        None,
+                    );
+                    samples.push(alignment_sample_for_read(names, first));
+                }
+            }
+        }
+    }
+
+    samples
+}
+
+#[cfg(test)]
+mod fastq_pair_info_tests {
+    use super::{
+        fastq_files_are_mates, fastq_pair_info, prepare_alignment_samples, AlignmentSample,
+    };
+
+    #[test]
+    fn pairs_only_when_the_read_mate_suffix_and_sample_match() {
+        let mate_1 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz").unwrap();
+        let mate_2 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz").unwrap();
+        let different_sample =
+            fastq_pair_info("BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz").unwrap();
+
+        assert_eq!(mate_1.0, mate_2.0);
+        assert_eq!((mate_1.1, mate_2.1), (1, 2));
+        assert_ne!(mate_1.0, different_sample.0);
+        assert_eq!(mate_1.2, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
+        assert!(fastq_files_are_mates(
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz"
+        ));
+        assert!(!fastq_files_are_mates(
+            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz"
+        ));
+    }
+
+    #[test]
+    fn recognises_illumina_r_mates_with_chunk_suffixes() {
+        let mate_1 = fastq_pair_info("sample_R1_001.fastq.gz").unwrap();
+        let mate_2 = fastq_pair_info("sample_R2_001.fastq.gz").unwrap();
+
+        assert_eq!(mate_1.0, mate_2.0);
+        assert_eq!((mate_1.1, mate_2.1), (1, 2));
+    }
+
+    #[test]
+    fn groups_mixed_inputs_and_preserves_alignment_sample_order() {
+        let names = [
+            "reads_R1.fastq.gz",
+            "reference.fa",
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz",
+            "BARNARDS_Site_7_2016_ERR4920603_1.fastq.gz",
+            "BARNARDS_Site_7_2016_ERR4920603_2.fastq.gz",
+            "BARNARDS_Site_7_2017_ERR4920592_1.fastq.gz",
+            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
+        ]
+        .map(str::to_owned);
+
+        let samples = prepare_alignment_samples(&names);
+
+        assert_eq!(samples.len(), 5);
+        assert_eq!(samples[0].name, "reference.fa");
+        assert_eq!(samples[1].name, "BARNARDS_Site_7_2017_ERR4920592.fastq.gz");
+        assert_eq!(samples[1].first_index, 7);
+        assert_eq!(samples[1].second_index, Some(6));
+        assert_eq!(samples[2].name, "BARNARDS_Site_7_2016_ERR4920603.fastq.gz");
+        assert_eq!(samples[2].first_index, 5);
+        assert_eq!(samples[2].second_index, Some(4));
+        assert_eq!(samples[3].name, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
+        assert_eq!(samples[3].first_index, 3);
+        assert_eq!(samples[3].second_index, Some(2));
+        assert_eq!(samples[4].name, "reads_R1.fastq.gz");
+        assert_eq!(samples[4].first_index, 0);
+    }
+
+    #[test]
+    fn two_unmatched_fastqs_are_two_samples_in_input_order() {
+        let names = ["sample_a_1.fastq", "sample_b_2.fastq"].map(str::to_owned);
+
+        let samples = prepare_alignment_samples(&names);
+
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].first_index, 0);
+        assert_eq!(samples[1].first_index, 1);
+        assert!(samples.iter().all(|sample| sample.second_index.is_none()));
+    }
+
+    #[test]
+    fn two_mate_fastqs_count_as_one_sample() {
+        let names = ["sample_1.fastq.gz", "sample_2.fastq.gz"].map(str::to_owned);
+
+        assert_eq!(
+            prepare_alignment_samples(&names),
+            vec![AlignmentSample {
+                name: "sample.fastq.gz".to_owned(),
+                first_index: 0,
+                second_index: Some(1),
+            }]
+        );
+    }
+}
+
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl AlignData {
     /// Constructor of the AlignData struct
-    pub fn new(k: u32, rc: bool) -> Self {
+    pub fn new(k: u32, run_id: u32) -> Self {
+        init_panic_hook();
         let k = k as usize;
 
         if k < 32 {
             Self {
+                run_id,
                 k,
-                rc,
-                alignment64: Some(SkaAlign::<u64>::new(k, rc)),
+                alignment64: Some(SkaAlign::<u64>::new()),
                 alignment128: None,
                 file_names: Vec::new(),
                 flat_distances: Vec::new(),
+                sample_total: 0,
             }
         } else if k < 64 {
             Self {
+                run_id,
                 k,
-                rc,
                 alignment64: None,
-                alignment128: Some(SkaAlign::<u128>::new(k, rc)),
+                alignment128: Some(SkaAlign::<u128>::new()),
                 file_names: Vec::new(),
                 flat_distances: Vec::new(),
+                sample_total: 0,
             }
         } else {
             panic!("k values larger than 64 are not supported.");
@@ -1449,454 +1925,243 @@ impl AlignData {
         }
 
         Ok(Self {
+            run_id: 0,
             k: 31,
-            rc: false,
             alignment64: None,
             alignment128: None,
             file_names,
             flat_distances,
+            sample_total: 0,
         })
     }
 
-    /// Alignment function.
-    pub fn align(
+    /// Plan an initial batch or append, validating before modifying the dataset.
+    pub fn plan_samples(
         &mut self,
-        input_files: Vec<web_sys::File>,
-        proportion_reads: Option<f64>,
-        min_count: u16,
-        min_qual: u8,
-        qual_filter: u8,
-    ) -> String {
-        logw("Aligning reads", None);
-
-        let mut fastq_files = Vec::new();
-        for (i, input_file) in input_files.iter().enumerate() {
-            let file_name = input_file.name();
-            let mut file_type = file_name
-                .split('.')
-                .nth(file_name.split('.').count() - 1)
-                .unwrap();
-            if file_type == "gz" {
-                file_type = file_name
-                    .split('.')
-                    .nth(file_name.split('.').count() - 2)
-                    .unwrap();
-            }
-
-            if ["fnq", "fq", "fastq"].contains(&file_type) {
-                fastq_files.push(i);
-            } else {
-                self.file_names.push(file_name.clone());
-                if self.k < 32 {
-                    self.alignment64.as_mut().unwrap().add_file(
-                        input_file,
-                        None,
-                        proportion_reads,
-                        min_count,
-                        min_qual,
-                        if qual_filter == 0 {
-                            QualFilter::NoFilter
-                        } else if qual_filter == 1 {
-                            QualFilter::Middle
-                        } else {
-                            QualFilter::Strict
-                        },
-                        &file_name,
-                        self.file_names.len() - 1,
-                    );
-                } else {
-                    self.alignment128.as_mut().unwrap().add_file(
-                        input_file,
-                        None,
-                        proportion_reads,
-                        min_count,
-                        min_qual,
-                        if qual_filter == 0 {
-                            QualFilter::NoFilter
-                        } else if qual_filter == 1 {
-                            QualFilter::Middle
-                        } else {
-                            QualFilter::Strict
-                        },
-                        &file_name,
-                        self.file_names.len() - 1,
-                    );
-                }
+        input_names: Vec<String>,
+        run_id: u32,
+    ) -> Result<String, JsValue> {
+        post_alignment_progress(run_id, "preparing", None, None, None);
+        let frozen = self
+            .alignment64
+            .as_ref()
+            .map(|a| a.is_sealed())
+            .or_else(|| self.alignment128.as_ref().map(|a| a.is_sealed()))
+            .ok_or_else(|| JsValue::from_str("No extracted alignment dataset is available."))?;
+        if frozen {
+            return Err(JsValue::from_str("The alignment is closed to new samples."));
+        }
+        let samples = prepare_alignment_samples(&input_names);
+        if samples.is_empty() {
+            return Err(JsValue::from_str("No supported input samples were found."));
+        }
+        let total = self
+            .file_names
+            .len()
+            .checked_add(samples.len())
+            .filter(|total| *total <= crate::alignment_matrix::MAX_SAMPLES)
+            .ok_or_else(|| JsValue::from_str("Sparse alignment supports at most 4096 samples."))?;
+        let mut names: std::collections::HashSet<&str> =
+            self.file_names.iter().map(String::as_str).collect();
+        for sample in &samples {
+            if !names.insert(&sample.name) {
+                return Err(JsValue::from_str(&format!("Duplicate sample name: {}. Upload each sample only once; paired mates must arrive together.", sample.name)));
             }
         }
-
-        match fastq_files.len() {
-            0 => (),
-            1 => {
-                logw("Among the uploaded files, only one fastq file has been uploaded. We'll assume it contains all reads needed for this.", None);
-                self.file_names
-                    .push(input_files[fastq_files[0]].name().clone());
-                if self.k < 32 {
-                    self.alignment64.as_mut().unwrap().add_file(
-                        &input_files[fastq_files[0]],
-                        None,
-                        proportion_reads,
-                        min_count,
-                        min_qual,
-                        if qual_filter == 0 {
-                            QualFilter::NoFilter
-                        } else if qual_filter == 1 {
-                            QualFilter::Middle
-                        } else {
-                            QualFilter::Strict
-                        },
-                        &input_files[fastq_files[0]].name(),
-                        self.file_names.len() - 1,
-                    );
-                } else {
-                    self.alignment128.as_mut().unwrap().add_file(
-                        &input_files[fastq_files[0]],
-                        None,
-                        proportion_reads,
-                        min_count,
-                        min_qual,
-                        if qual_filter == 0 {
-                            QualFilter::NoFilter
-                        } else if qual_filter == 1 {
-                            QualFilter::Middle
-                        } else {
-                            QualFilter::Strict
-                        },
-                        &input_files[fastq_files[0]].name(),
-                        self.file_names.len() - 1,
-                    );
-                }
-            }
-            2 => {
-                let filen1 = input_files[fastq_files[0]].name();
-                let filen2 = input_files[fastq_files[1]].name();
-
-                let mut samepair = false;
-                if filen1.chars().count() == filen2.chars().count() {
-                    for (ic, jc) in filen1.chars().zip(filen2.chars()) {
-                        if ic != jc
-                            && ["1", "2"].contains(&ic.to_string().as_str())
-                            && ["1", "2"].contains(&jc.to_string().as_str())
-                        {
-                            samepair = true;
-                            break;
-                        }
-                    }
-                }
-
-                if samepair {
-                    self.file_names.push(
-                        input_files[fastq_files[0]]
-                            .name()
-                            .replace("_1", "")
-                            .replace("_2", "")
-                            .clone(),
-                    );
-                    if self.k < 32 {
-                        self.alignment64.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[0]],
-                            Some(&input_files[fastq_files[1]]),
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[0]].name(),
-                            self.file_names.len() - 1,
-                        );
-                    } else {
-                        self.alignment128.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[0]],
-                            Some(&input_files[fastq_files[1]]),
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[0]].name(),
-                            self.file_names.len() - 1,
-                        );
-                    }
-                } else {
-                    logw(
-                        "Two read files uploaded, but found to not come from the same sample.",
-                        None,
-                    );
-                    self.file_names
-                        .push(input_files[fastq_files[0]].name().clone());
-                    self.file_names
-                        .push(input_files[fastq_files[1]].name().clone());
-                    if self.k < 32 {
-                        self.alignment64.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[0]],
-                            None,
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[0]].name(),
-                            self.file_names.len() - 2,
-                        );
-                        self.alignment64.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[1]],
-                            None,
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[1]].name(),
-                            self.file_names.len() - 1,
-                        );
-                    } else {
-                        self.alignment128.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[0]],
-                            None,
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[0]].name(),
-                            self.file_names.len() - 2,
-                        );
-                        self.alignment128.as_mut().unwrap().add_file(
-                            &input_files[fastq_files[1]],
-                            None,
-                            proportion_reads,
-                            min_count,
-                            min_qual,
-                            if qual_filter == 0 {
-                                QualFilter::NoFilter
-                            } else if qual_filter == 1 {
-                                QualFilter::Middle
-                            } else {
-                                QualFilter::Strict
-                            },
-                            &input_files[fastq_files[1]].name(),
-                            self.file_names.len() - 1,
-                        );
-                    }
-                }
-            }
-            3.. => {
-                // Annoying situation: need to find pairs...
-                while let Some(tmpind) = fastq_files.pop() {
-                    let tmpnam = input_files[fastq_files[tmpind]].name();
-                    let mut to_erase = None;
-
-                    for (i, testind) in fastq_files.iter().enumerate() {
-                        let testnam = input_files[fastq_files[*testind]].name();
-
-                        let mut samepair = false;
-                        if tmpnam.chars().count() == testnam.chars().count() {
-                            for (ic, jc) in tmpnam.chars().zip(testnam.chars()) {
-                                if ic != jc
-                                    && ["1", "2"].contains(&ic.to_string().as_str())
-                                    && ["1", "2"].contains(&jc.to_string().as_str())
-                                {
-                                    samepair = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if samepair {
-                            // Great!
-                            to_erase = Some(i);
-
-                            self.file_names.push(
-                                input_files[tmpind]
-                                    .name()
-                                    .replace("_1", "")
-                                    .replace("_2", "")
-                                    .clone(),
-                            );
-                            if self.k < 32 {
-                                self.alignment64.as_mut().unwrap().add_file(
-                                    &input_files[fastq_files[tmpind]],
-                                    Some(&input_files[fastq_files[*testind]]),
-                                    proportion_reads,
-                                    min_count,
-                                    min_qual,
-                                    if qual_filter == 0 {
-                                        QualFilter::NoFilter
-                                    } else if qual_filter == 1 {
-                                        QualFilter::Middle
-                                    } else {
-                                        QualFilter::Strict
-                                    },
-                                    &input_files[tmpind].name(),
-                                    self.file_names.len() - 1,
-                                );
-                            } else {
-                                self.alignment128.as_mut().unwrap().add_file(
-                                    &input_files[fastq_files[tmpind]],
-                                    Some(&input_files[fastq_files[*testind]]),
-                                    proportion_reads,
-                                    min_count,
-                                    min_qual,
-                                    if qual_filter == 0 {
-                                        QualFilter::NoFilter
-                                    } else if qual_filter == 1 {
-                                        QualFilter::Middle
-                                    } else {
-                                        QualFilter::Strict
-                                    },
-                                    &input_files[tmpind].name(),
-                                    self.file_names.len() - 1,
-                                );
-                            }
-
-                            break;
-                        }
-                    }
-
-                    if let Some(whattoerase) = to_erase {
-                        fastq_files.remove(whattoerase);
-                    } else {
-                        logw(
-                            &format!(
-                                "No pair found among input files for {}. Adding individually.",
-                                tmpnam
-                            ),
-                            None,
-                        );
-                        self.file_names.push(input_files[tmpind].name().clone());
-                        if self.k < 32 {
-                            self.alignment64.as_mut().unwrap().add_file(
-                                &input_files[fastq_files[tmpind]],
-                                None,
-                                proportion_reads,
-                                min_count,
-                                min_qual,
-                                if qual_filter == 0 {
-                                    QualFilter::NoFilter
-                                } else if qual_filter == 1 {
-                                    QualFilter::Middle
-                                } else {
-                                    QualFilter::Strict
-                                },
-                                &input_files[tmpind].name(),
-                                self.file_names.len() - 1,
-                            );
-                        } else {
-                            self.alignment128.as_mut().unwrap().add_file(
-                                &input_files[fastq_files[tmpind]],
-                                None,
-                                proportion_reads,
-                                min_count,
-                                min_qual,
-                                if qual_filter == 0 {
-                                    QualFilter::NoFilter
-                                } else if qual_filter == 1 {
-                                    QualFilter::Middle
-                                } else {
-                                    QualFilter::Strict
-                                },
-                                &input_files[tmpind].name(),
-                                self.file_names.len() - 1,
-                            );
-                        }
-                    }
-                }
-            }
+        let mut plan = json::JsonValue::new_array();
+        for (offset, sample) in samples.iter().enumerate() {
+            let mut item = json::JsonValue::new_object();
+            item["sampleIndex"] = (self.file_names.len() + offset).into();
+            item["name"] = sample.name.clone().into();
+            item["firstFileIndex"] = sample.first_index.into();
+            item["secondFileIndex"] = sample
+                .second_index
+                .map_or(json::JsonValue::Null, |index| index.into());
+            let _ = plan.push(item);
         }
+        self.run_id = run_id;
+        self.sample_total = total;
+        logw(
+            &format!(
+                "Prepared {} additional sample(s); {} samples in total",
+                samples.len(),
+                total
+            ),
+            Some("info"),
+        );
+        Ok(plan.dump())
+    }
 
-        if (self.k < 32 && self.alignment64.as_ref().unwrap().get_size() <= 2)
-            || (self.k > 32 && self.alignment128.as_ref().unwrap().get_size() <= 2)
+    /// Adds one sample's compact transferred split-kmer entries in sample order.
+    pub fn add_sample_words(
+        &mut self,
+        sample_index: u32,
+        sample_name: String,
+        words: Vec<u32>,
+    ) -> Result<(), JsValue> {
+        let expected_index = self.file_names.len();
+        if expected_index >= self.sample_total
+            || expected_index >= crate::alignment_matrix::MAX_SAMPLES
         {
-            logw("The number of samples inputted are less than three. No results will be outputted now.", None);
+            return Err(JsValue::from_str(
+                "The sample is outside the validated batch plan.",
+            ));
+        }
+        if sample_index as usize != expected_index {
+            return Err(JsValue::from_str(&format!(
+                "Alignment sample order mismatch: received {}, expected {}.",
+                sample_index, expected_index
+            )));
+        }
 
-            let mut results = json::JsonValue::new_array();
+        let words_per_entry = if self.k < 32 { 2 } else { 4 };
+        if words.len() % words_per_entry != 0 {
+            return Err(JsValue::from_str(&format!(
+                "Packed sample {} has {} words; expected a multiple of {}.",
+                sample_name,
+                words.len(),
+                words_per_entry
+            )));
+        }
+
+        let progress_index = expected_index + 1;
+        let on_stage = |stage: &str| {
+            post_alignment_progress(
+                self.run_id,
+                stage,
+                Some(progress_index),
+                Some(self.sample_total),
+                Some(&sample_name),
+            );
+        };
+
+        logw(
+            &format!(
+                "Adding sample {} with {} split k-mers",
+                sample_name,
+                words.len() / words_per_entry
+            ),
+            Some("info"),
+        );
+        if self.k < 32 {
+            self.alignment64
+                .as_mut()
+                .unwrap()
+                .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
+                .map_err(|error| JsValue::from_str(&error))?;
+        } else {
+            self.alignment128
+                .as_mut()
+                .unwrap()
+                .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
+                .map_err(|error| JsValue::from_str(&error))?;
+        }
+        self.file_names.push(sample_name);
+        Ok(())
+    }
+
+    /// Finish this batch and rebuild its tree; alignment export remains lazy.
+    pub fn finish_alignment(&mut self) -> Result<String, JsValue> {
+        if self.file_names.len() != self.sample_total {
+            return Err(JsValue::from_str(
+                "Not all planned samples have been added.",
+            ));
+        }
+        let size = if self.k < 32 {
+            self.alignment64.as_ref().unwrap().get_size()
+        } else {
+            self.alignment128.as_ref().unwrap().get_size()
+        };
+
+        if size <= 2 {
+            logw("The number of samples inputted are less than three. No results will be outputted now.", None);
+            let mut results = json::JsonValue::new_object();
             results["newick"] = "Not enough sequences to align".into();
-            results["alignment"] = "Not enough sequences to align".into();
+            results["alignmentAvailable"] = false.into();
             results["names"] = json::JsonValue::new_array();
             for name in &self.file_names {
                 let _ = results["names"].push(name.to_string());
             }
-
-            return results.dump();
+            return Ok(results.dump());
         }
 
-        logw(
-            "The number of samples inputted is enough. Starting alignmemnt.",
+        let on_stage = |stage: &str| {
+            post_alignment_progress(self.run_id, stage, None, Some(self.sample_total), None);
+        };
+        let newick = if self.k < 32 {
+            self.alignment64
+                .as_mut()
+                .unwrap()
+                .align(&self.file_names, &on_stage)
+        } else {
+            self.alignment128
+                .as_mut()
+                .unwrap()
+                .align(&self.file_names, &on_stage)
+        };
+
+        post_alignment_progress(
+            self.run_id,
+            "exporting",
+            None,
+            Some(self.sample_total),
             None,
         );
-        // Alignment first
-        let alignment = if self.k < 32 {
-            let mut merger = MergeSkaDict::new(
-                self.k,
-                self.alignment64.as_ref().unwrap().get_size(),
-                self.rc,
-            );
-            for (idx, name, kmers) in self.alignment64.as_ref().unwrap().iter_kmers() {
-                merger.append_raw(idx, name, kmers);
-            }
-            let array = MergeSkaArray::<u64>::new(&merger);
-            array.write_fasta()
-        } else {
-            let mut merger = MergeSkaDict::new(
-                self.k,
-                self.alignment128.as_ref().unwrap().get_size(),
-                self.rc,
-            );
-            for (idx, name, kmers) in self.alignment128.as_ref().unwrap().iter_kmers() {
-                merger.append_raw(idx, name, kmers);
-            }
-            let array = MergeSkaArray::<u128>::new(&merger);
-            array.write_fasta()
-        };
-        logw(&format!("Output alignment: {:?}", alignment), None);
-
-        // Now get the tree (also stores pairwise distances internally)
-        let newick = if self.k < 32 {
-            self.alignment64.as_mut().unwrap().align(&self.file_names)
-        } else {
-            self.alignment128.as_mut().unwrap().align(&self.file_names)
-        };
-
-        // Persist flat upper-triangle distances for later clustering
         self.flat_distances = if self.k < 32 {
             self.alignment64.as_ref().unwrap().get_flat_distances()
         } else {
             self.alignment128.as_ref().unwrap().get_flat_distances()
         };
 
-        let mut results = json::JsonValue::new_array();
-
+        let mut results = json::JsonValue::new_object();
         results["newick"] = newick.into();
+        results["alignmentAvailable"] = true.into();
         results["names"] = json::JsonValue::new_array();
-        results["alignment"] = json::JsonValue::from(alignment);
         for name in &self.file_names {
             let _ = results["names"].push(name.to_string());
         }
-        results.dump()
+        Ok(results.dump())
+    }
+
+    /// Close additions and recover the alignment only when download is requested.
+    pub fn export_alignment_gzip(&mut self) -> Result<Vec<u8>, JsValue> {
+        if self.file_names.len() < 3 || self.file_names.len() != self.sample_total {
+            return Err(JsValue::from_str(
+                "At least three completed samples are required for alignment export.",
+            ));
+        }
+        logw("Obtaining alignment...", Some("info"));
+        let run_id = self.run_id;
+        let total = self.file_names.len();
+        let on_sample = |index| {
+            post_alignment_progress(
+                run_id,
+                "obtaining-alignment",
+                Some(index),
+                Some(total),
+                None,
+            )
+        };
+        let bytes = if self.k < 32 {
+            self.alignment64
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
+                .export_fasta_gzip(&on_sample)
+        } else {
+            self.alignment128
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
+                .export_fasta_gzip(&on_sample)
+        }
+        .map_err(|error| JsValue::from_str(&error))?;
+        logw(
+            &format!(
+                "Alignment compressed: {} bytes; sparse sites released",
+                bytes.len()
+            ),
+            Some("info"),
+        );
+        Ok(bytes)
     }
 
     /// Returns sample names (crate-internal, not exposed to JS).
@@ -1949,35 +2214,10 @@ impl AlignData {
         result.dump()
     }
 
-    pub fn get_distances_csv(&self) -> String {
-        if self.file_names.is_empty() {
-            return String::new();
-        }
-        let n = self.file_names.len();
-        let mut out = String::new();
-        // Header
-        out.push(',');
-        out.push_str(&self.file_names.join(","));
-        out.push('\n');
-        for i in 0..n {
-            out.push_str(&self.file_names[i]);
-            for j in 0..n {
-                out.push(',');
-                if i == j {
-                    out.push('0');
-                } else {
-                    let (a, b) = if i < j { (i, j) } else { (j, i) };
-                    let flat_idx = a * n - a * (a + 1) / 2 + (b - a - 1);
-                    let d = self.flat_distances[flat_idx];
-                    if d == d.floor() {
-                        out.push_str(&(d as u64).to_string());
-                    } else {
-                        out.push_str(&d.to_string());
-                    }
-                }
-            }
-            out.push('\n');
-        }
-        out
+    /// Returns pairwise SNP distances as a gzip-compressed square CSV matrix.
+    pub fn get_distances_csv_gzip(&self) -> Result<Vec<u8>, JsValue> {
+        distances_csv_gzip(&self.file_names, &self.flat_distances).map_err(|error| {
+            JsValue::from_str(&format!("Could not gzip distance CSV output: {error}"))
+        })
     }
 }

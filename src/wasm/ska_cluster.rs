@@ -8,7 +8,7 @@ use crate::AlignData;
 #[wasm_bindgen]
 /// Cluster samples by SNP distance threshold using a pre-computed `AlignData`.
 ///
-/// Call this after `AlignData.align()` has been run.
+/// Call this after `AlignData.finish_alignment()` has been run.
 /// `threshold` – SNP distance cutoff
 /// Returns JSON string: `{"sample_name": cluster_id, ...}` (1-indexed, largest cluster = 1).
 pub fn ska_cluster(data: &AlignData, threshold: f64) -> String {
