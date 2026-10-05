@@ -145,6 +145,11 @@ where
         self.matrix.is_sealed()
     }
 
+    /// Total samples once the planned run is added, which bounds how far site storage grows.
+    pub fn set_expected_samples(&mut self, total: usize) {
+        self.matrix.set_expected_samples(total);
+    }
+
     /// Close additions and lazily stream the final sparse array to gzip.
     pub fn export_fasta_gzip(&mut self, on_sample: &dyn Fn(usize)) -> Result<Vec<u8>, String> {
         self.matrix.export_fasta_gzip(&self.names, on_sample)

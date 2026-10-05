@@ -107,6 +107,21 @@ fn validate_words(words: &[u32], width: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// Room for one more call, doubling as `Vec` would but never past `limit` calls, so a site's last
+/// growth goes straight to its final size.
+fn reserve_call(calls: &mut Vec<u16>, limit: usize) -> Result<(), String> {
+    if calls.len() < calls.capacity() {
+        return Ok(());
+    }
+    let target = (calls.capacity() * 2)
+        .max(4)
+        .min(limit)
+        .max(calls.len() + 1);
+    calls
+        .try_reserve_exact(target - calls.len())
+        .map_err(|error| format!("Could not extend site calls: {error}"))
+}
+
 fn increment_distance(distance: &mut u32) -> Result<(), String> {
     *distance = distance
         .checked_add(1)
@@ -120,9 +135,17 @@ struct SparseSite {
     cursor: usize,
 }
 
+/// A site while samples are still being added.
+#[derive(Debug, Clone)]
+struct GrowingSite {
+    calls: Vec<u16>,
+    /// Some stored call differs from the first one's base; set once and never cleared.
+    polymorphic: bool,
+}
+
 #[derive(Debug, Clone)]
 enum SiteStorage<IntT> {
-    Growing(HashMap<IntT, Vec<u16>>),
+    Growing(HashMap<IntT, GrowingSite>),
     Frozen(Vec<SparseSite>),
     Released,
 }
@@ -132,6 +155,8 @@ pub(crate) struct AlignmentMatrix<IntT> {
     storage: SiteStorage<IntT>,
     sample_count: usize,
     sealed: bool,
+    /// Samples the dataset will hold once the planned run is added; caps each site's capacity.
+    expected_samples: usize,
 }
 
 impl<IntT> Default for AlignmentMatrix<IntT> {
@@ -140,6 +165,7 @@ impl<IntT> Default for AlignmentMatrix<IntT> {
             storage: SiteStorage::Growing(HashMap::new()),
             sample_count: 0,
             sealed: false,
+            expected_samples: MAX_SAMPLES,
         }
     }
 }
@@ -150,6 +176,11 @@ where
 {
     pub(crate) fn is_sealed(&self) -> bool {
         self.sealed
+    }
+
+    /// Set the total the dataset will reach after the planned samples, at most [`MAX_SAMPLES`].
+    pub(crate) fn set_expected_samples(&mut self, total: usize) {
+        self.expected_samples = total.min(MAX_SAMPLES);
     }
 
     fn check_addition(&self, words: &[u32], width: usize) -> Result<(), String> {
@@ -186,6 +217,7 @@ where
             return Err("The alignment is closed to new samples.".into());
         };
         let sample_id = self.sample_count as u16;
+        let limit = self.expected_samples;
         let mut row = Vec::<u32>::new();
         row.try_reserve_exact(self.sample_count + 1)
             .map_err(|error| format!("Could not allocate distance row: {error}"))?;
@@ -199,20 +231,23 @@ where
                 .map_err(|error| format!("Could not extend site index: {error:?}"))?;
             match postings.entry(kmer) {
                 Entry::Occupied(mut site) => {
-                    let calls = site.get_mut();
-                    if calls.last().is_some_and(|last| last >> 4 == sample_id) {
+                    let site = site.get_mut();
+                    if site.calls.last().is_some_and(|last| last >> 4 == sample_id) {
                         return Err("A sample contains a duplicate split k-mer.".into());
                     }
-                    for &previous in calls.iter() {
-                        let previous_base = (previous & 0xF) as u8;
-                        if previous_base != GAP && previous_base != code {
-                            increment_distance(&mut row[usize::from(previous >> 4)])?;
+                    // A site whose calls all share the new base adds no distance, so only
+                    // polymorphic sites (or one becoming so) are walked.
+                    if site.polymorphic || (site.calls[0] & 0xF) as u8 != code {
+                        for &previous in &site.calls {
+                            let previous_base = (previous & 0xF) as u8;
+                            if previous_base != GAP && previous_base != code {
+                                increment_distance(&mut row[usize::from(previous >> 4)])?;
+                            }
                         }
+                        site.polymorphic = true;
                     }
-                    calls
-                        .try_reserve(1)
-                        .map_err(|error| format!("Could not extend site calls: {error}"))?;
-                    calls.push(call);
+                    reserve_call(&mut site.calls, limit)?;
+                    site.calls.push(call);
                 }
                 Entry::Vacant(site) => {
                     let mut calls = Vec::new();
@@ -220,7 +255,10 @@ where
                         .try_reserve_exact(1)
                         .map_err(|error| format!("Could not allocate site calls: {error}"))?;
                     calls.push(call);
-                    site.insert(calls);
+                    site.insert(GrowingSite {
+                        calls,
+                        polymorphic: false,
+                    });
                 }
             }
         }
@@ -241,8 +279,11 @@ where
             else {
                 unreachable!()
             };
-            for (_key, calls) in postings {
-                sites.push(SparseSite { calls, cursor: 0 });
+            for (_key, site) in postings {
+                sites.push(SparseSite {
+                    calls: site.calls,
+                    cursor: 0,
+                });
             }
             self.storage = SiteStorage::Frozen(sites);
         }
@@ -359,6 +400,62 @@ mod tests {
     }
 
     #[test]
+    fn invariant_sites_skip_comparisons_without_changing_rows() {
+        let mut matrix = AlignmentMatrix::<u64>::default();
+        let mut prior = Vec::<HashMap<u64, u8>>::new();
+        for sample_id in 0..20u64 {
+            let sample: HashMap<_, _> = (0..60u64)
+                .filter(|key| (key + sample_id) % 9 != 0)
+                .map(|key| {
+                    let variant = key % 10 == 0 && sample_id % 3 == 0;
+                    (key, if variant { b'T' } else { b'A' })
+                })
+                .collect();
+            let row = matrix.add_sample_words(words(&sample), 2).unwrap();
+            for (j, other) in prior.iter().enumerate() {
+                let expected = sample
+                    .iter()
+                    .filter(|(key, base)| other.get(*key).is_some_and(|old| old != *base))
+                    .count() as u32;
+                assert_eq!(row[j], expected);
+            }
+            prior.push(sample);
+        }
+        let SiteStorage::Growing(postings) = &matrix.storage else {
+            panic!()
+        };
+        assert!(postings
+            .iter()
+            .all(|(key, site)| site.polymorphic == (key % 10 == 0)));
+    }
+
+    #[test]
+    fn site_capacity_stops_at_the_expected_sample_count() {
+        let shared = || pack_entry_u64(5, b'A').to_vec();
+        let mut matrix = AlignmentMatrix::<u64>::default();
+        matrix.set_expected_samples(6);
+        for _ in 0..6 {
+            matrix.add_sample_words(shared(), 2).unwrap();
+        }
+        let SiteStorage::Growing(postings) = &matrix.storage else {
+            panic!()
+        };
+        // 1, then 4, then 6 rather than 8.
+        assert_eq!(postings[&5].calls.capacity(), 6);
+
+        // An underestimate still grows, one call beyond the limit at a time.
+        let mut matrix = AlignmentMatrix::<u64>::default();
+        matrix.set_expected_samples(2);
+        for _ in 0..5 {
+            matrix.add_sample_words(shared(), 2).unwrap();
+        }
+        let SiteStorage::Growing(postings) = &matrix.storage else {
+            panic!()
+        };
+        assert_eq!(postings[&5].calls.len(), 5);
+    }
+
+    #[test]
     fn zero_call_is_valid_and_sample_limit_is_checked() {
         let mut matrix = AlignmentMatrix::<u64>::default();
         assert_eq!(
@@ -382,7 +479,8 @@ mod tests {
         let SiteStorage::Growing(postings) = &matrix.storage else {
             panic!()
         };
-        assert_eq!(postings[&9], vec![0, (1 << 4) | 1, (4095 << 4) | 14]);
+        assert_eq!(postings[&9].calls, vec![0, (1 << 4) | 1, (4095 << 4) | 14]);
+        assert!(postings[&9].polymorphic);
         assert!(matrix.add_sample_words(Vec::new(), 2).is_err());
     }
 
@@ -438,7 +536,7 @@ mod tests {
         let SiteStorage::Growing(postings) = &matrix.storage else {
             panic!()
         };
-        let pointers: Vec<_> = postings.values().map(|calls| calls.as_ptr()).collect();
+        let pointers: Vec<_> = postings.values().map(|site| site.calls.as_ptr()).collect();
         matrix.freeze().unwrap();
         let SiteStorage::Frozen(sites) = &matrix.storage else {
             panic!()

@@ -1981,6 +1981,12 @@ impl AlignData {
         }
         self.run_id = run_id;
         self.sample_total = total;
+        if let Some(alignment) = self.alignment64.as_mut() {
+            alignment.set_expected_samples(total);
+        }
+        if let Some(alignment) = self.alignment128.as_mut() {
+            alignment.set_expected_samples(total);
+        }
         logw(
             &format!(
                 "Prepared {} additional sample(s); {} samples in total",
