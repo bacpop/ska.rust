@@ -511,7 +511,7 @@ extern crate console_error_panic_hook;
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 #[cfg(target_family = "wasm")]
-use crate::cluster::cluster_distances_flat;
+use crate::cluster::{checked_distance_cutoff, cluster_distances_flat};
 #[cfg(target_family = "wasm")]
 use crate::ska_dict::bit_encoding::UInt;
 #[cfg(target_family = "wasm")]
@@ -1281,19 +1281,30 @@ pub struct AlignData {
     alignment64: Option<SkaAlign<u64>>,
     alignment128: Option<SkaAlign<u128>>,
     file_names: Vec<String>,
-    flat_distances: Vec<f64>,
     sample_total: usize,
 }
 
-
 /// Get the distances and compress them to gz directly.
 #[cfg(any(target_family = "wasm", test))]
-fn distances_csv_gzip(names: &[String], flat_distances: &[f64]) -> std::io::Result<Vec<u8>> {
+fn distances_csv_gzip(names: &[String], flat_distances: &[u32]) -> std::io::Result<Vec<u8>> {
     if names.len() < 3 {
         return Ok(Vec::new());
     }
 
     let n = names.len();
+    let expected = crate::alignment_matrix::strict_triangle_len(n).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Sample count exceeds the distance index range.",
+        )
+    })?;
+    if flat_distances.len() != expected {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Distance count does not match the sample count.",
+        ));
+    }
+
     let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
     encoder.write_all(b",")?;
     for (index, name) in names.iter().enumerate() {
@@ -1304,21 +1315,23 @@ fn distances_csv_gzip(names: &[String], flat_distances: &[f64]) -> std::io::Resu
     }
     encoder.write_all(b"\n")?;
 
-    for i in 0..n {
-        encoder.write_all(names[i].as_bytes())?;
+    for (i, name) in names.iter().enumerate() {
+        encoder.write_all(name.as_bytes())?;
         for j in 0..n {
             encoder.write_all(b",")?;
             if i == j {
                 encoder.write_all(b"0")?;
             } else {
-                let (a, b) = if i < j { (i, j) } else { (j, i) };
-                let flat_idx = a * n - a * (a + 1) / 2 + (b - a - 1);
+                let (row, column) = if i < j { (j, i) } else { (i, j) };
+                let flat_idx = crate::alignment_matrix::strict_triangle_index(row, column)
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid strict-triangle distance index.",
+                        )
+                    })?;
                 let distance = flat_distances[flat_idx];
-                if distance == distance.floor() {
-                    write!(encoder, "{}", distance as u64)?;
-                } else {
-                    write!(encoder, "{distance}")?;
-                }
+                write!(encoder, "{distance}")?;
             }
         }
         encoder.write_all(b"\n")?;
@@ -1329,18 +1342,19 @@ fn distances_csv_gzip(names: &[String], flat_distances: &[f64]) -> std::io::Resu
 
 #[cfg(test)]
 mod alignment_export_tests {
-    use super::distances_csv_gzip;
+    use super::{add_imported_mismatches, distances_csv_gzip};
     use flate2::read::GzDecoder;
     use std::io::Read;
 
     #[test]
-    fn gzip_distance_csv_preserves_square_matrix_and_fractional_values() {
+    fn gzip_distance_csv_preserves_square_matrix_and_integer_values() {
         let names = vec![
             "sample-a".to_string(),
             "sample-b".to_string(),
             "sample-c".to_string(),
+            "sample-d".to_string(),
         ];
-        let compressed = distances_csv_gzip(&names, &[1.0, 2.5, 3.0]).unwrap();
+        let compressed = distances_csv_gzip(&names, &[1, 2, 3, 4, 5, 6]).unwrap();
         let mut decoded = String::new();
         GzDecoder::new(compressed.as_slice())
             .read_to_string(&mut decoded)
@@ -1348,7 +1362,11 @@ mod alignment_export_tests {
 
         assert_eq!(
             decoded,
-            ",sample-a,sample-b,sample-c\nsample-a,0,1,2.5\nsample-b,1,0,3\nsample-c,2.5,3,0\n"
+            ",sample-a,sample-b,sample-c,sample-d\n\
+sample-a,0,1,2,4\n\
+sample-b,1,0,3,5\n\
+sample-c,2,3,0,6\n\
+sample-d,4,5,6,0\n"
         );
     }
 
@@ -1359,6 +1377,18 @@ mod alignment_export_tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn gzip_distance_csv_rejects_a_malformed_triangle() {
+        let names = ["a", "b", "c", "d"].map(str::to_owned);
+        assert!(distances_csv_gzip(&names, &[1, 2, 3]).is_err());
+    }
+
+    #[test]
+    fn imported_distances_saturate_at_u32_max_and_report_it() {
+        assert_eq!(add_imported_mismatches(u32::MAX - 1, 1), (u32::MAX, false));
+        assert_eq!(add_imported_mismatches(u32::MAX, 1), (u32::MAX, true));
     }
 }
 
@@ -1492,19 +1522,30 @@ fn encode_alignment_sequence(
     Ok(encoded)
 }
 
+#[cfg(any(target_family = "wasm", test))]
+fn add_imported_mismatches(distance: u32, increment: u32) -> (u32, bool) {
+    match distance.checked_add(increment) {
+        Some(total) => (total, false),
+        None => (u32::MAX, true),
+    }
+}
+
 #[cfg(target_family = "wasm")]
-fn packed_snp_distance(a: &EncodedAlignmentSequence, b: &EncodedAlignmentSequence) -> u64 {
-    let mut distance = 0u64;
+fn packed_snp_distance(a: &EncodedAlignmentSequence, b: &EncodedAlignmentSequence) -> (u32, bool) {
+    let mut distance = 0u32;
+    let mut capped = false;
 
     for word_idx in 0..a.valid.len() {
         let comparable = a.valid[word_idx] & b.valid[word_idx];
         let lo_diff = a.lo[word_idx] ^ b.lo[word_idx];
         let hi_diff = a.hi[word_idx] ^ b.hi[word_idx];
         let snp_bits = (lo_diff | hi_diff) & comparable;
-        distance += snp_bits.count_ones() as u64;
+        let (new_distance, overflowed) = add_imported_mismatches(distance, snp_bits.count_ones());
+        distance = new_distance;
+        capped |= overflowed;
     }
 
-    distance
+    (distance, capped)
 }
 
 #[cfg(target_family = "wasm")]
@@ -1882,7 +1923,6 @@ impl AlignData {
                 alignment64: Some(SkaAlign::<u64>::new()),
                 alignment128: None,
                 file_names: Vec::new(),
-                flat_distances: Vec::new(),
                 sample_total: 0,
             }
         } else if k < 64 {
@@ -1892,7 +1932,6 @@ impl AlignData {
                 alignment64: None,
                 alignment128: Some(SkaAlign::<u128>::new()),
                 file_names: Vec::new(),
-                flat_distances: Vec::new(),
                 sample_total: 0,
             }
         } else {
@@ -1904,7 +1943,10 @@ impl AlignData {
     pub fn from_alignment_text(text: String) -> Result<AlignData, JsValue> {
         let records = parse_fasta_alignment(&text)?;
         let alignment_len = records[0].1.len();
-        let n_words = (alignment_len + 63) / 64;
+        let n_words = alignment_len
+            .checked_add(63)
+            .ok_or_else(|| JsValue::from_str("Alignment length is too large."))?
+            / 64;
         let mut encoded = Vec::with_capacity(records.len());
 
         for (name, sequence) in records {
@@ -1917,21 +1959,34 @@ impl AlignData {
         }
 
         let n = encoded.len();
-        let mut flat_distances = Vec::with_capacity(n * (n - 1) / 2);
-        for i in 0..n {
-            for j in (i + 1)..n {
-                flat_distances.push(packed_snp_distance(&encoded[i], &encoded[j]) as f64);
+        let pair_count = crate::alignment_matrix::strict_triangle_len(n)
+            .ok_or_else(|| JsValue::from_str("Imported alignment has too many samples."))?;
+        let mut distances = Vec::new();
+        distances.try_reserve_exact(pair_count).map_err(|error| {
+            JsValue::from_str(&format!("Could not allocate distances: {error}"))
+        })?;
+        let mut distances_capped = false;
+        for row in 1..n {
+            for column in 0..row {
+                let (distance, capped) = packed_snp_distance(&encoded[row], &encoded[column]);
+                distances.push(distance);
+                distances_capped |= capped;
             }
         }
+        let imported_alignment = SkaAlign::<u64>::from_imported_distances(
+            file_names.clone(),
+            distances,
+            distances_capped,
+        )
+        .map_err(|error| JsValue::from_str(&error))?;
 
         Ok(Self {
             run_id: 0,
             k: 31,
-            alignment64: None,
+            alignment64: Some(imported_alignment),
             alignment128: None,
             file_names,
-            flat_distances,
-            sample_total: 0,
+            sample_total: n,
         })
     }
 
@@ -1960,7 +2015,12 @@ impl AlignData {
             .len()
             .checked_add(samples.len())
             .filter(|total| *total <= crate::alignment_matrix::MAX_SAMPLES)
-            .ok_or_else(|| JsValue::from_str("Sparse alignment supports at most 4096 samples."))?;
+            .ok_or_else(|| {
+                JsValue::from_str(&format!(
+                    "Sparse alignment supports at most {} samples.",
+                    crate::alignment_matrix::MAX_SAMPLES
+                ))
+            })?;
         let mut names: std::collections::HashSet<&str> =
             self.file_names.iter().map(String::as_str).collect();
         for sample in &samples {
@@ -1979,14 +2039,18 @@ impl AlignData {
                 .map_or(json::JsonValue::Null, |index| index.into());
             let _ = plan.push(item);
         }
-        self.run_id = run_id;
-        self.sample_total = total;
         if let Some(alignment) = self.alignment64.as_mut() {
-            alignment.set_expected_samples(total);
+            alignment
+                .set_expected_samples(total)
+                .map_err(|error| JsValue::from_str(&error))?;
         }
         if let Some(alignment) = self.alignment128.as_mut() {
-            alignment.set_expected_samples(total);
+            alignment
+                .set_expected_samples(total)
+                .map_err(|error| JsValue::from_str(&error))?;
         }
+        self.run_id = run_id;
+        self.sample_total = total;
         logw(
             &format!(
                 "Prepared {} additional sample(s); {} samples in total",
@@ -2052,13 +2116,13 @@ impl AlignData {
         if self.k < 32 {
             self.alignment64
                 .as_mut()
-                .unwrap()
+                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
                 .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
                 .map_err(|error| JsValue::from_str(&error))?;
         } else {
             self.alignment128
                 .as_mut()
-                .unwrap()
+                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
                 .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
                 .map_err(|error| JsValue::from_str(&error))?;
         }
@@ -2068,15 +2132,35 @@ impl AlignData {
 
     /// Finish this batch and rebuild its tree; alignment export remains lazy.
     pub fn finish_alignment(&mut self) -> Result<String, JsValue> {
+        let can_build_tree = if self.k < 32 {
+            self.alignment64
+                .as_ref()
+                .is_some_and(SkaAlign::can_export_alignment)
+        } else {
+            self.alignment128
+                .as_ref()
+                .is_some_and(SkaAlign::can_export_alignment)
+        };
+        if !can_build_tree {
+            return Err(JsValue::from_str(
+                "Tree finalisation requires an alignment built from split k-mers.",
+            ));
+        }
         if self.file_names.len() != self.sample_total {
             return Err(JsValue::from_str(
                 "Not all planned samples have been added.",
             ));
         }
         let size = if self.k < 32 {
-            self.alignment64.as_ref().unwrap().get_size()
+            self.alignment64
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
+                .get_size()
         } else {
-            self.alignment128.as_ref().unwrap().get_size()
+            self.alignment128
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
+                .get_size()
         };
 
         if size <= 2 {
@@ -2097,14 +2181,15 @@ impl AlignData {
         let newick = if self.k < 32 {
             self.alignment64
                 .as_mut()
-                .unwrap()
+                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
                 .align(&self.file_names, &on_stage)
         } else {
             self.alignment128
                 .as_mut()
-                .unwrap()
+                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
                 .align(&self.file_names, &on_stage)
-        };
+        }
+        .map_err(|error| JsValue::from_str(&error))?;
 
         post_alignment_progress(
             self.run_id,
@@ -2113,12 +2198,6 @@ impl AlignData {
             Some(self.sample_total),
             None,
         );
-        self.flat_distances = if self.k < 32 {
-            self.alignment64.as_ref().unwrap().get_flat_distances()
-        } else {
-            self.alignment128.as_ref().unwrap().get_flat_distances()
-        };
-
         let mut results = json::JsonValue::new_object();
         results["newick"] = newick.into();
         results["alignmentAvailable"] = true.into();
@@ -2175,22 +2254,41 @@ impl AlignData {
         &self.file_names
     }
 
-    /// Returns flat upper-triangle distances (crate-internal, not exposed to JS).
-    pub(crate) fn flat_distances(&self) -> &[f64] {
-        &self.flat_distances
+    /// Returns strict lower-triangle distances (crate-internal, not exposed to JS).
+    pub(crate) fn flat_distances(&self) -> Result<&[u32], JsValue> {
+        if let Some(alignment) = &self.alignment64 {
+            Ok(alignment.get_flat_distances())
+        } else if let Some(alignment) = &self.alignment128 {
+            Ok(alignment.get_flat_distances())
+        } else {
+            Err(JsValue::from_str("No alignment distances are available."))
+        }
+    }
+
+    /// Whether an imported pairwise distance was capped at u32::MAX.
+    pub fn distances_capped(&self) -> bool {
+        self.alignment64
+            .as_ref()
+            .is_some_and(SkaAlign::distances_capped)
+            || self
+                .alignment128
+                .as_ref()
+                .is_some_and(SkaAlign::distances_capped)
     }
 
     /// Returns graph JSON for the given SNP threshold.
     ///
     /// Format: `{"nodes":[{"id":"sample","cluster":1},...],
     ///           "links":[{"source":"s1","target":"s2","snp_distance":3.0},...]}`.
-    pub fn get_graph_json(&self, threshold: f64) -> String {
-        if self.flat_distances.is_empty() {
-            return "{\"nodes\":[],\"links\":[]}".to_string();
+    pub fn get_graph_json(&self, threshold: f64) -> Result<String, JsValue> {
+        let cutoff =
+            checked_distance_cutoff(threshold).map_err(|error| JsValue::from_str(&error))?;
+        let distances = self.flat_distances()?;
+        if distances.is_empty() {
+            return Ok("{\"nodes\":[],\"links\":[]}".to_string());
         }
-        let n = self.file_names.len();
-        let (cluster_map, graph) =
-            cluster_distances_flat(&self.file_names, &self.flat_distances, threshold);
+        let (cluster_map, graph) = cluster_distances_flat(&self.file_names, distances, cutoff)
+            .map_err(|error| JsValue::from_str(&error))?;
 
         let mut nodes = json::JsonValue::new_array();
         for name in &self.file_names {
@@ -2204,9 +2302,10 @@ impl AlignData {
         for edge in graph.edge_references() {
             let si = edge.source().index();
             let ti = edge.target().index();
-            let (i, j) = if si < ti { (si, ti) } else { (ti, si) };
-            let flat_idx = i * n - i * (i + 1) / 2 + (j - i - 1);
-            let dist = self.flat_distances[flat_idx];
+            let (row, column) = if si < ti { (ti, si) } else { (si, ti) };
+            let flat_idx = crate::alignment_matrix::strict_triangle_index(row, column)
+                .ok_or_else(|| JsValue::from_str("Invalid strict-triangle distance index."))?;
+            let dist = distances[flat_idx];
             let mut link = json::JsonValue::new_object();
             link["source"] = self.file_names[si].clone().into();
             link["target"] = self.file_names[ti].clone().into();
@@ -2217,12 +2316,13 @@ impl AlignData {
         let mut result = json::JsonValue::new_object();
         result["nodes"] = nodes;
         result["links"] = links;
-        result.dump()
+        Ok(result.dump())
     }
 
     /// Returns pairwise SNP distances as a gzip-compressed square CSV matrix.
     pub fn get_distances_csv_gzip(&self) -> Result<Vec<u8>, JsValue> {
-        distances_csv_gzip(&self.file_names, &self.flat_distances).map_err(|error| {
+        let distances = self.flat_distances()?;
+        distances_csv_gzip(&self.file_names, distances).map_err(|error| {
             JsValue::from_str(&format!("Could not gzip distance CSV output: {error}"))
         })
     }

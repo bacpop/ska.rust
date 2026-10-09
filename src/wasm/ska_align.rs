@@ -1,6 +1,6 @@
 //! Library that implements sequence alignment for a WebAssembly environment
 
-use crate::alignment_matrix::AlignmentMatrix;
+use crate::alignment_matrix::{strict_triangle_index, strict_triangle_len, AlignmentMatrix};
 use crate::logw;
 use crate::ska_dict::bit_encoding::UInt;
 
@@ -8,21 +8,20 @@ use speedytree::DistanceMatrix;
 use speedytree::{Canonical, NeighborJoiningSolver};
 
 #[cfg(target_family = "wasm")]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 /// Main struct for alignment in a WebAssembly environment.
 ///
-/// Distances are computed incrementally as packed sample entries are added.
-/// The matrix retains one shared k-mer-to-row map and sample-ID/base packed calls,
-/// rather than one raw split-kmer map per sample.
+/// Distances are held once in strict lower-triangle row order. An imported
+/// alignment has distances and names but no sparse split-kmer matrix.
 pub struct SkaAlign<IntT> {
-    /// Sparse split-kmer postings.
-    matrix: AlignmentMatrix<IntT>,
-    /// Pairwise distance matrix in lower-triangular row storage: `distances[i]`
-    /// has `i + 1` entries and `distances[i][j]` (j ≤ i) = SNP distance between
-    /// sample i and sample j. Use `get_flat_distances()` for upper-triangle order.
-    distances: Vec<Vec<u32>>,
-    /// Sample names in insertion order
+    /// Sparse split-kmer postings, absent for an imported alignment.
+    matrix: Option<AlignmentMatrix<IntT>>,
+    /// Pair order is (1,0), (2,0), (2,1), …; no diagonal entries are stored.
+    distances: Vec<u32>,
+    /// Sample names in insertion order.
     names: Vec<String>,
+    /// True if at least one imported pairwise distance was capped at u32::MAX.
+    distances_capped: bool,
 }
 
 impl<IntT> SkaAlign<IntT>
@@ -30,17 +29,38 @@ where
     IntT: for<'a> UInt<'a>,
 {
     #[cfg(target_family = "wasm")]
-    /// Constructor of a SkaAlign struct
+    /// Constructor for an alignment built from split-kmer samples.
     pub fn new() -> Self {
         Self {
-            matrix: AlignmentMatrix::default(),
+            matrix: Some(AlignmentMatrix::default()),
             distances: Vec::new(),
             names: Vec::new(),
+            distances_capped: false,
         }
     }
 
     #[cfg(target_family = "wasm")]
-    /// Stores packed split-kmer entries and computes their distance row in one pass.
+    /// Constructor for an already aligned FASTA matrix. The distance vector is moved in.
+    pub fn from_imported_distances(
+        names: Vec<String>,
+        distances: Vec<u32>,
+        distances_capped: bool,
+    ) -> Result<Self, String> {
+        let expected = strict_triangle_len(names.len())
+            .ok_or_else(|| "Imported alignment has too many samples.".to_string())?;
+        if distances.len() != expected {
+            return Err("Imported distance count does not match the sample count.".into());
+        }
+        Ok(Self {
+            matrix: None,
+            distances,
+            names,
+            distances_capped,
+        })
+    }
+
+    #[cfg(target_family = "wasm")]
+    /// Stores packed split-kmer entries and updates this alignment's distance triangle in place.
     pub fn add_sample_words(
         &mut self,
         name: &str,
@@ -49,109 +69,177 @@ where
         on_stage: &dyn Fn(&str),
     ) -> Result<(), String> {
         on_stage("distances");
-        let row = self.matrix.add_sample_words(words, words_per_entry)?;
+        let row_start = self.distances.len();
+        let row_end = row_start
+            .checked_add(self.names.len())
+            .ok_or_else(|| "Distance matrix size overflowed.".to_string())?;
+        if row_end > self.distances.capacity() {
+            return Err("Distance capacity was not reserved for the planned batch.".into());
+        }
+
+        let matrix = self
+            .matrix
+            .as_mut()
+            .ok_or_else(|| "Imported alignments cannot accept split-kmer samples.".to_string())?;
+        self.distances.resize(row_end, 0);
+        if let Err(error) = matrix.add_sample_words(
+            words,
+            words_per_entry,
+            &mut self.distances[row_start..row_end],
+        ) {
+            self.distances.truncate(row_start);
+            return Err(error);
+        }
+
         logw(
             &format!(
-                "Computed distances for sample {} and stored it in the sparse alignment matrix",
+                "Computed distances for sample {} and stored it in the alignment",
                 name
             ),
             Some("info"),
         );
-
-        self.distances.push(row);
         self.names.push(name.to_string());
         Ok(())
     }
 
     #[cfg(target_family = "wasm")]
     /// Performs the alignment using precomputed pairwise distances.
-    pub fn align(&mut self, file_names: &[String], on_stage: &dyn Fn(&str)) -> String {
+    pub fn align(
+        &mut self,
+        file_names: &[String],
+        on_stage: &dyn Fn(&str),
+    ) -> Result<String, String> {
         let n = self.names.len();
+        if n < 3 || file_names.len() != n {
+            return Err("Tree construction requires at least three matching sample names.".into());
+        }
+        let expected =
+            strict_triangle_len(n).ok_or_else(|| "Distance matrix size overflowed.".to_string())?;
+        if self.distances.len() != expected {
+            return Err("Distance count does not match the sample count.".into());
+        }
+
         logw(
-            &format!("Initiating alignment in SkaAlign with {} input files.", n,),
+            &format!("Initiating alignment in SkaAlign with {} input files.", n),
             None,
         );
-
         on_stage("tree-distances");
-        logw("Creating pairwise distances matrix as text.", None);
+        logw("Building SpeedyTree distance matrix", None);
 
-        let mut phylip_format = format!("{}\n", n);
-
-        for i in 0..n {
-            phylip_format += file_names[i]
-                .to_string()
-                .replace(" ", "_")
-                .replace(".fasta", "")
-                .replace(".fa", "")
-                .replace(".fastq", "")
-                .replace(".fq", "")
-                .as_str();
-            for j in 0..n {
-                // distances matrix is lower-triangular: distances[i][j] exists for j <= i
-                let dist = if i == j {
-                    0u32
-                } else if j < i {
-                    self.distances[i][j]
-                } else {
-                    self.distances[j][i]
-                };
-                phylip_format += &format!("\t{dist}");
-            }
-            phylip_format += "\n";
+        let mut names = Vec::new();
+        names
+            .try_reserve_exact(n)
+            .map_err(|error| format!("Could not allocate tree sample names: {error}"))?;
+        for name in file_names {
+            names.push(clean_tree_name(name));
         }
 
-        logw(
-            &format!("Prepared distance matrix for {} samples", n),
-            Some("info"),
-        );
+        let mut matrix = Vec::new();
+        matrix
+            .try_reserve_exact(n)
+            .map_err(|error| format!("Could not allocate tree matrix rows: {error}"))?;
+        for row in 0..n {
+            let mut values = Vec::new();
+            values
+                .try_reserve_exact(n)
+                .map_err(|error| format!("Could not allocate tree matrix row: {error}"))?;
+            for column in 0..n {
+                let distance = if row == column {
+                    0
+                } else {
+                    let (lower_row, lower_column) = if row > column {
+                        (row, column)
+                    } else {
+                        (column, row)
+                    };
+                    let index = strict_triangle_index(lower_row, lower_column)
+                        .ok_or_else(|| "Invalid distance matrix index.".to_string())?;
+                    self.distances[index]
+                };
+                values.push(f64::from(distance));
+            }
+            matrix.push(values);
+        }
 
-        let d = DistanceMatrix::read_from_phylip(phylip_format.as_bytes()).unwrap();
-
+        let distance_matrix = DistanceMatrix::build(matrix, names)
+            .map_err(|error| format!("Could not build SpeedyTree distance matrix: {error}"))?;
         on_stage("tree");
         logw("Calculating tree", None);
-        let tree = NeighborJoiningSolver::<Canonical>::default(d.clone())
+        let tree = NeighborJoiningSolver::<Canonical>::default(distance_matrix)
             .solve()
-            .unwrap();
+            .map_err(|error| format!("Could not build neighbour-joining tree: {error}"))?;
 
         logw("Obtaining tree", None);
-
-        speedytree::to_newick(&tree)
+        Ok(speedytree::to_newick(&tree))
     }
 
     #[cfg(target_family = "wasm")]
-    /// Returns pairwise distances as a flat `Vec<f64>` in upper-triangle row-major
-    /// order: all pairs (i, j) with i < j, i increasing from 0. The distance
-    /// between sample i and sample j (i < j) is at index `i*n - i*(i+1)/2 + (j-i-1)`.
-    /// Internally reads from the lower-triangular store as `distances[j][i]`.
-    pub fn get_flat_distances(&self) -> Vec<f64> {
-        let n = self.names.len();
-        let mut flat = Vec::with_capacity(n * (n - 1) / 2);
-        for i in 0..n {
-            for j in (i + 1)..n {
-                flat.push(self.distances[j][i] as f64);
-            }
-        }
-        flat
+    /// Borrow the strict lower-triangle distance vector.
+    pub fn get_flat_distances(&self) -> &[u32] {
+        &self.distances
     }
 
     #[cfg(target_family = "wasm")]
-    /// Gets number of loaded samples
+    /// Whether any imported pairwise distance was capped.
+    pub fn distances_capped(&self) -> bool {
+        self.distances_capped
+    }
+
+    #[cfg(target_family = "wasm")]
+    /// Gets number of loaded samples.
     pub fn get_size(&self) -> usize {
         self.names.len()
     }
 
-    /// Whether alignment export has permanently closed sample additions.
+    /// Whether additions are closed or unavailable for an imported alignment.
     pub fn is_sealed(&self) -> bool {
-        self.matrix.is_sealed()
+        self.matrix
+            .as_ref()
+            .map_or(true, AlignmentMatrix::is_sealed)
     }
 
-    /// Total samples once the planned run is added, which bounds how far site storage grows.
-    pub fn set_expected_samples(&mut self, total: usize) {
-        self.matrix.set_expected_samples(total);
+    /// Reserve all distance entries through the planned total in one call.
+    pub fn set_expected_samples(&mut self, total: usize) -> Result<(), String> {
+        let matrix = self
+            .matrix
+            .as_mut()
+            .ok_or_else(|| "Imported alignments cannot accept new samples.".to_string())?;
+        let required = strict_triangle_len(total)
+            .ok_or_else(|| "Distance matrix size overflowed.".to_string())?;
+        if required < self.distances.len() {
+            return Err("Planned sample count is below the current alignment size.".into());
+        }
+        if self.distances.capacity() < required {
+            self.distances
+                .try_reserve_exact(required - self.distances.len())
+                .map_err(|error| format!("Could not reserve distance matrix: {error}"))?;
+        }
+        matrix.set_expected_samples(total);
+        Ok(())
+    }
+
+    /// Whether this handle has split-kmer sites that can be exported as FASTA.
+    pub fn can_export_alignment(&self) -> bool {
+        self.matrix.is_some()
     }
 
     /// Close additions and lazily stream the final sparse array to gzip.
     pub fn export_fasta_gzip(&mut self, on_sample: &dyn Fn(usize)) -> Result<Vec<u8>, String> {
-        self.matrix.export_fasta_gzip(&self.names, on_sample)
+        self.matrix
+            .as_mut()
+            .ok_or_else(|| {
+                "Imported alignments cannot be exported as split-kmer FASTA.".to_string()
+            })?
+            .export_fasta_gzip(&self.names, on_sample)
     }
+}
+
+#[cfg(target_family = "wasm")]
+fn clean_tree_name(name: &str) -> String {
+    name.to_string()
+        .replace(' ', "_")
+        .replace(".fasta", "")
+        .replace(".fa", "")
+        .replace(".fastq", "")
+        .replace(".fq", "")
 }
