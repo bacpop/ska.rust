@@ -26,7 +26,8 @@ pub struct SkaAlign<IntT> {
 
 impl<IntT> SkaAlign<IntT>
 where
-    IntT: for<'a> UInt<'a>,
+    IntT: for<'a> UInt<'a> + 'static,
+    u128: num_traits::AsPrimitive<IntT>,
 {
     #[cfg(target_family = "wasm")]
     /// Constructor for an alignment built from split-kmer samples.
@@ -65,7 +66,6 @@ where
         &mut self,
         name: &str,
         words: Vec<u32>,
-        words_per_entry: usize,
         on_stage: &dyn Fn(&str),
     ) -> Result<(), String> {
         on_stage("distances");
@@ -82,11 +82,8 @@ where
             .as_mut()
             .ok_or_else(|| "Imported alignments cannot accept split-kmer samples.".to_string())?;
         self.distances.resize(row_end, 0);
-        if let Err(error) = matrix.add_sample_words(
-            words,
-            words_per_entry,
-            &mut self.distances[row_start..row_end],
-        ) {
+        if let Err(error) = matrix.add_sample_words(words, &mut self.distances[row_start..row_end])
+        {
             self.distances.truncate(row_start);
             return Err(error);
         }
@@ -214,7 +211,7 @@ where
                 .try_reserve_exact(required - self.distances.len())
                 .map_err(|error| format!("Could not reserve distance matrix: {error}"))?;
         }
-        matrix.set_expected_samples(total);
+        matrix.set_expected_samples(total)?;
         Ok(())
     }
 

@@ -2070,9 +2070,7 @@ impl AlignData {
         words: Vec<u32>,
     ) -> Result<(), JsValue> {
         let expected_index = self.file_names.len();
-        if expected_index >= self.sample_total
-            || expected_index >= crate::alignment_matrix::MAX_SAMPLES
-        {
+        if expected_index >= self.sample_total {
             return Err(JsValue::from_str(
                 "The sample is outside the validated batch plan.",
             ));
@@ -2092,6 +2090,12 @@ impl AlignData {
                 words.len(),
                 words_per_entry
             )));
+        }
+
+        if words.len() / words_per_entry > u32::MAX as usize {
+            return Err(JsValue::from_str(
+                "Sample has too many split k-mers for u32 SNP distances.",
+            ));
         }
 
         let progress_index = expected_index + 1;
@@ -2117,13 +2121,13 @@ impl AlignData {
             self.alignment64
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
-                .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
+                .add_sample_words(&sample_name, words, &on_stage)
                 .map_err(|error| JsValue::from_str(&error))?;
         } else {
             self.alignment128
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
-                .add_sample_words(&sample_name, words, words_per_entry, &on_stage)
+                .add_sample_words(&sample_name, words, &on_stage)
                 .map_err(|error| JsValue::from_str(&error))?;
         }
         self.file_names.push(sample_name);

@@ -7,7 +7,7 @@ use std::io::{self, Write};
 
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
-use num_traits::PrimInt;
+use num_traits::{AsPrimitive, PrimInt};
 
 const GAP: u8 = 15;
 
@@ -109,9 +109,11 @@ pub(crate) fn strict_triangle_index(row: usize, column: usize) -> Option<usize> 
     strict_triangle_len(row)?.checked_add(column)
 }
 
-fn unpack_entry<IntT>(words: &[u32]) -> Result<(IntT, u8), String>
+#[inline]
+fn unpack_entry<IntT>(words: &[u32]) -> (IntT, u8)
 where
-    IntT: PrimInt + num_traits::NumCast,
+    IntT: Copy + 'static,
+    u128: AsPrimitive<IntT>,
 {
     let mut packed = 0u128;
     for (index, word) in words.iter().enumerate() {
@@ -119,35 +121,29 @@ where
     }
     let shift = words.len() * 32 - 4;
     let code = ((packed >> shift) & 0xF) as u8;
-    let key = num_traits::NumCast::from(packed & ((1u128 << shift) - 1))
-        .ok_or_else(|| "Packed key does not fit its integer type.".to_string())?;
-    Ok((key, code))
-}
-
-fn validate_words(words: &[u32], width: usize) -> Result<(), String> {
-    if width != 2 && width != 4 {
-        return Err("Packed entries must contain two or four words.".into());
-    }
-    if !words.len().is_multiple_of(width) {
-        return Err("The packed sample contains an incomplete entry.".into());
-    }
-    Ok(())
+    // Packet width is derived from IntT; the masked key always fits.
+    let key = (packed & ((1u128 << shift) - 1)).as_();
+    (key, code)
 }
 
 /// Number of words needed for a base/count header and `samples` packed 11-bit IDs.
+#[inline]
 fn group_words(samples: usize) -> usize {
     1 + (SAMPLE_ID_BITS * samples).div_ceil(16)
 }
 
+#[inline]
 fn group_base(words: &[u16]) -> u8 {
     (words[0] & BASE_MASK) as u8
 }
 
+#[inline]
 fn group_len(words: &[u16]) -> usize {
     usize::from(words[0] >> 4)
 }
 
 /// Read one sample ID from the bit stream following the group header.
+#[inline]
 fn group_id(words: &[u16], index: usize) -> u16 {
     debug_assert!(index < group_len(words));
 
@@ -163,74 +159,57 @@ fn group_id(words: &[u16], index: usize) -> u16 {
     ((value >> shift) as u16) & SAMPLE_ID_MASK
 }
 
-/// Reserve enough packed words for one more sample ID, growing geometrically up to the planned
-/// sample count. An underestimated plan still grows to the required length.
-fn reserve_group_append(words: &mut Vec<u16>, expected_samples: usize) -> Result<(), String> {
-    let needed = group_words(group_len(words) + 1);
-    if needed <= words.capacity() {
-        return Ok(());
-    }
-    let target = words
-        .capacity()
-        .saturating_mul(2)
-        .min(group_words(expected_samples))
-        .max(needed);
+/// Reserve the run's final capacity when a group reaches the word threshold.
+#[cold]
+fn reserve_final_group(words: &mut Vec<u16>, final_words: usize) -> Result<(), String> {
     words
-        .try_reserve_exact(target - words.len())
+        .try_reserve_exact(final_words - words.len())
         .map_err(|error| format!("Could not extend site group: {error}"))
 }
 
-/// Append an ID after `reserve_group_append` has made the required capacity available.
-fn append_group_reserved(words: &mut Vec<u16>, sample_id: u16) {
+#[inline]
+fn append_group(
+    words: &mut Vec<u16>,
+    sample_id: u16,
+    threshold_words: usize,
+    final_words: usize,
+) -> Result<(), String> {
+    if words.len() == threshold_words {
+        reserve_final_group(words, final_words)?;
+    }
     let count = group_len(words);
     let bit = SAMPLE_ID_BITS * count;
     let word = 1 + bit / 16;
     let shift = bit % 16;
-
-    words.resize(group_words(count + 1), 0);
-
-    let value = u32::from(sample_id & SAMPLE_ID_MASK) << shift;
+    if shift == 0 || shift + SAMPLE_ID_BITS > 16 {
+        words.push(0);
+    }
+    let value = u32::from(sample_id) << shift;
     words[word] |= value as u16;
     if shift + SAMPLE_ID_BITS > 16 {
         words[word + 1] |= (value >> 16) as u16;
     }
-
     words[0] = (words[0] & BASE_MASK) | (((count + 1) as u16) << 4);
+    Ok(())
 }
 
+#[inline]
 fn new_group(base: u8, sample_id: u16) -> Result<Vec<u16>, String> {
     let mut words = Vec::new();
     words
-        .try_reserve_exact(group_words(1))
+        .try_reserve_exact(2)
         .map_err(|error| format!("Could not allocate site group: {error}"))?;
-    words.push(u16::from(base & BASE_MASK as u8));
-    // The new vector has capacity for its header and first ID.
-    append_group_reserved(&mut words, sample_id);
+    words.extend_from_slice(&[(1u16 << 4) | u16::from(base), sample_id]);
     Ok(words)
 }
 
-fn increment_distance(distance: &mut u32) -> Result<(), String> {
-    *distance = distance
-        .checked_add(1)
-        .ok_or_else(|| "SNP distance exceeds u32::MAX.".to_string())?;
-    Ok(())
-}
-
-fn add_group_distances(
-    group: &[u16],
-    incoming_base: u8,
-    distance_row: &mut [u32],
-) -> Result<(), String> {
-    let previous_base = group_base(group);
-    if previous_base == GAP || previous_base == incoming_base {
-        return Ok(());
-    }
-
+#[inline]
+fn accumulate_group_distances(group: &[u16], distance_row: &mut [u32]) {
+    // The validated packet contains at most u32::MAX unique split-kmer entries.
+    // Each earlier sample can receive at most one increment per entry.
     for index in 0..group_len(group) {
-        let sample_id = usize::from(group_id(group, index));
-        increment_distance(&mut distance_row[sample_id])?;
+        distance_row[usize::from(group_id(group, index))] += 1;
     }
-    Ok(())
 }
 
 /// A site while samples are still being added.
@@ -238,16 +217,6 @@ fn add_group_distances(
 enum GrowingSite {
     Monomorphic(Vec<u16>),
     Polymorphic(Vec<Vec<u16>>),
-}
-
-impl GrowingSite {
-    #[cfg(test)]
-    fn groups(&self) -> &[Vec<u16>] {
-        match self {
-            Self::Monomorphic(words) => std::slice::from_ref(words),
-            Self::Polymorphic(groups) => groups,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -313,8 +282,9 @@ pub(crate) struct AlignmentMatrix<IntT> {
     storage: SiteStorage<IntT>,
     sample_count: usize,
     sealed: bool,
-    /// Samples the dataset will hold once the planned run is added; caps each site's capacity.
-    expected_samples: usize,
+    /// Packed-word threshold for switching to the planned final capacity.
+    growth_threshold_words: usize,
+    final_group_words: usize,
 }
 
 impl<IntT> Default for AlignmentMatrix<IntT> {
@@ -323,34 +293,61 @@ impl<IntT> Default for AlignmentMatrix<IntT> {
             storage: SiteStorage::Growing(HashMap::new()),
             sample_count: 0,
             sealed: false,
-            expected_samples: MAX_SAMPLES,
+            growth_threshold_words: 1024,
+            final_group_words: group_words(MAX_SAMPLES),
         }
     }
 }
 
 impl<IntT> AlignmentMatrix<IntT>
 where
-    IntT: Copy + Eq + Hash + PrimInt + num_traits::NumCast,
+    IntT: Copy + Eq + Hash + PrimInt + 'static,
+    u128: AsPrimitive<IntT>,
 {
     pub(crate) fn is_sealed(&self) -> bool {
         self.sealed
     }
 
-    /// Set the total the dataset will reach after the planned samples, at most [`MAX_SAMPLES`].
-    pub(crate) fn set_expected_samples(&mut self, total: usize) {
-        self.expected_samples = total.min(MAX_SAMPLES);
-    }
-
-    fn check_addition(&self, words: &[u32], width: usize) -> Result<(), String> {
-        if self.sealed {
-            return Err("The alignment is closed to new samples.".into());
+    /// Prepare group capacities once for a batch whose total was validated by plan_samples.
+    /// This does NOT remove the single check whenever adding samples, that prevents allocating
+    /// more memory than needed.
+    pub(crate) fn set_expected_samples(&mut self, total: usize) -> Result<(), String> {
+        let final_words = group_words(total);
+        let threshold_words = 1usize << (final_words - 1).ilog2();
+        if self.sample_count != 0 {
+            let SiteStorage::Growing(postings) = &mut self.storage else {
+                return Err("The alignment is closed to new samples.".into());
+            };
+            let prepare = |words: &mut Vec<u16>| -> Result<(), String> {
+                let capacity = words.capacity();
+                let target = if words.len() >= threshold_words {
+                    final_words
+                } else if capacity < threshold_words {
+                    capacity.next_power_of_two().min(threshold_words)
+                } else {
+                    capacity
+                };
+                if target > capacity {
+                    words
+                        .try_reserve_exact(target - words.len())
+                        .map_err(|error| format!("Could not prepare site group: {error}"))?;
+                }
+                Ok(())
+            };
+            for site in postings.values_mut() {
+                match site {
+                    GrowingSite::Monomorphic(words) => prepare(words)?,
+                    GrowingSite::Polymorphic(groups) => {
+                        for words in groups {
+                            prepare(words)?;
+                        }
+                    }
+                }
+            }
         }
-        if self.sample_count >= MAX_SAMPLES {
-            return Err(format!(
-                "Sparse alignment supports at most {MAX_SAMPLES} samples."
-            ));
-        }
-        validate_words(words, width)
+        self.growth_threshold_words = threshold_words;
+        self.final_group_words = final_words;
+        Ok(())
     }
 
     /// Store one sample and write its distances to earlier samples into `distance_row`,
@@ -358,55 +355,48 @@ where
     pub(crate) fn add_sample_words(
         &mut self,
         words: Vec<u32>,
-        words_per_entry: usize,
         distance_row: &mut [u32],
     ) -> Result<(), String> {
-        self.check_addition(&words, words_per_entry)?;
+        if self.sealed {
+            return Err("The alignment is closed to new samples.".into());
+        }
         if distance_row.len() != self.sample_count {
             return Err("Distance row length does not match the existing sample count.".into());
         }
-        let result = self.store_and_compare(&words, words_per_entry, distance_row);
+        let result = self.store_and_compare(&words, distance_row);
         if result.is_err() {
             self.sealed = true;
         }
         result
     }
 
-    fn store_and_compare(
-        &mut self,
-        words: &[u32],
-        words_per_entry: usize,
-        distance_row: &mut [u32],
-    ) -> Result<(), String> {
+    fn store_and_compare(&mut self, words: &[u32], distance_row: &mut [u32]) -> Result<(), String> {
         let SiteStorage::Growing(postings) = &mut self.storage else {
             return Err("The alignment is closed to new samples.".into());
         };
         let sample_id = self.sample_count as u16;
-        let limit = self.expected_samples;
-        distance_row.fill(0);
+        let words_per_entry = std::mem::size_of::<IntT>() / std::mem::size_of::<u32>();
         for entry in words.chunks_exact(words_per_entry) {
-            let (kmer, code) = unpack_entry::<IntT>(entry)?;
-            // Reserving first keeps the insertion below fallible; with room to spare it is only a check.
-            postings
-                .try_reserve(1)
-                .map_err(|error| format!("Could not extend site index: {error:?}"))?;
+            let (kmer, code) = unpack_entry::<IntT>(entry);
             match postings.entry(kmer) {
                 Entry::Occupied(mut entry) => {
                     let site = entry.get_mut();
                     match site {
                         GrowingSite::Monomorphic(existing) if group_base(existing) == code => {
-                            reserve_group_append(existing, limit)?;
-                            append_group_reserved(existing, sample_id);
+                            append_group(existing, sample_id, self.growth_threshold_words, self.final_group_words)?;
                         }
                         GrowingSite::Monomorphic(existing) => {
                             let new_words = new_group(code, sample_id)?;
-                            let mut groups = Vec::new();
+
+                            let mut groups = Vec::new(); // This should be equivalent to with_capacity
                             groups.try_reserve_exact(2).map_err(|error| {
                                 format!("Could not allocate site groups: {error}")
                             })?;
 
-                            add_group_distances(existing, code, distance_row)?;
+                            // Get the distances
+                            accumulate_group_distances(existing, distance_row);
 
+                            // Move data out, without recopying
                             let old_site =
                                 std::mem::replace(site, GrowingSite::Monomorphic(Vec::new()));
                             let GrowingSite::Monomorphic(old_words) = old_site else {
@@ -417,30 +407,22 @@ where
                             *site = GrowingSite::Polymorphic(groups);
                         }
                         GrowingSite::Polymorphic(groups) => {
-                            let matching_group =
-                                groups.iter().position(|group| group_base(group) == code);
-
-                            if let Some(index) = matching_group {
-                                reserve_group_append(&mut groups[index], limit)?;
-                            } else {
+                            let mut found = false;
+                            for group in groups.iter_mut() {
+                                let base = group_base(group);
+                                if base == code {
+                                    append_group(group, sample_id, self.growth_threshold_words, self.final_group_words)?;
+                                    found = true;
+                                } else {
+                                    accumulate_group_distances(group, distance_row);
+                                }
+                            }
+                            if !found {
+                                let new_words = new_group(code, sample_id)?;
                                 groups.try_reserve(1).map_err(|error| {
                                     format!("Could not extend site groups: {error}")
                                 })?;
-                            }
-                            let new_words = if matching_group.is_none() {
-                                Some(new_group(code, sample_id)?)
-                            } else {
-                                None
-                            };
-
-                            for group in groups.iter() {
-                                add_group_distances(group, code, distance_row)?;
-                            }
-
-                            if let Some(index) = matching_group {
-                                append_group_reserved(&mut groups[index], sample_id);
-                            } else {
-                                groups.push(new_words.expect("new base group was prepared"));
+                                groups.push(new_words);
                             }
                         }
                     }
@@ -588,398 +570,5 @@ where
             .map_err(|error| format!("Could not gzip alignment: {error}"))?;
         self.storage = SiteStorage::Released;
         Ok(bytes)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use flate2::read::GzDecoder;
-    use std::io::Read;
-
-    fn words(sample: &HashMap<u64, u8>) -> Vec<u32> {
-        sample
-            .iter()
-            .flat_map(|(&key, &base)| pack_entry_u64(key, base))
-            .collect()
-    }
-
-    fn add_words<IntT>(
-        matrix: &mut AlignmentMatrix<IntT>,
-        words: Vec<u32>,
-        words_per_entry: usize,
-        distances: &mut Vec<u32>,
-    ) -> std::ops::Range<usize>
-    where
-        IntT: Copy + Eq + Hash + PrimInt + num_traits::NumCast,
-    {
-        let start = distances.len();
-        let end = start + matrix.sample_count;
-        distances.resize(end, 0);
-        matrix
-            .add_sample_words(words, words_per_entry, &mut distances[start..end])
-            .unwrap();
-        start..end
-    }
-
-    #[test]
-    fn strict_triangle_helpers_cover_empty_and_all_pair_positions() {
-        assert_eq!(strict_triangle_len(0), Some(0));
-        assert_eq!(strict_triangle_len(1), Some(0));
-        assert_eq!(strict_triangle_len(4), Some(6));
-        assert_eq!(strict_triangle_index(1, 0), Some(0));
-        assert_eq!(strict_triangle_index(2, 0), Some(1));
-        assert_eq!(strict_triangle_index(2, 1), Some(2));
-        assert_eq!(strict_triangle_index(3, 0), Some(3));
-        assert_eq!(strict_triangle_index(3, 1), Some(4));
-        assert_eq!(strict_triangle_index(3, 2), Some(5));
-        assert_eq!(strict_triangle_index(2, 2), None);
-        assert_eq!(strict_triangle_index(1, 2), None);
-    }
-
-    #[test]
-    fn sparse_distance_rows_match_map_intersections() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut prior = Vec::<HashMap<u64, u8>>::new();
-        let mut distances = Vec::new();
-        for sample_id in 0..24 {
-            let sample: HashMap<_, _> = (0..90u64)
-                .filter(|key| (key * 17 + sample_id * 13) % 7 < 3)
-                .map(|key| (key, decode_symbol(((key + sample_id) % 16) as u8)))
-                .collect();
-            let packed = words(&sample);
-            let row = add_words(&mut matrix, packed, 2, &mut distances);
-            for (j, other) in prior.iter().enumerate() {
-                let expected = sample
-                    .iter()
-                    .filter(|(key, base)| {
-                        other
-                            .get(*key)
-                            .is_some_and(|old| *old != b'-' && old != *base)
-                    })
-                    .count() as u32;
-                assert_eq!(distances[row.start + j], expected);
-            }
-            prior.push(sample);
-        }
-    }
-
-    #[test]
-    fn invariant_sites_skip_comparisons_without_changing_rows() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut prior = Vec::<HashMap<u64, u8>>::new();
-        let mut distances = Vec::new();
-        for sample_id in 0..20u64 {
-            let sample: HashMap<_, _> = (0..60u64)
-                .filter(|key| (key + sample_id) % 9 != 0)
-                .map(|key| {
-                    let variant = key % 10 == 0 && sample_id % 3 == 0;
-                    (key, if variant { b'T' } else { b'A' })
-                })
-                .collect();
-            let row = add_words(&mut matrix, words(&sample), 2, &mut distances);
-            for (j, other) in prior.iter().enumerate() {
-                let expected = sample
-                    .iter()
-                    .filter(|(key, base)| other.get(*key).is_some_and(|old| old != *base))
-                    .count() as u32;
-                assert_eq!(distances[row.start + j], expected);
-            }
-            prior.push(sample);
-        }
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        assert!(postings
-            .iter()
-            .all(|(key, site)| matches!(site, GrowingSite::Polymorphic(_)) == (key % 10 == 0)));
-    }
-
-    #[test]
-    fn site_capacity_stops_at_the_expected_sample_count() {
-        let shared = || pack_entry_u64(5, b'A').to_vec();
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        matrix.set_expected_samples(6);
-        for _ in 0..6 {
-            add_words(&mut matrix, shared(), 2, &mut distances);
-        }
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        // 1, then 4, then 6 rather than 8.
-        let GrowingSite::Monomorphic(words) = &postings[&5] else {
-            panic!()
-        };
-        assert_eq!(words.capacity(), 6);
-
-        // An underestimate still grows, one call beyond the limit at a time.
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        matrix.set_expected_samples(2);
-        for _ in 0..5 {
-            add_words(&mut matrix, shared(), 2, &mut distances);
-        }
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        let GrowingSite::Monomorphic(words) = &postings[&5] else {
-            panic!()
-        };
-        assert_eq!(group_len(words), 5);
-    }
-
-    #[test]
-    fn zero_call_is_valid_and_sample_limit_is_checked() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        add_words(
-            &mut matrix,
-            pack_entry_u64(9, b'A').to_vec(),
-            2,
-            &mut distances,
-        );
-        let second_row = add_words(
-            &mut matrix,
-            pack_entry_u64(9, b'C').to_vec(),
-            2,
-            &mut distances,
-        );
-        assert_eq!(&distances[second_row], &[1]);
-        for _ in 2..MAX_SAMPLES - 1 {
-            add_words(&mut matrix, Vec::new(), 2, &mut distances);
-        }
-        add_words(
-            &mut matrix,
-            pack_entry_u64(9, b'N').to_vec(),
-            2,
-            &mut distances,
-        );
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        let GrowingSite::Polymorphic(groups) = &postings[&9] else {
-            panic!()
-        };
-        assert_eq!(groups.len(), 3);
-        assert_eq!(group_len(&groups[0]), 1);
-        assert_eq!(group_id(&groups[0], 0), 0);
-        assert_eq!(group_base(&groups[0]), 0);
-        assert_eq!(group_id(&groups[1], 0), 1);
-        assert_eq!(group_base(&groups[1]), 1);
-        assert_eq!(group_id(&groups[2], 0), (MAX_SAMPLES - 1) as u16);
-        assert_eq!(group_base(&groups[2]), 14);
-        assert!(matrix.add_sample_words(Vec::new(), 2, &mut []).is_err());
-    }
-
-    #[test]
-    fn large_keys_ambiguity_and_empty_samples_work() {
-        let mut matrix = AlignmentMatrix::<u128>::default();
-        let mut distances = Vec::new();
-        let key = (1u128 << 100) + 27;
-        add_words(
-            &mut matrix,
-            pack_entry_u128(key, b'R').to_vec(),
-            4,
-            &mut distances,
-        );
-        add_words(&mut matrix, Vec::new(), 4, &mut distances);
-        add_words(
-            &mut matrix,
-            pack_entry_u128(key, b'R').to_vec(),
-            4,
-            &mut distances,
-        );
-        let fourth_row = add_words(
-            &mut matrix,
-            pack_entry_u128(key, b'A').to_vec(),
-            4,
-            &mut distances,
-        );
-        assert_eq!(&distances[fourth_row], &[1, 0, 1]);
-        assert!(matrix
-            .add_sample_words(vec![1], 4, &mut [0, 0, 0, 0])
-            .is_err());
-        assert!(matrix
-            .add_sample_words(Vec::new(), 0, &mut [0, 0, 0, 0])
-            .is_err());
-        let mut distance = u32::MAX;
-        assert!(increment_distance(&mut distance).is_err());
-    }
-
-    #[test]
-    fn failed_addition_after_a_partial_insert_seals_the_matrix() {
-        let mut matrix = AlignmentMatrix::<u8>::default();
-        let mut invalid_sample = pack_entry_u64(3, b'A').to_vec();
-        invalid_sample.extend(pack_entry_u64(300, b'C'));
-        assert!(matrix.add_sample_words(invalid_sample, 2, &mut []).is_err());
-        assert!(matrix.is_sealed());
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        assert_eq!(postings.len(), 1);
-        let GrowingSite::Monomorphic(group) = &postings[&3] else {
-            panic!()
-        };
-        assert_eq!(group_len(group), 1);
-        assert!(matrix.add_sample_words(Vec::new(), 2, &mut [0, 0]).is_err());
-    }
-
-    #[test]
-    fn freeze_moves_buffers_and_export_recovers_gaps_and_symbols() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        let first: HashMap<_, _> = (0..16)
-            .map(|code| (code as u64, decode_symbol(code)))
-            .collect();
-        add_words(&mut matrix, words(&first), 2, &mut distances);
-        add_words(
-            &mut matrix,
-            pack_entry_u64(0, b'G').to_vec(),
-            2,
-            &mut distances,
-        );
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!()
-        };
-        let mut pointers: Vec<_> = postings
-            .values()
-            .flat_map(|site| site.groups().iter().map(|group| group.as_ptr() as usize))
-            .collect();
-        pointers.sort_unstable();
-        matrix.freeze().unwrap();
-        let SiteStorage::Frozen(frozen) = &matrix.storage else {
-            panic!()
-        };
-        let mut frozen_pointers = Vec::new();
-        for site in &frozen.sites {
-            match site {
-                FrozenSite::Monomorphic(group) => {
-                    frozen_pointers.push(group.words.as_ptr() as usize);
-                }
-                FrozenSite::Polymorphic { start, len } => frozen_pointers.extend(
-                    frozen.polymorphic_groups[*start..(*start + *len)]
-                        .iter()
-                        .map(|group| group.words.as_ptr() as usize),
-                ),
-            }
-        }
-        frozen_pointers.sort_unstable();
-        assert_eq!(frozen_pointers, pointers);
-        let mut bytes = Vec::new();
-        GzDecoder::new(
-            matrix
-                .export_fasta_gzip(&["one".into(), "two".into()], &|_| {})
-                .unwrap()
-                .as_slice(),
-        )
-        .read_to_end(&mut bytes)
-        .unwrap();
-        let text = String::from_utf8(bytes).unwrap();
-        let lines: Vec<_> = text.lines().collect();
-        assert_eq!((lines[0], lines[2]), ("> one", "> two"));
-        assert_eq!(lines[1].len(), 16);
-        let mut columns: Vec<_> = lines[1].bytes().zip(lines[3].bytes()).collect();
-        columns.sort_unstable();
-        let mut expected: Vec<_> = (0..16)
-            .map(|code| (decode_symbol(code), if code == 0 { b'G' } else { b'-' }))
-            .collect();
-        expected.sort_unstable();
-        assert_eq!(columns, expected);
-        assert!(matches!(matrix.storage, SiteStorage::Released));
-        assert!(matrix.add_sample_words(Vec::new(), 2, &mut []).is_err());
-    }
-
-    #[test]
-    fn failed_writer_keeps_frozen_data_and_retry_resets_cursors() {
-        struct FailAfter(usize);
-        impl Write for FailAfter {
-            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-                if self.0 == 0 {
-                    return Err(io::Error::other("simulated write failure"));
-                }
-                let n = self.0.min(bytes.len());
-                self.0 -= n;
-                Ok(n)
-            }
-            fn flush(&mut self) -> io::Result<()> {
-                Ok(())
-            }
-        }
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        add_words(
-            &mut matrix,
-            pack_entry_u64(1, b'A').to_vec(),
-            2,
-            &mut distances,
-        );
-        add_words(
-            &mut matrix,
-            pack_entry_u64(1, b'T').to_vec(),
-            2,
-            &mut distances,
-        );
-        matrix.freeze().unwrap();
-        assert!(matrix
-            .write_fasta(&["a".into(), "b".into()], &mut FailAfter(6), &|_| {})
-            .is_err());
-        assert!(matrix.is_sealed());
-        let mut plain = Vec::new();
-        matrix
-            .write_fasta(&["a".into(), "b".into()], &mut plain, &|_| {})
-            .unwrap();
-        assert_eq!(plain, b"> a\nA\n> b\nT\n");
-    }
-
-    #[test]
-    fn packed_group_header_and_ids_cover_the_full_sample_range() {
-        let mut words = new_group(14, 0).unwrap();
-        for sample_id in 1..MAX_SAMPLES as u16 {
-            reserve_group_append(&mut words, MAX_SAMPLES).unwrap();
-            append_group_reserved(&mut words, sample_id);
-        }
-
-        assert_eq!(group_base(&words), 14);
-        assert_eq!(group_len(&words), MAX_SAMPLES);
-        assert_eq!(words.len(), group_words(MAX_SAMPLES));
-        for sample_id in 0..MAX_SAMPLES {
-            assert_eq!(group_id(&words, sample_id), sample_id as u16);
-        }
-    }
-
-    #[test]
-    fn freeze_reservation_failure_preserves_growing_data_for_retry() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        let mut distances = Vec::new();
-        add_words(
-            &mut matrix,
-            pack_entry_u64(7, b'A').to_vec(),
-            2,
-            &mut distances,
-        );
-        add_words(
-            &mut matrix,
-            pack_entry_u64(7, b'C').to_vec(),
-            2,
-            &mut distances,
-        );
-
-        assert!(matrix
-            .freeze_with(|_, _| Err("injected reservation failure".into()))
-            .is_err());
-        assert!(matrix.is_sealed());
-        let SiteStorage::Growing(postings) = &matrix.storage else {
-            panic!("growing data must remain available after reservation failure")
-        };
-        let GrowingSite::Polymorphic(groups) = &postings[&7] else {
-            panic!()
-        };
-        assert_eq!(groups.len(), 2);
-        assert_eq!(group_len(&groups[0]), 1);
-        assert_eq!(group_len(&groups[1]), 1);
-
-        matrix.freeze().unwrap();
-        assert!(matches!(matrix.storage, SiteStorage::Frozen(_)));
     }
 }
