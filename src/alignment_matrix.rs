@@ -207,9 +207,49 @@ fn new_group(base: u8, sample_id: u16) -> Result<Vec<u16>, String> {
 fn accumulate_group_distances(group: &[u16], distance_row: &mut [u32]) {
     // The validated packet contains at most u32::MAX unique split-kmer entries.
     // Each earlier sample can receive at most one increment per entry.
-    for index in 0..group_len(group) {
-        distance_row[usize::from(group_id(group, index))] += 1;
+    //// OLD
+    // for index in 0..group_len(group) {
+    //     distance_row[usize::from(group_id(group, index))] += 1;
+    // }
+
+    // Let's try to do this, perhaps we could get some SIMD optimisations?
+    let n_sampleids   = group_len(group);
+    let n_full_chunks = (n_sampleids / 16) * SAMPLE_ID_BITS; // this, unless we go over one full chunk, will be zero NOTE THE ORDER!
+    let thedata = &group[1..];
+    let remainder = &thedata[n_full_chunks..];
+
+    for wordchunk in thedata[..n_full_chunks].chunks_exact(SAMPLE_ID_BITS) {
+        for i in 0..16 {
+            let bit_offset  = i * SAMPLE_ID_BITS;
+            let word        = bit_offset / 16; // truncated div., i.e. the lower possible value
+            let shift       = bit_offset % 16; // remainder of the 16 bits
+
+            let mut value = (wordchunk[word] as u32) >> shift;
+
+            if shift > 5 { // NOTE: this needs change if modifying SAMPLE_ID_BITS
+                value |= (wordchunk[word + 1] as u32) << (16 - shift); // the other bits are in the next one!
+            }
+
+            // NOTE: this needs change if modifying SAMPLE_ID_BITS
+            let sample_id = (value & 0x7ff) as usize; // 0x7ff = 0b11111111111, i.e. this gets the first SAMPLE_ID_BITS bits
+            distance_row[sample_id] += 1;
+        }
     }
+    // Now, if we miss anyone
+    for i in 0..(n_sampleids % 16) {
+        let bit_offset  = i * SAMPLE_ID_BITS;
+        let word        = bit_offset / 16;
+        let shift       = bit_offset % 16;
+
+        let mut value = remainder[word] as u32 >> shift;
+        if shift > 5 {// NOTE: this needs change if modifying SAMPLE_ID_BITS
+            value |= u32::from(remainder[word + 1]) << (16 - shift);
+        }
+
+        let sample_id = (value & 0x7ff) as usize;// NOTE: this needs change if modifying SAMPLE_ID_BITS
+        distance_row[sample_id] += 1;
+    }
+
 }
 
 /// A site while samples are still being added.
