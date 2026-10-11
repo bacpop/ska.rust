@@ -83,8 +83,101 @@ pub(crate) fn pack_entry_u128(kmer: u128, base: u8) -> [u32; 4] {
 const SAMPLE_ID_BITS: usize = 11;
 const SAMPLE_ID_MASK: u16 = 0x07ff;
 const BASE_MASK: u16 = 0x000f;
+// Profile 1/64 of entries in contiguous blocks. Batching keeps the imported
+// JavaScript clock cost small relative to the Rust work being measured.
+const AGGREGATION_PROFILE_SAMPLE_INTERVAL: usize = 1 << 18;
+const AGGREGATION_PROFILE_BLOCK_ENTRIES: usize = 1 << 12;
 
 pub(crate) const MAX_SAMPLES: usize = 1 << SAMPLE_ID_BITS;
+
+/// Batched timings for sampled blocks in the hot loop that adds one sample to
+/// the sparse matrix. Unpack and lookup are measured in prepasses; the real
+/// block is timed inclusively, without subtracting incompatible replay timings.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct AggregationPhaseTimings {
+    total_entries: usize,
+    sampled_entries: usize,
+    sampled_update_entries: usize,
+    sampled_lookup_hits: usize,
+    sampled_unpack_ms: f64,
+    sampled_hash_lookup_ms: f64,
+    sampled_block_work_ms: f64,
+    sampled_resize_block_ms: f64,
+    sampled_resize_blocks: usize,
+    fine: FineAggregationTimings,
+}
+
+/// Independent batched replays, never exclusive phases of the production loop.
+#[derive(Debug, Default, Clone, Copy)]
+struct FineAggregationTimings {
+    sampled_entries: usize,
+    skipped_blocks: usize,
+    operation_entries: [usize; 4],
+    operation_ms: [f64; 4],
+    distance_ms: f64,
+    distance_groups: usize,
+    distance_ids: u64,
+    preparation_ms: f64,
+    diagnostic_ms: f64,
+}
+
+impl AggregationPhaseTimings {
+    /// Values returned to the browser in this order: total Rust call, estimated
+    /// unpack, estimated hash lookup, estimated inclusive block, sampled entries,
+    /// total entries, entries in non-resize blocks, sampling interval, block
+    /// size, sampled lookup hits, total resize-block time, resize-block count.
+    /// The versioned suffix contains independent operation replay estimates,
+    /// their workload counts, and observed diagnostic overhead. Keep this layout
+    /// in sync with aggregationProfileIndex in Mapper.ts.
+    #[cfg(target_family = "wasm")]
+    pub(crate) fn wasm_values(self, rust_core_ms: f64) -> [f64; 28] {
+        let sample_scale = if self.sampled_entries == 0 {
+            0.0
+        } else {
+            self.total_entries as f64 / self.sampled_entries as f64
+        };
+        let update_scale = if self.sampled_update_entries == 0 {
+            0.0
+        } else {
+            self.total_entries as f64 / self.sampled_update_entries as f64
+        };
+        let fine_scale = if self.fine.sampled_entries == 0 {
+            0.0
+        } else {
+            self.total_entries as f64 / self.fine.sampled_entries as f64
+        };
+        [
+            rust_core_ms,
+            self.sampled_unpack_ms * sample_scale,
+            self.sampled_hash_lookup_ms * sample_scale,
+            self.sampled_block_work_ms * update_scale,
+            self.sampled_entries as f64,
+            self.total_entries as f64,
+            self.sampled_update_entries as f64,
+            AGGREGATION_PROFILE_SAMPLE_INTERVAL as f64,
+            AGGREGATION_PROFILE_BLOCK_ENTRIES as f64,
+            self.sampled_lookup_hits as f64,
+            self.sampled_resize_block_ms,
+            self.sampled_resize_blocks as f64,
+            3.0, // Profile schema version; legacy profiles have no version field.
+            self.fine.operation_ms[0] * fine_scale,
+            self.fine.operation_ms[1] * fine_scale,
+            self.fine.operation_ms[2] * fine_scale,
+            self.fine.operation_ms[3] * fine_scale,
+            self.fine.distance_ms * fine_scale,
+            self.fine.operation_entries[0] as f64,
+            self.fine.operation_entries[1] as f64,
+            self.fine.operation_entries[2] as f64,
+            self.fine.operation_entries[3] as f64,
+            self.fine.distance_groups as f64,
+            self.fine.distance_ids as f64,
+            self.fine.preparation_ms,
+            self.fine.diagnostic_ms,
+            self.fine.sampled_entries as f64,
+            self.fine.skipped_blocks as f64,
+        ]
+    }
+}
 
 /// Number of entries in a strict lower-triangle matrix of `samples` rows.
 pub(crate) fn strict_triangle_len(samples: usize) -> Option<usize> {
@@ -259,6 +352,196 @@ enum GrowingSite {
     Polymorphic(Vec<Vec<u16>>),
 }
 
+/// Shared by the production loop and the diagnostic replay. A no-op distance
+/// callback lets the replay measure site mutation without distance arithmetic.
+#[inline]
+fn update_existing_site<F>(
+    site: &mut GrowingSite,
+    code: u8,
+    sample_id: u16,
+    threshold_words: usize,
+    final_words: usize,
+    mut accumulate: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[u16]),
+{
+    match site {
+        GrowingSite::Monomorphic(existing) if group_base(existing) == code => {
+            append_group(existing, sample_id, threshold_words, final_words)?;
+        }
+        GrowingSite::Monomorphic(existing) => {
+            let new_words = new_group(code, sample_id)?;
+            let mut groups = Vec::new();
+            groups
+                .try_reserve_exact(2)
+                .map_err(|error| format!("Could not allocate site groups: {error}"))?;
+            accumulate(existing);
+            let old_site = std::mem::replace(site, GrowingSite::Monomorphic(Vec::new()));
+            let GrowingSite::Monomorphic(old_words) = old_site else {
+                unreachable!()
+            };
+            groups.push(old_words);
+            groups.push(new_words);
+            *site = GrowingSite::Polymorphic(groups);
+        }
+        GrowingSite::Polymorphic(groups) => {
+            let mut found = false;
+            for group in groups.iter_mut() {
+                if group_base(group) == code {
+                    append_group(group, sample_id, threshold_words, final_words)?;
+                    found = true;
+                } else {
+                    accumulate(group);
+                }
+            }
+            if !found {
+                let new_words = new_group(code, sample_id)?;
+                groups
+                    .try_reserve(1)
+                    .map_err(|error| format!("Could not extend site groups: {error}"))?;
+                groups.push(new_words);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Preserve spare capacity so replayed append allocations follow the same
+/// thresholds as the real site. Clone allocation/copying is timed separately.
+fn clone_profile_site(site: &GrowingSite) -> Result<GrowingSite, String> {
+    let clone_words = |source: &Vec<u16>| -> Result<Vec<u16>, String> {
+        let mut words = Vec::new();
+        words
+            .try_reserve_exact(source.capacity())
+            .map_err(|error| format!("Could not allocate profile group: {error}"))?;
+        words.extend_from_slice(source);
+        Ok(words)
+    };
+    match site {
+        GrowingSite::Monomorphic(words) => Ok(GrowingSite::Monomorphic(clone_words(words)?)),
+        GrowingSite::Polymorphic(source) => {
+            let mut groups = Vec::new();
+            groups
+                .try_reserve_exact(source.capacity())
+                .map_err(|error| format!("Could not allocate profile groups: {error}"))?;
+            for words in source {
+                groups.push(clone_words(words)?);
+            }
+            Ok(GrowingSite::Polymorphic(groups))
+        }
+    }
+}
+
+/// Replay sampled work in batches without modifying postings or real distances.
+/// No per-entry clocks, unsafe pointers, or production-loop reordering are used.
+/// Costs reflect scratch/cache behaviour and exclude hash-map insertion; they
+/// must not be presented as an additive decomposition of the Rust core time.
+fn profile_site_operations<IntT, F>(
+    postings: &HashMap<IntT, GrowingSite>,
+    entries: &[(IntT, u8)],
+    sample_id: u16,
+    threshold_words: usize,
+    final_words: usize,
+    now_ms: &mut F,
+) -> Result<FineAggregationTimings, String>
+where
+    IntT: Eq + Hash,
+    F: FnMut() -> f64,
+{
+    let preparation_started_at = now_ms();
+    let mut buckets: [Vec<(GrowingSite, u8)>; 3] = std::array::from_fn(|_| Vec::new());
+    for bucket in &mut buckets {
+        bucket
+            .try_reserve_exact(entries.len())
+            .map_err(|error| format!("Could not allocate profile bucket: {error}"))?;
+    }
+    let mut new_bases = Vec::new();
+    new_bases
+        .try_reserve_exact(entries.len())
+        .map_err(|error| format!("Could not allocate profile bases: {error}"))?;
+    // There are at most 16 encoded base groups per site. References remain
+    // valid because this entire replay precedes any mutation of the real map.
+    let mut distance_groups: Vec<&[u16]> = Vec::new();
+    distance_groups
+        .try_reserve_exact(entries.len() * 16)
+        .map_err(|error| format!("Could not allocate profile distances: {error}"))?;
+    let mut timings = FineAggregationTimings {
+        sampled_entries: entries.len(),
+        ..FineAggregationTimings::default()
+    };
+    for (kmer, code) in entries {
+        if let Some(site) = postings.get(kmer) {
+            let bucket = match site {
+                GrowingSite::Monomorphic(words) => {
+                    if group_base(words) == *code {
+                        0
+                    } else {
+                        distance_groups.push(words);
+                        1
+                    }
+                }
+                GrowingSite::Polymorphic(groups) => {
+                    for words in groups {
+                        if group_base(words) != *code {
+                            distance_groups.push(words);
+                        }
+                    }
+                    2
+                }
+            };
+            buckets[bucket].push((clone_profile_site(site)?, *code));
+            timings.operation_entries[bucket] += 1;
+        } else {
+            new_bases.push(*code);
+            timings.operation_entries[3] += 1;
+        }
+    }
+    timings.distance_groups = distance_groups.len();
+    timings.distance_ids = distance_groups.iter().map(|group| group_len(group) as u64).sum();
+    let mut scratch_distances = Vec::new();
+    scratch_distances
+        .try_reserve_exact(usize::from(sample_id))
+        .map_err(|error| format!("Could not allocate profile distance row: {error}"))?;
+    scratch_distances.resize(usize::from(sample_id), 0u32);
+    let mut new_groups = Vec::new();
+    new_groups
+        .try_reserve_exact(new_bases.len())
+        .map_err(|error| format!("Could not allocate profile new sites: {error}"))?;
+    timings.preparation_ms = now_ms() - preparation_started_at;
+
+    for (index, bucket) in buckets.iter_mut().enumerate() {
+        if bucket.is_empty() {
+            continue;
+        }
+        let started_at = now_ms();
+        for (site, code) in bucket.iter_mut() {
+            update_existing_site(site, *code, sample_id, threshold_words, final_words, |_| {})?;
+        }
+        std::hint::black_box(&*bucket);
+        timings.operation_ms[index] = now_ms() - started_at;
+    }
+    if !new_bases.is_empty() {
+        let started_at = now_ms();
+        for code in &new_bases {
+            new_groups.push(new_group(*code, sample_id)?);
+        }
+        std::hint::black_box(&new_groups);
+        timings.operation_ms[3] = now_ms() - started_at;
+    }
+    if !distance_groups.is_empty() {
+        let started_at = now_ms();
+        for group in &distance_groups {
+            accumulate_group_distances(group, &mut scratch_distances);
+        }
+        std::hint::black_box(&scratch_distances);
+        timings.distance_ms = now_ms() - started_at;
+    }
+    // Scratch destruction is excluded from phase clocks. The caller measures
+    // the whole replay, including preparation and destruction, as overhead.
+    Ok(timings)
+}
+
 #[derive(Debug, Clone)]
 struct FrozenGroup {
     words: Vec<u16>,
@@ -392,88 +675,164 @@ where
 
     /// Store one sample and write its distances to earlier samples into `distance_row`,
     /// visiting each split k-mer once. A failure after storing has begun seals the matrix.
-    pub(crate) fn add_sample_words(
+    pub(crate) fn add_sample_words<F>(
         &mut self,
         words: Vec<u32>,
         distance_row: &mut [u32],
-    ) -> Result<(), String> {
+        now_ms: &mut F,
+    ) -> Result<AggregationPhaseTimings, String>
+    where
+        F: FnMut() -> f64,
+    {
         if self.sealed {
             return Err("The alignment is closed to new samples.".into());
         }
         if distance_row.len() != self.sample_count {
             return Err("Distance row length does not match the existing sample count.".into());
         }
-        let result = self.store_and_compare(&words, distance_row);
+        let result = self.store_and_compare(&words, distance_row, now_ms);
         if result.is_err() {
             self.sealed = true;
         }
         result
     }
 
-    fn store_and_compare(&mut self, words: &[u32], distance_row: &mut [u32]) -> Result<(), String> {
+    fn store_and_compare<F>(
+        &mut self,
+        words: &[u32],
+        distance_row: &mut [u32],
+        now_ms: &mut F,
+    ) -> Result<AggregationPhaseTimings, String>
+    where
+        F: FnMut() -> f64,
+    {
         let SiteStorage::Growing(postings) = &mut self.storage else {
             return Err("The alignment is closed to new samples.".into());
         };
         let sample_id = self.sample_count as u16;
         let words_per_entry = std::mem::size_of::<IntT>() / std::mem::size_of::<u32>();
-        for entry in words.chunks_exact(words_per_entry) {
-            let (kmer, code) = unpack_entry::<IntT>(entry);
-            match postings.entry(kmer) {
-                Entry::Occupied(mut entry) => {
-                    let site = entry.get_mut();
-                    match site {
-                        GrowingSite::Monomorphic(existing) if group_base(existing) == code => {
-                            append_group(existing, sample_id, self.growth_threshold_words, self.final_group_words)?;
-                        }
-                        GrowingSite::Monomorphic(existing) => {
-                            let new_words = new_group(code, sample_id)?;
+        let entries = words.len() / words_per_entry;
+        let mut timings = AggregationPhaseTimings {
+            total_entries: entries,
+            ..AggregationPhaseTimings::default()
+        };
 
-                            let mut groups = Vec::new(); // This should be equivalent to with_capacity
-                            groups.try_reserve_exact(2).map_err(|error| {
-                                format!("Could not allocate site groups: {error}")
-                            })?;
+        let mut profile_entries = Vec::new();
+        let profile_enabled = profile_entries
+            .try_reserve_exact(AGGREGATION_PROFILE_BLOCK_ENTRIES)
+            .is_ok();
 
-                            // Get the distances
-                            accumulate_group_distances(existing, distance_row);
+        let mut block_start = 0;
+        while block_start < entries {
+            let sampled_block = profile_enabled
+                && block_start % AGGREGATION_PROFILE_SAMPLE_INTERVAL == 0;
+            let entries_until_next_sample = if !profile_enabled {
+                entries - block_start
+            } else if sampled_block {
+                AGGREGATION_PROFILE_BLOCK_ENTRIES
+            } else {
+                AGGREGATION_PROFILE_SAMPLE_INTERVAL
+                    - (block_start % AGGREGATION_PROFILE_SAMPLE_INTERVAL)
+            };
+            let block_end = block_start
+                .saturating_add(entries_until_next_sample)
+                .min(entries);
+            let block_entries = block_end - block_start;
+            let first_word = block_start * words_per_entry;
+            let end_word = block_end * words_per_entry;
+            let block_words = &words[first_word..end_word];
 
-                            // Move data out, without recopying
-                            let old_site =
-                                std::mem::replace(site, GrowingSite::Monomorphic(Vec::new()));
-                            let GrowingSite::Monomorphic(old_words) = old_site else {
-                                unreachable!()
-                            };
-                            groups.push(old_words);
-                            groups.push(new_words);
-                            *site = GrowingSite::Polymorphic(groups);
-                        }
-                        GrowingSite::Polymorphic(groups) => {
-                            let mut found = false;
-                            for group in groups.iter_mut() {
-                                let base = group_base(group);
-                                if base == code {
-                                    append_group(group, sample_id, self.growth_threshold_words, self.final_group_words)?;
-                                    found = true;
-                                } else {
-                                    accumulate_group_distances(group, distance_row);
-                                }
-                            }
-                            if !found {
-                                let new_words = new_group(code, sample_id)?;
-                                groups.try_reserve(1).map_err(|error| {
-                                    format!("Could not extend site groups: {error}")
-                                })?;
-                                groups.push(new_words);
-                            }
-                        }
+            if sampled_block {
+                timings.sampled_entries += block_entries;
+                profile_entries.clear();
+
+                let started_at = now_ms();
+                for entry in block_words.chunks_exact(words_per_entry) {
+                    profile_entries.push(unpack_entry::<IntT>(entry));
+                }
+                let sampled_unpack_ms = now_ms() - started_at;
+
+                let started_at = now_ms();
+                for (kmer, _) in &profile_entries {
+                    if postings.contains_key(kmer) {
+                        timings.sampled_lookup_hits += 1;
                     }
                 }
-                Entry::Vacant(site) => {
-                    site.insert(GrowingSite::Monomorphic(new_group(code, sample_id)?));
+                let sampled_hash_lookup_ms = now_ms() - started_at;
+                timings.sampled_unpack_ms += sampled_unpack_ms;
+                timings.sampled_hash_lookup_ms += sampled_hash_lookup_ms;
+
+                let diagnostic_started_at = now_ms();
+                let fine_result = profile_site_operations(
+                    postings,
+                    &profile_entries,
+                    sample_id,
+                    self.growth_threshold_words,
+                    self.final_group_words,
+                    now_ms,
+                );
+                timings.fine.diagnostic_ms += now_ms() - diagnostic_started_at;
+                match fine_result {
+                    Ok(fine) => {
+                        timings.fine.sampled_entries += fine.sampled_entries;
+                        timings.fine.preparation_ms += fine.preparation_ms;
+                        for index in 0..4 {
+                            timings.fine.operation_entries[index] += fine.operation_entries[index];
+                            timings.fine.operation_ms[index] += fine.operation_ms[index];
+                        }
+                        timings.fine.distance_ms += fine.distance_ms;
+                        timings.fine.distance_groups += fine.distance_groups;
+                        timings.fine.distance_ids += fine.distance_ids;
+                    }
+                    Err(_) => {
+                        // Diagnostic allocation failures must never abort the
+                        // actual alignment or report partial replay estimates.
+                        timings.fine.skipped_blocks += 1;
+                    }
                 }
             }
+
+            let sampled_capacity_before = sampled_block.then(|| postings.capacity());
+            let sampled_block_started_at = sampled_block.then(|| now_ms());
+            for entry in block_words.chunks_exact(words_per_entry) {
+                let (kmer, code) = unpack_entry::<IntT>(entry);
+                let site_entry = postings.entry(kmer);
+                match site_entry {
+                    Entry::Occupied(mut entry) => {
+                        update_existing_site(
+                            entry.get_mut(),
+                            code,
+                            sample_id,
+                            self.growth_threshold_words,
+                            self.final_group_words,
+                            |group| accumulate_group_distances(group, distance_row),
+                        )?;
+                    }
+                    Entry::Vacant(site) => {
+                        site.insert(GrowingSite::Monomorphic(new_group(code, sample_id)?));
+                    }
+                }
+            }
+
+            if let Some(started_at) = sampled_block_started_at {
+                let sampled_block_ms = now_ms() - started_at;
+                let map_capacity_grew = sampled_capacity_before
+                    .is_some_and(|capacity| postings.capacity() > capacity);
+                if map_capacity_grew {
+                    // Exclude the whole sampled block from the scaled estimate:
+                    // the resize cost cannot be isolated without per-entry clocks.
+                    timings.sampled_resize_block_ms += sampled_block_ms;
+                    timings.sampled_resize_blocks += 1;
+                } else {
+                    timings.sampled_update_entries += block_entries;
+                    timings.sampled_block_work_ms += sampled_block_ms;
+                }
+            }
+
+            block_start = block_end;
         }
         self.sample_count += 1;
-        Ok(())
+        Ok(timings)
     }
 
     /// Move packed groups without copying their payloads, then discard k-mer keys.

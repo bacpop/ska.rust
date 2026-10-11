@@ -938,6 +938,9 @@ extern "C" {
 
     #[wasm_bindgen(js_name = postMessage)]
     fn post_message(data: &JsValue);
+
+    #[wasm_bindgen(js_namespace = performance, js_name = now)]
+    fn performance_now() -> f64;
 }
 
 /// This allows to send a JS object with data included as message, altogether, along the post_message method previously defined.
@@ -2063,12 +2066,13 @@ impl AlignData {
     }
 
     /// Adds one sample's compact transferred split-kmer entries in sample order.
+    /// Returns Rust aggregation and sampled inner-phase timings as a Float64Array.
     pub fn add_sample_words(
         &mut self,
         sample_index: u32,
         sample_name: String,
         words: Vec<u32>,
-    ) -> Result<(), JsValue> {
+    ) -> Result<Vec<f64>, JsValue> {
         let expected_index = self.file_names.len();
         if expected_index >= self.sample_total {
             return Err(JsValue::from_str(
@@ -2117,21 +2121,23 @@ impl AlignData {
             ),
             Some("info"),
         );
-        if self.k < 32 {
+        let aggregation_started_at = performance_now();
+        let phase_timings = if self.k < 32 {
             self.alignment64
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
                 .add_sample_words(&sample_name, words, &on_stage)
-                .map_err(|error| JsValue::from_str(&error))?;
+                .map_err(|error| JsValue::from_str(&error))?
         } else {
             self.alignment128
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
                 .add_sample_words(&sample_name, words, &on_stage)
-                .map_err(|error| JsValue::from_str(&error))?;
-        }
+                .map_err(|error| JsValue::from_str(&error))?
+        };
+        let aggregation_elapsed_ms = performance_now() - aggregation_started_at;
         self.file_names.push(sample_name);
-        Ok(())
+        Ok(phase_timings.wasm_values(aggregation_elapsed_ms).to_vec())
     }
 
     /// Finish this batch and rebuild its tree; alignment export remains lazy.

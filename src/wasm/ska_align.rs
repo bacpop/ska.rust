@@ -1,6 +1,8 @@
 //! Library that implements sequence alignment for a WebAssembly environment
 
-use crate::alignment_matrix::{strict_triangle_index, strict_triangle_len, AlignmentMatrix};
+use crate::alignment_matrix::{
+    strict_triangle_index, strict_triangle_len, AggregationPhaseTimings, AlignmentMatrix,
+};
 use crate::logw;
 use crate::ska_dict::bit_encoding::UInt;
 
@@ -62,12 +64,12 @@ where
 
     #[cfg(target_family = "wasm")]
     /// Stores packed split-kmer entries and updates this alignment's distance triangle in place.
-    pub fn add_sample_words(
+    pub(crate) fn add_sample_words(
         &mut self,
         name: &str,
         words: Vec<u32>,
         on_stage: &dyn Fn(&str),
-    ) -> Result<(), String> {
+    ) -> Result<AggregationPhaseTimings, String> {
         on_stage("distances");
         let row_start = self.distances.len();
         let row_end = row_start
@@ -82,11 +84,18 @@ where
             .as_mut()
             .ok_or_else(|| "Imported alignments cannot accept split-kmer samples.".to_string())?;
         self.distances.resize(row_end, 0);
-        if let Err(error) = matrix.add_sample_words(words, &mut self.distances[row_start..row_end])
-        {
-            self.distances.truncate(row_start);
-            return Err(error);
-        }
+        let mut now_ms = || crate::performance_now();
+        let timings = match matrix.add_sample_words(
+            words,
+            &mut self.distances[row_start..row_end],
+            &mut now_ms,
+        ) {
+            Ok(timings) => timings,
+            Err(error) => {
+                self.distances.truncate(row_start);
+                return Err(error);
+            }
+        };
 
         logw(
             &format!(
@@ -96,7 +105,7 @@ where
             Some("info"),
         );
         self.names.push(name.to_string());
-        Ok(())
+        Ok(timings)
     }
 
     #[cfg(target_family = "wasm")]
