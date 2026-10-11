@@ -100,14 +100,14 @@ where
     }
 
     #[cfg(target_family = "wasm")]
-    /// Performs the alignment using precomputed pairwise distances.
-    pub fn align(
-        &mut self,
-        file_names: &[String],
+    /// Builds a tree using precomputed pairwise distances and explicit tip labels.
+    pub fn build_tree(
+        &self,
+        tree_tip_names: &[String],
         on_stage: &dyn Fn(&str),
     ) -> Result<String, String> {
         let n = self.names.len();
-        if n < 3 || file_names.len() != n {
+        if n < 3 || tree_tip_names.len() != n {
             return Err("Tree construction requires at least three matching sample names.".into());
         }
         let expected =
@@ -127,8 +127,8 @@ where
         names
             .try_reserve_exact(n)
             .map_err(|error| format!("Could not allocate tree sample names: {error}"))?;
-        for name in file_names {
-            names.push(clean_tree_name(name));
+        for name in tree_tip_names {
+            names.push(name.clone());
         }
 
         let mut matrix = Vec::new();
@@ -231,12 +231,62 @@ where
     }
 }
 
+/// Produce Newick-safe, unique labels while preserving the original sample order.
 #[cfg(target_family = "wasm")]
-fn clean_tree_name(name: &str) -> String {
-    name.to_string()
-        .replace(' ', "_")
-        .replace(".fasta", "")
-        .replace(".fa", "")
-        .replace(".fastq", "")
-        .replace(".fq", "")
+pub(crate) fn make_tree_tip_names(names: &[String]) -> Vec<String> {
+    use std::collections::{HashMap, HashSet};
+
+    let stems: Vec<String> = names
+        .iter()
+        .map(|name| {
+            let lower = name.to_ascii_lowercase();
+            let end = if lower.ends_with(".gz") {
+                name.len() - 3
+            } else {
+                name.len()
+            };
+            let suffixes = [
+                ".fa", ".fna", ".fasta", ".fas", ".fq", ".fnq", ".fastq", ".aln",
+            ];
+            let stem_end = suffixes
+                .iter()
+                .find(|suffix| lower[..end].ends_with(**suffix))
+                .map_or(name.len(), |suffix| end - suffix.len());
+            let stem: String = name[..stem_end]
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
+                .collect();
+            if stem.is_empty() {
+                "sample".to_string()
+            } else {
+                stem
+            }
+        })
+        .collect();
+    // Reserve natural stems so a duplicate "a" cannot take another sample's "a__2".
+    let mut reserved: HashSet<String> = stems.iter().cloned().collect();
+    let mut used = HashSet::new();
+    let mut next_suffix: HashMap<String, usize> = HashMap::new();
+    stems
+        .into_iter()
+        .map(|stem| {
+            if used.insert(stem.clone()) {
+                return stem;
+            }
+            let next = next_suffix.entry(stem.clone()).or_insert(2);
+            loop {
+                let candidate = format!("{stem}__{next}");
+                *next += 1;
+                if reserved.insert(candidate.clone()) {
+                    return candidate;
+                }
+            }
+        })
+        .collect()
 }

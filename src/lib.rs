@@ -1284,6 +1284,69 @@ pub struct AlignData {
     sample_total: usize,
 }
 
+#[cfg(target_family = "wasm")]
+impl AlignData {
+    fn tree_result(&self, on_stage: &dyn Fn(&str)) -> Result<json::JsonValue, JsValue> {
+        if self.file_names.len() != self.sample_total {
+            return Err(JsValue::from_str(
+                "Not all planned samples have been added.",
+            ));
+        }
+        let size = if self.k < 32 {
+            self.alignment64
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
+                .get_size()
+        } else {
+            self.alignment128
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
+                .get_size()
+        };
+        if size != self.file_names.len() {
+            return Err(JsValue::from_str(
+                "Distance sample count does not match the sample names.",
+            ));
+        }
+        let tree_tip_names = if size >= 3 {
+            crate::wasm::ska_align::make_tree_tip_names(&self.file_names)
+        } else {
+            Vec::new()
+        };
+        let newick = if size < 3 {
+            String::new()
+        } else {
+            let result = if self.k < 32 {
+                self.alignment64
+                    .as_ref()
+                    .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
+                    .build_tree(&tree_tip_names, on_stage)
+            } else {
+                self.alignment128
+                    .as_ref()
+                    .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
+                    .build_tree(&tree_tip_names, on_stage)
+            };
+            result.map_err(|error| JsValue::from_str(&error))?
+        };
+        let mut results = json::JsonValue::new_object();
+        results["newick"] = newick.into();
+        results["names"] = json::JsonValue::new_array();
+        results["treeTipNames"] = json::JsonValue::new_array();
+        for name in &self.file_names {
+            results["names"]
+                .push(name.clone())
+                .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        }
+        for name in tree_tip_names {
+            results["treeTipNames"]
+                .push(name)
+                .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        }
+        Ok(results)
+    }
+}
+
 /// Get the distances and compress them to gz directly.
 #[cfg(any(target_family = "wasm", test))]
 fn distances_csv_gzip(names: &[String], flat_distances: &[u32]) -> std::io::Result<Vec<u8>> {
@@ -2134,9 +2197,14 @@ impl AlignData {
         Ok(())
     }
 
+    /// Build a tree from existing distances, including those of imported alignments.
+    pub fn build_tree(&self) -> Result<String, JsValue> {
+        self.tree_result(&|_| {}).map(|result| result.dump())
+    }
+
     /// Finish this batch and rebuild its tree; alignment export remains lazy.
     pub fn finish_alignment(&mut self) -> Result<String, JsValue> {
-        let can_build_tree = if self.k < 32 {
+        let can_export_alignment = if self.k < 32 {
             self.alignment64
                 .as_ref()
                 .is_some_and(SkaAlign::can_export_alignment)
@@ -2145,56 +2213,16 @@ impl AlignData {
                 .as_ref()
                 .is_some_and(SkaAlign::can_export_alignment)
         };
-        if !can_build_tree {
+        if !can_export_alignment {
             return Err(JsValue::from_str(
-                "Tree finalisation requires an alignment built from split k-mers.",
+                "Batch finalisation requires an alignment built from split k-mers.",
             ));
         }
-        if self.file_names.len() != self.sample_total {
-            return Err(JsValue::from_str(
-                "Not all planned samples have been added.",
-            ));
-        }
-        let size = if self.k < 32 {
-            self.alignment64
-                .as_ref()
-                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
-                .get_size()
-        } else {
-            self.alignment128
-                .as_ref()
-                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
-                .get_size()
-        };
-
-        if size <= 2 {
-            logw("The number of samples inputted are less than three. No results will be outputted now.", None);
-            let mut results = json::JsonValue::new_object();
-            results["newick"] = "Not enough sequences to align".into();
-            results["alignmentAvailable"] = false.into();
-            results["names"] = json::JsonValue::new_array();
-            for name in &self.file_names {
-                let _ = results["names"].push(name.to_string());
-            }
-            return Ok(results.dump());
-        }
-
         let on_stage = |stage: &str| {
             post_alignment_progress(self.run_id, stage, None, Some(self.sample_total), None);
         };
-        let newick = if self.k < 32 {
-            self.alignment64
-                .as_mut()
-                .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
-                .align(&self.file_names, &on_stage)
-        } else {
-            self.alignment128
-                .as_mut()
-                .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
-                .align(&self.file_names, &on_stage)
-        }
-        .map_err(|error| JsValue::from_str(&error))?;
-
+        let mut results = self.tree_result(&on_stage)?;
+        results["alignmentAvailable"] = (self.file_names.len() >= 3).into();
         post_alignment_progress(
             self.run_id,
             "exporting",
@@ -2202,13 +2230,6 @@ impl AlignData {
             Some(self.sample_total),
             None,
         );
-        let mut results = json::JsonValue::new_object();
-        results["newick"] = newick.into();
-        results["alignmentAvailable"] = true.into();
-        results["names"] = json::JsonValue::new_array();
-        for name in &self.file_names {
-            let _ = results["names"].push(name.to_string());
-        }
         Ok(results.dump())
     }
 
