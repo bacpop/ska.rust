@@ -2228,16 +2228,43 @@ impl AlignData {
         Ok(results.dump())
     }
 
-    /// Close additions and recover the alignment only when download is requested.
-    pub fn export_alignment_gzip(&mut self) -> Result<Vec<u8>, JsValue> {
+    /// Start a resumable export, splitting gzip members at the requested sample count.
+    pub fn begin_alignment_export(&mut self, samples_per_part: u32) -> Result<(), JsValue> {
         if self.file_names.len() < 3 || self.file_names.len() != self.sample_total {
             return Err(JsValue::from_str(
                 "At least three completed samples are required for alignment export.",
             ));
         }
+        if samples_per_part == 0 {
+            return Err(JsValue::from_str("Alignment export part size must be positive."));
+        }
         logw("Obtaining alignment...", Some("info"));
+        let result = if self.k < 32 {
+            self.alignment64
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
+                .begin_alignment_export(samples_per_part as usize)
+        } else {
+            self.alignment128
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
+                .begin_alignment_export(samples_per_part as usize)
+        };
+        result.map_err(|error| JsValue::from_str(&error))?;
+        post_alignment_progress(
+            self.run_id,
+            "obtaining-alignment",
+            Some(0),
+            Some(self.sample_total),
+            None,
+        );
+        Ok(())
+    }
+
+    /// Return one compressed sample batch. Each returned byte vector is a gzip member.
+    pub fn next_alignment_export_chunk(&mut self) -> Result<Vec<u8>, JsValue> {
         let run_id = self.run_id;
-        let total = self.file_names.len();
+        let total = self.sample_total;
         let on_sample = |index| {
             post_alignment_progress(
                 run_id,
@@ -2247,26 +2274,97 @@ impl AlignData {
                 None,
             )
         };
-        let bytes = if self.k < 32 {
+        let (bytes, complete) = if self.k < 32 {
+            let alignment = self
+                .alignment64
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?;
+            let bytes = alignment
+                .next_alignment_export_chunk(&on_sample)
+                .map_err(|error| JsValue::from_str(&error))?;
+            (bytes, alignment.alignment_export_complete())
+        } else {
+            let alignment = self
+                .alignment128
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?;
+            let bytes = alignment
+                .next_alignment_export_chunk(&on_sample)
+                .map_err(|error| JsValue::from_str(&error))?;
+            (bytes, alignment.alignment_export_complete())
+        };
+        if complete {
+            logw(
+                "Alignment chunks generated; awaiting output confirmation",
+                Some("info"),
+            );
+        }
+        Ok(bytes)
+    }
+
+    pub fn alignment_export_samples_processed(&self) -> usize {
+        if self.k < 32 {
+            self.alignment64
+                .as_ref()
+                .map_or(0, SkaAlign::alignment_export_samples_processed)
+        } else {
+            self.alignment128
+                .as_ref()
+                .map_or(0, SkaAlign::alignment_export_samples_processed)
+        }
+    }
+
+    pub fn alignment_export_part_complete(&self) -> bool {
+        if self.k < 32 {
+            self.alignment64
+                .as_ref()
+                .is_some_and(SkaAlign::alignment_export_part_complete)
+        } else {
+            self.alignment128
+                .as_ref()
+                .is_some_and(SkaAlign::alignment_export_part_complete)
+        }
+    }
+
+    pub fn alignment_export_complete(&self) -> bool {
+        if self.k < 32 {
+            self.alignment64
+                .as_ref()
+                .is_some_and(SkaAlign::alignment_export_complete)
+        } else {
+            self.alignment128
+                .as_ref()
+                .is_some_and(SkaAlign::alignment_export_complete)
+        }
+    }
+
+    /// Release the sparse sites only after the final output was accepted by the caller.
+    pub fn finish_alignment_export(&mut self) -> Result<(), JsValue> {
+        let result = if self.k < 32 {
             self.alignment64
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
-                .export_fasta_gzip(&on_sample)
+                .finish_alignment_export()
         } else {
             self.alignment128
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No extracted alignment is available."))?
-                .export_fasta_gzip(&on_sample)
+                .finish_alignment_export()
+        };
+        result.map_err(|error| JsValue::from_str(&error))?;
+        logw("Alignment export accepted; sparse sites released", Some("info"));
+        Ok(())
+    }
+
+    /// Cancel the current output and reset the sparse cursors for a fresh export.
+    pub fn cancel_alignment_export(&mut self) {
+        if self.k < 32 {
+            if let Some(alignment) = self.alignment64.as_mut() {
+                alignment.cancel_alignment_export();
+            }
+        } else if let Some(alignment) = self.alignment128.as_mut() {
+            alignment.cancel_alignment_export();
         }
-        .map_err(|error| JsValue::from_str(&error))?;
-        logw(
-            &format!(
-                "Alignment compressed: {} bytes; sparse sites released",
-                bytes.len()
-            ),
-            Some("info"),
-        );
-        Ok(bytes)
     }
 
     /// Returns sample names (crate-internal, not exposed to JS).

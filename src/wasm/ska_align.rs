@@ -2,7 +2,9 @@
 
 use crate::logw;
 use crate::ska_dict::bit_encoding::UInt;
-use crate::wasm::alignment_matrix::{strict_triangle_index, strict_triangle_len, AlignmentMatrix};
+use crate::wasm::alignment_matrix::{
+    strict_triangle_index, strict_triangle_len, AlignmentExportSession, AlignmentMatrix,
+};
 
 use speedytree::DistanceMatrix;
 use speedytree::{Canonical, NeighborJoiningSolver};
@@ -22,6 +24,11 @@ pub struct SkaAlign<IntT> {
     names: Vec<String>,
     /// True if at least one imported pairwise distance was capped at u32::MAX.
     distances_capped: bool,
+    /// Resumable split-kmer alignment exporter.
+    export_session: Option<AlignmentExportSession>,
+    export_samples_processed: usize,
+    export_part_complete: bool,
+    export_complete: bool,
 }
 
 impl<IntT> SkaAlign<IntT>
@@ -37,6 +44,10 @@ where
             distances: Vec::new(),
             names: Vec::new(),
             distances_capped: false,
+            export_session: None,
+            export_samples_processed: 0,
+            export_part_complete: false,
+            export_complete: false,
         }
     }
 
@@ -57,6 +68,10 @@ where
             distances,
             names,
             distances_capped,
+            export_session: None,
+            export_samples_processed: 0,
+            export_part_complete: false,
+            export_complete: false,
         })
     }
 
@@ -220,14 +235,76 @@ where
         self.matrix.is_some()
     }
 
-    /// Close additions and lazily stream the final sparse array to gzip.
-    pub fn export_fasta_gzip(&mut self, on_sample: &dyn Fn(usize)) -> Result<Vec<u8>, String> {
+    /// Start a resumable export. Each returned chunk is one gzip member.
+    pub fn begin_alignment_export(&mut self, samples_per_part: usize) -> Result<(), String> {
+        if self.export_session.is_some() {
+            return Err("An alignment export is already in progress.".into());
+        }
+        let matrix = self.matrix.as_mut().ok_or_else(|| {
+            "Imported alignments cannot be exported as split-kmer FASTA.".to_string()
+        })?;
+        self.export_session = Some(matrix.begin_export(&self.names, samples_per_part)?);
+        self.export_samples_processed = 0;
+        self.export_part_complete = false;
+        self.export_complete = false;
+        Ok(())
+    }
+
+    /// Compress and return the next batch, retaining only the reusable packed workspace.
+    pub fn next_alignment_export_chunk(
+        &mut self,
+        on_sample: &dyn Fn(usize),
+    ) -> Result<Vec<u8>, String> {
+        let session = self
+            .export_session
+            .as_mut()
+            .ok_or_else(|| "No alignment export is in progress.".to_string())?;
+        let matrix = self
+            .matrix
+            .as_mut()
+            .ok_or_else(|| "No extracted alignment is available.".to_string())?;
+        let chunk = matrix.next_export_chunk(&self.names, session, on_sample)?;
+        self.export_samples_processed = chunk.samples_processed;
+        self.export_part_complete = chunk.part_complete;
+        self.export_complete = chunk.complete;
+        if chunk.complete {
+            self.export_session = None;
+        }
+        Ok(chunk.bytes)
+    }
+
+    pub fn alignment_export_samples_processed(&self) -> usize {
+        self.export_samples_processed
+    }
+
+    pub fn alignment_export_part_complete(&self) -> bool {
+        self.export_part_complete
+    }
+
+    pub fn alignment_export_complete(&self) -> bool {
+        self.export_complete
+    }
+
+    /// Release the frozen sparse sites after the caller has accepted the final output.
+    pub fn finish_alignment_export(&mut self) -> Result<(), String> {
+        if !self.export_complete {
+            return Err("The alignment export is not complete yet.".into());
+        }
         self.matrix
             .as_mut()
-            .ok_or_else(|| {
-                "Imported alignments cannot be exported as split-kmer FASTA.".to_string()
-            })?
-            .export_fasta_gzip(&self.names, on_sample)
+            .ok_or_else(|| "No extracted alignment is available.".to_string())?
+            .release_export()
+    }
+
+    /// Discard exporter state and reset cursors for a retry from sample zero.
+    pub fn cancel_alignment_export(&mut self) {
+        if let Some(matrix) = self.matrix.as_mut() {
+            matrix.reset_export_cursors();
+        }
+        self.export_session = None;
+        self.export_samples_processed = 0;
+        self.export_part_complete = false;
+        self.export_complete = false;
     }
 }
 

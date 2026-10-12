@@ -3,7 +3,9 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::hash::Hash;
-use std::io::{self, Write};
+use std::io::Write;
+#[cfg(test)]
+use std::io;
 
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
@@ -29,6 +31,79 @@ const PAYLOAD_BIT: usize = 30; // this is the bit where data starts: the 30th.
 
 // Range creation threshold
 const MIN_RANGE_SAMPLES: usize = 3; // Min. number of consecutive samples we should have to create a range from them
+const EXPORT_BATCH_SAMPLES: usize = 32;
+
+/// Fixed-size-in-use workspace for packing 32 four-bit sample calls per site.
+/// Each plane has a runtime site count, but boxed slices cannot grow during export.
+#[derive(Debug)]
+pub(crate) struct PackedAlignmentBatch {
+    planes: [Box<[u16]>; 8],
+    sites: usize,
+}
+
+impl PackedAlignmentBatch {
+    fn new(sites: usize) -> Result<Self, String> {
+        fn plane(sites: usize) -> Result<Box<[u16]>, String> {
+            let mut values = Vec::new();
+            values
+                .try_reserve_exact(sites)
+                .map_err(|error| format!("Could not allocate alignment batch: {error}"))?;
+            values.resize(sites, 0);
+            Ok(values.into_boxed_slice())
+        }
+
+        Ok(Self {
+            planes: [
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+                plane(sites)?,
+            ],
+            sites,
+        })
+    }
+
+    fn clear(&mut self) {
+        for plane in &mut self.planes {
+            plane.fill(0);
+        }
+    }
+
+    #[inline]
+    fn set(&mut self, sample_in_batch: usize, site: usize, code: u8) {
+        let plane = sample_in_batch / 4;
+        let shift = (sample_in_batch % 4) * 4;
+        let mask = 0xFu16 << shift;
+        self.planes[plane][site] = (self.planes[plane][site] & !mask) | (u16::from(code) << shift);
+    }
+
+    #[inline]
+    fn get(&self, sample_in_batch: usize, site: usize) -> u8 {
+        let plane = sample_in_batch / 4;
+        let shift = (sample_in_batch % 4) * 4;
+        ((self.planes[plane][site] >> shift) & 0xF) as u8
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct AlignmentExportSession {
+    next_sample: usize,
+    sample_total: usize,
+    samples_per_part: usize,
+    batch: PackedAlignmentBatch,
+}
+
+#[derive(Debug)]
+pub(crate) struct AlignmentExportChunk {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) samples_processed: usize,
+    pub(crate) part_complete: bool,
+    pub(crate) complete: bool,
+}
 
 /// Concrete calls share the same codes in extracted and imported alignments.
 #[inline]
@@ -815,6 +890,7 @@ where
     }
 
     /// Reset cursors on every attempt, permitting retries after writer errors.
+    #[cfg(test)]
     fn write_fasta<W: Write>(
         &mut self,
         names: &[String],
@@ -873,6 +949,152 @@ where
         Ok(())
     }
 
+    /// Freeze the sparse sites and allocate the reusable 32-sample export workspace.
+    pub(crate) fn begin_export(
+        &mut self,
+        names: &[String],
+        samples_per_part: usize,
+    ) -> Result<AlignmentExportSession, String> {
+        if names.len() != self.sample_count {
+            return Err("Sample names do not match the matrix.".into());
+        }
+        if samples_per_part == 0 {
+            return Err("Alignment export part size must be positive.".into());
+        }
+        self.freeze()?;
+        let SiteStorage::Frozen(frozen) = &mut self.storage else {
+            return Err("The sparse array is not available.".into());
+        };
+        for site in &mut frozen.sites {
+            match site {
+                FrozenSite::Monomorphic(group) => group.reset(),
+                FrozenSite::Polymorphic { start, len } => {
+                    for group in &mut frozen.polymorphic_groups[*start..(*start + *len)] {
+                        group.reset();
+                    }
+                }
+            }
+        }
+        Ok(AlignmentExportSession {
+            next_sample: 0,
+            sample_total: self.sample_count,
+            samples_per_part,
+            batch: PackedAlignmentBatch::new(frozen.sites.len())?,
+        })
+    }
+
+    /// Produce one independently decompressible gzip member for the next sample batch.
+    pub(crate) fn next_export_chunk(
+        &mut self,
+        names: &[String],
+        session: &mut AlignmentExportSession,
+        on_sample: &dyn Fn(usize),
+    ) -> Result<AlignmentExportChunk, String> {
+        let SiteStorage::Frozen(frozen) = &mut self.storage else {
+            return Err("The frozen alignment is not available.".into());
+        };
+        if names.len() != session.sample_total || session.next_sample >= session.sample_total {
+            return Err("Alignment export session is complete or invalid.".into());
+        }
+        if session.batch.sites != frozen.sites.len() {
+            return Err("Alignment export workspace does not match the frozen sites.".into());
+        }
+
+        let start = session.next_sample;
+        let part_end = ((start / session.samples_per_part) + 1)
+            .saturating_mul(session.samples_per_part)
+            .min(session.sample_total);
+        let end = start.saturating_add(EXPORT_BATCH_SAMPLES).min(part_end);
+        session.batch.clear();
+
+        let FrozenMatrix { sites, polymorphic_groups } = frozen;
+        for sample in start..end {
+            let sample_in_batch = sample - start;
+            for (site_index, site) in sites.iter_mut().enumerate() {
+                let code = match site {
+                    FrozenSite::Monomorphic(group) => {
+                        group.take_sample(sample as u16).unwrap_or(GAP)
+                    }
+                    FrozenSite::Polymorphic { start, len } => polymorphic_groups
+                        [*start..(*start + *len)]
+                        .iter_mut()
+                        .find_map(|group| group.take_sample(sample as u16))
+                        .unwrap_or(GAP),
+                };
+                session.batch.set(sample_in_batch, site_index, code);
+            }
+        }
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        let mut buffer = [0u8; 8192];
+        for sample in start..end {
+            encoder
+                .write_all(b"> ")
+                .and_then(|_| encoder.write_all(names[sample].as_bytes()))
+                .and_then(|_| encoder.write_all(b"\n"))
+                .map_err(|error| format!("Could not write alignment header: {error}"))?;
+            let sample_in_batch = sample - start;
+            let mut buffered = 0;
+            for site in 0..session.batch.sites {
+                buffer[buffered] = decode_symbol(session.batch.get(sample_in_batch, site));
+                buffered += 1;
+                if buffered == buffer.len() {
+                    encoder
+                        .write_all(&buffer)
+                        .map_err(|error| format!("Could not write alignment sequence: {error}"))?;
+                    buffered = 0;
+                }
+            }
+            if buffered > 0 {
+                encoder
+                    .write_all(&buffer[..buffered])
+                    .map_err(|error| format!("Could not write alignment sequence: {error}"))?;
+            }
+            encoder
+                .write_all(b"\n")
+                .map_err(|error| format!("Could not finish alignment sequence: {error}"))?;
+        }
+        let bytes = encoder
+            .finish()
+            .map_err(|error| format!("Could not gzip alignment batch: {error}"))?;
+
+        session.next_sample = end;
+        on_sample(end);
+        let complete = end == session.sample_total;
+        let chunk = AlignmentExportChunk {
+            bytes,
+            samples_processed: end,
+            part_complete: end == part_end,
+            complete,
+        };
+        Ok(chunk)
+    }
+
+    pub(crate) fn release_export(&mut self) -> Result<(), String> {
+        if !matches!(self.storage, SiteStorage::Frozen(_)) {
+            return Err("The frozen alignment is not available to release.".into());
+        }
+        self.storage = SiteStorage::Released;
+        Ok(())
+    }
+
+    /// Reset frozen cursors so a cancelled export can be retried from the beginning.
+    pub(crate) fn reset_export_cursors(&mut self) {
+        if let SiteStorage::Frozen(frozen) = &mut self.storage {
+            for site in &mut frozen.sites {
+                match site {
+                    FrozenSite::Monomorphic(group) => group.reset(),
+                    FrozenSite::Polymorphic { start, len } => {
+                        for group in &mut frozen.polymorphic_groups[*start..(*start + *len)] {
+                            group.reset();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn export_fasta_gzip(
         &mut self,
         names: &[String],
