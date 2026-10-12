@@ -459,9 +459,6 @@ use std::time::Instant;
 use clap::ValueEnum;
 extern crate num_cpus;
 
-// #[cfg(not(target_family = "wasm"))]
-#[cfg(any(target_family = "wasm", test))]
-pub(crate) mod alignment_matrix;
 pub mod merge_ska_dict;
 pub mod ska_dict;
 #[cfg(not(target_family = "wasm"))]
@@ -508,7 +505,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_file_reader::WebSysFile;
 #[cfg(target_family = "wasm")]
 extern crate console_error_panic_hook;
-#[cfg(target_family = "wasm")]
+#[cfg(any(target_family = "wasm", test))]
 pub mod wasm;
 #[cfg(target_family = "wasm")]
 use crate::cluster::{checked_distance_cutoff, cluster_distances_flat};
@@ -1358,7 +1355,7 @@ fn distances_csv_gzip(names: &[String], flat_distances: &[u32]) -> std::io::Resu
     }
 
     let n = names.len();
-    let expected = crate::alignment_matrix::strict_triangle_len(n).ok_or_else(|| {
+    let expected = crate::wasm::alignment_matrix::strict_triangle_len(n).ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "Sample count exceeds the distance index range.",
@@ -1389,7 +1386,7 @@ fn distances_csv_gzip(names: &[String], flat_distances: &[u32]) -> std::io::Resu
                 encoder.write_all(b"0")?;
             } else {
                 let (row, column) = if i < j { (j, i) } else { (i, j) };
-                let flat_idx = crate::alignment_matrix::strict_triangle_index(row, column)
+                let flat_idx = crate::wasm::alignment_matrix::strict_triangle_index(row, column)
                     .ok_or_else(|| {
                         std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
@@ -1502,7 +1499,7 @@ pub fn extract_alignment_sample(
         );
         let mut words = Vec::with_capacity(dictionary.ksize() * 2);
         for (kmer, base) in dictionary.into_kmers() {
-            words.extend(crate::alignment_matrix::pack_entry_u64(kmer, base));
+            words.extend(crate::wasm::alignment_matrix::pack_entry_u64(kmer, base));
         }
         words
     } else {
@@ -1517,7 +1514,7 @@ pub fn extract_alignment_sample(
         );
         let mut words = Vec::with_capacity(dictionary.ksize() * 4);
         for (kmer, base) in dictionary.into_kmers() {
-            words.extend(crate::alignment_matrix::pack_entry_u128(kmer, base));
+            words.extend(crate::wasm::alignment_matrix::pack_entry_u128(kmer, base));
         }
         words
     };
@@ -1549,12 +1546,12 @@ fn alignment_compaction_reporter(
     sample_total: usize,
     progress_index: usize,
     sample_name: String,
-) -> impl Fn(&crate::alignment_matrix::CompactionProgress) {
+) -> impl Fn(&crate::wasm::alignment_matrix::CompactionProgress) {
     let last_update = std::cell::Cell::new(f64::NEG_INFINITY);
     // The move takes ownership of variables that exist when called,
     // what is put between pipes DOES NOT TRANSFER OWNERSHIP: it is a normal argument, and
     // in this case, a reference to a compaction progress
-    move |progress: &crate::alignment_matrix::CompactionProgress| {
+    move |progress: &crate::wasm::alignment_matrix::CompactionProgress| {
         let time = alignment_now();
         if progress.sites_processed != 0
             && !progress.complete
@@ -1583,7 +1580,7 @@ fn alignment_compaction_reporter(
 
 #[cfg(target_family = "wasm")]
 fn concrete_base_bits(base: u8) -> Option<(bool, bool)> {
-    crate::alignment_matrix::concrete_base_code(base)
+    crate::wasm::alignment_matrix::concrete_base_code(base)
         .map(|code| (code & 1 != 0, code & 2 != 0))
 }
 
@@ -2060,7 +2057,7 @@ impl AlignData {
         }
 
         let n = encoded.len();
-        let pair_count = crate::alignment_matrix::strict_triangle_len(n)
+        let pair_count = crate::wasm::alignment_matrix::strict_triangle_len(n)
             .ok_or_else(|| JsValue::from_str("Imported alignment has too many samples."))?;
         let mut distances = Vec::new();
         distances.try_reserve_exact(pair_count).map_err(|error| {
@@ -2115,11 +2112,11 @@ impl AlignData {
             .file_names
             .len()
             .checked_add(samples.len())
-            .filter(|total| *total <= crate::alignment_matrix::MAX_SAMPLES)
+            .filter(|total| *total <= crate::wasm::alignment_matrix::MAX_SAMPLES)
             .ok_or_else(|| {
                 JsValue::from_str(&format!(
                     "Sparse alignment supports at most {} samples.",
-                    crate::alignment_matrix::MAX_SAMPLES
+                    crate::wasm::alignment_matrix::MAX_SAMPLES
                 ))
             })?;
         let mut names: std::collections::HashSet<&str> =
@@ -2383,7 +2380,7 @@ impl AlignData {
             let si = edge.source().index();
             let ti = edge.target().index();
             let (row, column) = if si < ti { (ti, si) } else { (si, ti) };
-            let flat_idx = crate::alignment_matrix::strict_triangle_index(row, column)
+            let flat_idx = crate::wasm::alignment_matrix::strict_triangle_index(row, column)
                 .ok_or_else(|| JsValue::from_str("Invalid strict-triangle distance index."))?;
             let dist = distances[flat_idx];
             let mut link = json::JsonValue::new_object();

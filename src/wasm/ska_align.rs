@@ -1,6 +1,6 @@
 //! Library that implements sequence alignment for a WebAssembly environment
 
-use crate::alignment_matrix::{
+use crate::wasm::alignment_matrix::{
     strict_triangle_index, strict_triangle_len, AlignmentMatrix, CompactionProgress,
 };
 use crate::logw;

@@ -15,7 +15,7 @@ use petgraph::visit::Bfs;
 use petgraph::Graph;
 
 #[cfg(any(target_family = "wasm", test))]
-use crate::alignment_matrix::{strict_triangle_index, strict_triangle_len};
+use crate::wasm::alignment_matrix::{strict_triangle_index, strict_triangle_len};
 use crate::merge_ska_array::VariantDist;
 
 type ClusterResults = (
