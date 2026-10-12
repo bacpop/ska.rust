@@ -938,6 +938,9 @@ extern "C" {
 
     #[wasm_bindgen(js_name = postMessage)]
     fn post_message(data: &JsValue);
+
+    #[wasm_bindgen(js_namespace = performance, js_name = now)]
+    fn alignment_now() -> f64;
 }
 
 /// This allows to send a JS object with data included as message, altogether, along the post_message method previously defined.
@@ -1538,15 +1541,50 @@ struct EncodedAlignmentSequence {
     valid: Vec<u64>,
 }
 
+// This allows to create a callback function, i.e. a function you give other function to use whenever it wants/needs.
+// In this case, it's for logging
+#[cfg(target_family = "wasm")]
+fn alignment_compaction_reporter(
+    run_id: u32,
+    sample_total: usize,
+    progress_index: usize,
+    sample_name: String,
+) -> impl Fn(&crate::alignment_matrix::CompactionProgress) {
+    let last_update = std::cell::Cell::new(f64::NEG_INFINITY);
+    // The move takes ownership of variables that exist when called,
+    // what is put between pipes DOES NOT TRANSFER OWNERSHIP: it is a normal argument, and
+    // in this case, a reference to a compaction progress
+    move |progress: &crate::alignment_matrix::CompactionProgress| {
+        let time = alignment_now();
+        if progress.sites_processed != 0
+            && !progress.complete
+            && time - last_update.get() < 100.0
+        {
+            return;
+        }
+        last_update.set(time);
+        let details = json::object! {
+            runId: run_id,
+            stage: "compressing-sites",
+            sampleIndex: progress_index,
+            sampleTotal: sample_total,
+            sampleName: sample_name.as_str(),
+            processedSamples: progress.processed_samples,
+            sitesProcessed: progress.sites_processed,
+            sitesTotal: progress.sites_total,
+            complete: progress.complete,
+        };
+        let message = json::object! { alignmentProgress: details };
+        if let Ok(message) = js_sys::JSON::parse(&message.dump()) {
+            post_message(&message);
+        }
+    }
+}
+
 #[cfg(target_family = "wasm")]
 fn concrete_base_bits(base: u8) -> Option<(bool, bool)> {
-    match base.to_ascii_uppercase() {
-        b'A' => Some((false, false)),
-        b'C' => Some((true, false)),
-        b'G' => Some((false, true)),
-        b'T' | b'U' => Some((true, true)),
-        _ => None,
-    }
+    crate::alignment_matrix::concrete_base_code(base)
+        .map(|code| (code & 1 != 0, code & 2 != 0))
 }
 
 #[cfg(target_family = "wasm")]
@@ -2172,6 +2210,10 @@ impl AlignData {
             );
         };
 
+        let on_compaction = alignment_compaction_reporter(
+            self.run_id, self.sample_total, progress_index, sample_name.clone(),
+        );
+
         logw(
             &format!(
                 "Adding sample {} with {} split k-mers",
@@ -2184,13 +2226,13 @@ impl AlignData {
             self.alignment64
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 64-bit alignment is available."))?
-                .add_sample_words(&sample_name, words, &on_stage)
+                .add_sample_words(&sample_name, words, &on_stage, &on_compaction)
                 .map_err(|error| JsValue::from_str(&error))?;
         } else {
             self.alignment128
                 .as_mut()
                 .ok_or_else(|| JsValue::from_str("No 128-bit alignment is available."))?
-                .add_sample_words(&sample_name, words, &on_stage)
+                .add_sample_words(&sample_name, words, &on_stage, &on_compaction)
                 .map_err(|error| JsValue::from_str(&error))?;
         }
         self.file_names.push(sample_name);
@@ -2217,6 +2259,19 @@ impl AlignData {
             return Err(JsValue::from_str(
                 "Batch finalisation requires an alignment built from split k-mers.",
             ));
+        }
+        if self.file_names.len() != self.sample_total {
+            return Err(JsValue::from_str("All planned samples must be aggregated before finalisation."));
+        }
+        let on_compaction = alignment_compaction_reporter(
+            self.run_id, self.sample_total, self.file_names.len(), String::new(),
+        );
+        if self.k < 32 {
+            if let Some(alignment) = self.alignment64.as_mut() {
+                alignment.compact_final(&on_compaction);
+            }
+        } else if let Some(alignment) = self.alignment128.as_mut() {
+            alignment.compact_final(&on_compaction);
         }
         let on_stage = |stage: &str| {
             post_alignment_progress(self.run_id, stage, None, Some(self.sample_total), None);
