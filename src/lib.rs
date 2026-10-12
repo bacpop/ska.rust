@@ -1400,58 +1400,6 @@ fn distances_csv_gzip(names: &[String], flat_distances: &[u32]) -> std::io::Resu
     encoder.finish()
 }
 
-#[cfg(test)]
-mod alignment_export_tests {
-    use super::{add_imported_mismatches, distances_csv_gzip};
-    use flate2::read::GzDecoder;
-    use std::io::Read;
-
-    #[test]
-    fn gzip_distance_csv_preserves_square_matrix_and_integer_values() {
-        let names = vec![
-            "sample-a".to_string(),
-            "sample-b".to_string(),
-            "sample-c".to_string(),
-            "sample-d".to_string(),
-        ];
-        let compressed = distances_csv_gzip(&names, &[1, 2, 3, 4, 5, 6]).unwrap();
-        let mut decoded = String::new();
-        GzDecoder::new(compressed.as_slice())
-            .read_to_string(&mut decoded)
-            .unwrap();
-
-        assert_eq!(
-            decoded,
-            ",sample-a,sample-b,sample-c,sample-d\n\
-sample-a,0,1,2,4\n\
-sample-b,1,0,3,5\n\
-sample-c,2,3,0,6\n\
-sample-d,4,5,6,0\n"
-        );
-    }
-
-    #[test]
-    fn gzip_distance_csv_is_empty_when_alignment_is_too_small() {
-        assert!(
-            distances_csv_gzip(&["one".to_string(), "two".to_string()], &[])
-                .unwrap()
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn gzip_distance_csv_rejects_a_malformed_triangle() {
-        let names = ["a", "b", "c", "d"].map(str::to_owned);
-        assert!(distances_csv_gzip(&names, &[1, 2, 3]).is_err());
-    }
-
-    #[test]
-    fn imported_distances_saturate_at_u32_max_and_report_it() {
-        assert_eq!(add_imported_mismatches(u32::MAX - 1, 1), (u32::MAX, false));
-        assert_eq!(add_imported_mismatches(u32::MAX, 1), (u32::MAX, true));
-    }
-}
-
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 /// Extracts one sample's split-kmer dictionary into compact, transferable words.
@@ -1867,100 +1815,6 @@ fn prepare_alignment_samples(names: &[String]) -> Vec<AlignmentSample> {
     }
 
     samples
-}
-
-#[cfg(test)]
-mod fastq_pair_info_tests {
-    use super::{
-        fastq_files_are_mates, fastq_pair_info, prepare_alignment_samples, AlignmentSample,
-    };
-
-    #[test]
-    fn pairs_only_when_the_read_mate_suffix_and_sample_match() {
-        let mate_1 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz").unwrap();
-        let mate_2 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz").unwrap();
-        let different_sample =
-            fastq_pair_info("BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz").unwrap();
-
-        assert_eq!(mate_1.0, mate_2.0);
-        assert_eq!((mate_1.1, mate_2.1), (1, 2));
-        assert_ne!(mate_1.0, different_sample.0);
-        assert_eq!(mate_1.2, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
-        assert!(fastq_files_are_mates(
-            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
-            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz"
-        ));
-        assert!(!fastq_files_are_mates(
-            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
-            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz"
-        ));
-    }
-
-    #[test]
-    fn recognises_illumina_r_mates_with_chunk_suffixes() {
-        let mate_1 = fastq_pair_info("sample_R1_001.fastq.gz").unwrap();
-        let mate_2 = fastq_pair_info("sample_R2_001.fastq.gz").unwrap();
-
-        assert_eq!(mate_1.0, mate_2.0);
-        assert_eq!((mate_1.1, mate_2.1), (1, 2));
-    }
-
-    #[test]
-    fn groups_mixed_inputs_and_preserves_alignment_sample_order() {
-        let names = [
-            "reads_R1.fastq.gz",
-            "reference.fa",
-            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
-            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz",
-            "BARNARDS_Site_7_2016_ERR4920603_1.fastq.gz",
-            "BARNARDS_Site_7_2016_ERR4920603_2.fastq.gz",
-            "BARNARDS_Site_7_2017_ERR4920592_1.fastq.gz",
-            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
-        ]
-        .map(str::to_owned);
-
-        let samples = prepare_alignment_samples(&names);
-
-        assert_eq!(samples.len(), 5);
-        assert_eq!(samples[0].name, "reference.fa");
-        assert_eq!(samples[1].name, "BARNARDS_Site_7_2017_ERR4920592.fastq.gz");
-        assert_eq!(samples[1].first_index, 7);
-        assert_eq!(samples[1].second_index, Some(6));
-        assert_eq!(samples[2].name, "BARNARDS_Site_7_2016_ERR4920603.fastq.gz");
-        assert_eq!(samples[2].first_index, 5);
-        assert_eq!(samples[2].second_index, Some(4));
-        assert_eq!(samples[3].name, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
-        assert_eq!(samples[3].first_index, 3);
-        assert_eq!(samples[3].second_index, Some(2));
-        assert_eq!(samples[4].name, "reads_R1.fastq.gz");
-        assert_eq!(samples[4].first_index, 0);
-    }
-
-    #[test]
-    fn two_unmatched_fastqs_are_two_samples_in_input_order() {
-        let names = ["sample_a_1.fastq", "sample_b_2.fastq"].map(str::to_owned);
-
-        let samples = prepare_alignment_samples(&names);
-
-        assert_eq!(samples.len(), 2);
-        assert_eq!(samples[0].first_index, 0);
-        assert_eq!(samples[1].first_index, 1);
-        assert!(samples.iter().all(|sample| sample.second_index.is_none()));
-    }
-
-    #[test]
-    fn two_mate_fastqs_count_as_one_sample() {
-        let names = ["sample_1.fastq.gz", "sample_2.fastq.gz"].map(str::to_owned);
-
-        assert_eq!(
-            prepare_alignment_samples(&names),
-            vec![AlignmentSample {
-                name: "sample.fastq.gz".to_owned(),
-                first_index: 0,
-                second_index: Some(1),
-            }]
-        );
-    }
 }
 
 #[cfg(target_family = "wasm")]
@@ -2443,5 +2297,151 @@ impl AlignData {
         distances_csv_gzip(&self.file_names, distances).map_err(|error| {
             JsValue::from_str(&format!("Could not gzip distance CSV output: {error}"))
         })
+    }
+}
+
+#[cfg(test)]
+mod alignment_export_tests {
+    use super::{add_imported_mismatches, distances_csv_gzip};
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+
+    #[test]
+    fn gzip_distance_csv_preserves_square_matrix_and_integer_values() {
+        let names = vec![
+            "sample-a".to_string(),
+            "sample-b".to_string(),
+            "sample-c".to_string(),
+            "sample-d".to_string(),
+        ];
+        let compressed = distances_csv_gzip(&names, &[1, 2, 3, 4, 5, 6]).unwrap();
+        let mut decoded = String::new();
+        GzDecoder::new(compressed.as_slice())
+            .read_to_string(&mut decoded)
+            .unwrap();
+
+        assert_eq!(
+            decoded,
+            ",sample-a,sample-b,sample-c,sample-d\n\
+sample-a,0,1,2,4\n\
+sample-b,1,0,3,5\n\
+sample-c,2,3,0,6\n\
+sample-d,4,5,6,0\n"
+        );
+    }
+
+    #[test]
+    fn gzip_distance_csv_is_empty_when_alignment_is_too_small() {
+        assert!(
+            distances_csv_gzip(&["one".to_string(), "two".to_string()], &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn gzip_distance_csv_rejects_a_malformed_triangle() {
+        let names = ["a", "b", "c", "d"].map(str::to_owned);
+        assert!(distances_csv_gzip(&names, &[1, 2, 3]).is_err());
+    }
+
+    #[test]
+    fn imported_distances_saturate_at_u32_max_and_report_it() {
+        assert_eq!(add_imported_mismatches(u32::MAX - 1, 1), (u32::MAX, false));
+        assert_eq!(add_imported_mismatches(u32::MAX, 1), (u32::MAX, true));
+    }
+}
+
+#[cfg(test)]
+mod fastq_pair_info_tests {
+    use super::{
+        fastq_files_are_mates, fastq_pair_info, prepare_alignment_samples, AlignmentSample,
+    };
+
+    #[test]
+    fn pairs_only_when_the_read_mate_suffix_and_sample_match() {
+        let mate_1 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz").unwrap();
+        let mate_2 = fastq_pair_info("BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz").unwrap();
+        let different_sample =
+            fastq_pair_info("BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz").unwrap();
+
+        assert_eq!(mate_1.0, mate_2.0);
+        assert_eq!((mate_1.1, mate_2.1), (1, 2));
+        assert_ne!(mate_1.0, different_sample.0);
+        assert_eq!(mate_1.2, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
+        assert!(fastq_files_are_mates(
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz"
+        ));
+        assert!(!fastq_files_are_mates(
+            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz"
+        ));
+    }
+
+    #[test]
+    fn recognises_illumina_r_mates_with_chunk_suffixes() {
+        let mate_1 = fastq_pair_info("sample_R1_001.fastq.gz").unwrap();
+        let mate_2 = fastq_pair_info("sample_R2_001.fastq.gz").unwrap();
+
+        assert_eq!(mate_1.0, mate_2.0);
+        assert_eq!((mate_1.1, mate_2.1), (1, 2));
+    }
+
+    #[test]
+    fn groups_mixed_inputs_and_preserves_alignment_sample_order() {
+        let names = [
+            "reads_R1.fastq.gz",
+            "reference.fa",
+            "BARNARDS_Site_1_2017_ERR4920474_1.fastq.gz",
+            "BARNARDS_Site_1_2017_ERR4920474_2.fastq.gz",
+            "BARNARDS_Site_7_2016_ERR4920603_1.fastq.gz",
+            "BARNARDS_Site_7_2016_ERR4920603_2.fastq.gz",
+            "BARNARDS_Site_7_2017_ERR4920592_1.fastq.gz",
+            "BARNARDS_Site_7_2017_ERR4920592_2.fastq.gz",
+        ]
+        .map(str::to_owned);
+
+        let samples = prepare_alignment_samples(&names);
+
+        assert_eq!(samples.len(), 5);
+        assert_eq!(samples[0].name, "reference.fa");
+        assert_eq!(samples[1].name, "BARNARDS_Site_7_2017_ERR4920592.fastq.gz");
+        assert_eq!(samples[1].first_index, 7);
+        assert_eq!(samples[1].second_index, Some(6));
+        assert_eq!(samples[2].name, "BARNARDS_Site_7_2016_ERR4920603.fastq.gz");
+        assert_eq!(samples[2].first_index, 5);
+        assert_eq!(samples[2].second_index, Some(4));
+        assert_eq!(samples[3].name, "BARNARDS_Site_1_2017_ERR4920474.fastq.gz");
+        assert_eq!(samples[3].first_index, 3);
+        assert_eq!(samples[3].second_index, Some(2));
+        assert_eq!(samples[4].name, "reads_R1.fastq.gz");
+        assert_eq!(samples[4].first_index, 0);
+    }
+
+    #[test]
+    fn two_unmatched_fastqs_are_two_samples_in_input_order() {
+        let names = ["sample_a_1.fastq", "sample_b_2.fastq"].map(str::to_owned);
+
+        let samples = prepare_alignment_samples(&names);
+
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].first_index, 0);
+        assert_eq!(samples[1].first_index, 1);
+        assert!(samples.iter().all(|sample| sample.second_index.is_none()));
+    }
+
+    #[test]
+    fn two_mate_fastqs_count_as_one_sample() {
+        let names = ["sample_1.fastq.gz", "sample_2.fastq.gz"].map(str::to_owned);
+
+        assert_eq!(
+            prepare_alignment_samples(&names),
+            vec![AlignmentSample {
+                name: "sample.fastq.gz".to_owned(),
+                first_index: 0,
+                second_index: Some(1),
+            }]
+        );
     }
 }

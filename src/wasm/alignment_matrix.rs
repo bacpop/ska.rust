@@ -4,8 +4,6 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::hash::Hash;
 use std::io::Write;
-#[cfg(test)]
-use std::io;
 
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
@@ -462,64 +460,6 @@ fn new_group(base: u8, sample_id: u16) -> Result<Vec<u16>, String> {
     Ok(words)
 }
 
-/// Test-only decoder for checking all sample IDs independently of compression.
-#[cfg(test)]
-struct GroupIds<'a> {
-    words: &'a [u16],
-    range_index: usize,
-    range_id: u16,
-    individual_index: usize,
-}
-
-#[cfg(test)]
-impl<'a> GroupIds<'a> {
-    fn new(words: &'a [u16]) -> Self {
-        Self {
-            words,
-            range_index: 0,
-            range_id: if range_count(words) == 0 {
-                0
-            } else {
-                range(words, 0).0
-            },
-            individual_index: 0,
-        }
-    }
-}
-
-#[cfg(test)]
-impl Iterator for GroupIds<'_> {
-    type Item = u16;
-
-    fn next(&mut self) -> Option<u16> {
-        let ranged = (self.range_index < range_count(self.words)).then_some(self.range_id);
-        let single = (self.individual_index < individual_count(self.words)).then(|| {
-            read_id(
-                self.words,
-                individual_start(self.words) + self.individual_index * SAMPLE_ID_BITS,
-            )
-        });
-        if let Some(id) = ranged {
-            if single.is_none_or(|single| id < single) {
-                let end = range(self.words, self.range_index).1;
-                if id == end {
-                    self.range_index += 1;
-                    if self.range_index < range_count(self.words) {
-                        self.range_id = range(self.words, self.range_index).0;
-                    }
-                } else {
-                    self.range_id += 1;
-                }
-                return Some(id);
-            }
-        }
-        if single.is_some() {
-            self.individual_index += 1;
-        }
-        single
-    }
-}
-
 // Calculation of distances
 #[inline]
 fn accumulate_group_distances(group: &[u16], distance_row: &mut [u32]) {
@@ -889,66 +829,6 @@ where
         Ok(())
     }
 
-    /// Reset cursors on every attempt, permitting retries after writer errors.
-    #[cfg(test)]
-    fn write_fasta<W: Write>(
-        &mut self,
-        names: &[String],
-        writer: &mut W,
-        on_sample: &dyn Fn(usize),
-    ) -> io::Result<()> {
-        let SiteStorage::Frozen(frozen) = &mut self.storage else {
-            return Err(io::Error::other("The sparse array is not available."));
-        };
-        if names.len() != self.sample_count {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Sample names do not match the matrix.",
-            ));
-        }
-        for site in &mut frozen.sites {
-            match site {
-                FrozenSite::Monomorphic(group) => group.reset(),
-                FrozenSite::Polymorphic { start, len } => {
-                    for group in &mut frozen.polymorphic_groups[*start..(*start + *len)] {
-                        group.reset();
-                    }
-                }
-            }
-        }
-        let mut buffer = [0u8; 8192];
-        for (sample, name) in names.iter().enumerate() {
-            writer.write_all(b"> ")?;
-            writer.write_all(name.as_bytes())?;
-            writer.write_all(b"\n")?;
-            let mut buffered = 0;
-            for site in &mut frozen.sites {
-                let code = match site {
-                    FrozenSite::Monomorphic(group) => {
-                        group.take_sample(sample as u16).unwrap_or(GAP)
-                    }
-                    FrozenSite::Polymorphic { start, len } => frozen.polymorphic_groups
-                        [*start..(*start + *len)]
-                        .iter_mut()
-                        .find_map(|group| group.take_sample(sample as u16))
-                        .unwrap_or(GAP),
-                };
-                buffer[buffered] = decode_symbol(code);
-                buffered += 1;
-                if buffered == buffer.len() {
-                    writer.write_all(&buffer)?;
-                    buffered = 0;
-                }
-            }
-            if buffered > 0 {
-                writer.write_all(&buffer[..buffered])?;
-            }
-            writer.write_all(b"\n")?;
-            on_sample(sample + 1);
-        }
-        Ok(())
-    }
-
     /// Freeze the sparse sites and allocate the reusable 32-sample export workspace.
     pub(crate) fn begin_export(
         &mut self,
@@ -1093,28 +973,67 @@ where
             }
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn export_fasta_gzip(
-        &mut self,
-        names: &[String],
-        on_sample: &dyn Fn(usize),
-    ) -> Result<Vec<u8>, String> {
-        self.freeze()?;
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-        self.write_fasta(names, &mut encoder, on_sample)
-            .map_err(|error| format!("Could not write alignment: {error}"))?;
-        let bytes = encoder
-            .finish()
-            .map_err(|error| format!("Could not gzip alignment: {error}"))?;
-        self.storage = SiteStorage::Released;
-        Ok(bytes)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
+
+    /// Independent decoder for checking all sample IDs regardless of compression.
+    struct GroupIds<'a> {
+        words: &'a [u16],
+        range_index: usize,
+        range_id: u16,
+        individual_index: usize,
+    }
+
+    impl<'a> GroupIds<'a> {
+        fn new(words: &'a [u16]) -> Self {
+            Self {
+                words,
+                range_index: 0,
+                range_id: if range_count(words) == 0 {
+                    0
+                } else {
+                    range(words, 0).0
+                },
+                individual_index: 0,
+            }
+        }
+    }
+
+    impl Iterator for GroupIds<'_> {
+        type Item = u16;
+
+        fn next(&mut self) -> Option<u16> {
+            let ranged = (self.range_index < range_count(self.words)).then_some(self.range_id);
+            let single = (self.individual_index < individual_count(self.words)).then(|| {
+                read_id(
+                    self.words,
+                    individual_start(self.words) + self.individual_index * SAMPLE_ID_BITS,
+                )
+            });
+            if let Some(id) = ranged {
+                if single.is_none_or(|single| id < single) {
+                    let end = range(self.words, self.range_index).1;
+                    if id == end {
+                        self.range_index += 1;
+                        if self.range_index < range_count(self.words) {
+                            self.range_id = range(self.words, self.range_index).0;
+                        }
+                    } else {
+                        self.range_id += 1;
+                    }
+                    return Some(id);
+                }
+            }
+            if single.is_some() {
+                self.individual_index += 1;
+            }
+            single
+        }
+    }
 
     fn visit_test_groups<IntT>(matrix: &AlignmentMatrix<IntT>, mut visit: impl FnMut(&Vec<u16>)) {
         match &matrix.storage {
@@ -1216,13 +1135,13 @@ mod tests {
 
     #[test]
     fn frozen_cursors_handle_skips_and_fit_existing_padding() {
-        struct OldGroup {
+        struct VecPlusCursor {
             _words: Vec<u16>,
             _cursor: u16,
         }
         assert_eq!(
             std::mem::size_of::<FrozenGroup>(),
-            std::mem::size_of::<OldGroup>()
+            std::mem::size_of::<VecPlusCursor>()
         );
         let ids: Vec<u16> = [0, 1]
             .into_iter()
@@ -1660,39 +1579,45 @@ mod tests {
         matrix.freeze().unwrap();
         assert_eq!(packed_capacity(&matrix), capacity);
         let names: Vec<String> = (0..samples).map(|n| format!("sample_{n}")).collect();
-        struct FailWriter {
-            remaining: usize,
-        }
-        impl Write for FailWriter {
-            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-                if self.remaining == 0 {
-                    return Err(io::Error::other("injected"));
-                }
-                let written = bytes.len().min(self.remaining);
-                self.remaining -= written;
-                Ok(written)
-            }
-            fn flush(&mut self) -> io::Result<()> {
-                Ok(())
+        // Production export: parts of 256 samples (2048 -> 8 parts; 1025 -> a last part of 1 sample).
+        // A cancelled first attempt (one chunk, then a cursor reset) must not affect the retry.
+        let samples_per_part = 256;
+        let mut session = matrix.begin_export(&names, samples_per_part).unwrap();
+        matrix
+            .next_export_chunk(&names, &mut session, &|_| {})
+            .unwrap();
+        matrix.reset_export_cursors();
+        let mut session = matrix.begin_export(&names, samples_per_part).unwrap();
+        let mut gzip = Vec::new();
+        loop {
+            let chunk = matrix
+                .next_export_chunk(&names, &mut session, &|_| {})
+                .unwrap();
+            assert_eq!(
+                chunk.part_complete,
+                chunk.complete || chunk.samples_processed % samples_per_part == 0
+            );
+            gzip.extend(chunk.bytes);
+            if chunk.complete {
+                break;
             }
         }
         assert!(matrix
-            .write_fasta(&names, &mut FailWriter { remaining: 32 }, &|_| {})
+            .next_export_chunk(&names, &mut session, &|_| {})
             .is_err());
-        let mut fasta = Vec::new();
-        matrix.write_fasta(&names, &mut fasta, &|_| {}).unwrap();
+        let mut text = String::new();
+        flate2::read::MultiGzDecoder::new(gzip.as_slice())
+            .read_to_string(&mut text)
+            .unwrap();
+        let headers: Vec<&str> = text.lines().filter(|line| line.starts_with('>')).collect();
+        let expected_headers: Vec<String> = names.iter().map(|name| format!("> {name}")).collect();
+        assert_eq!(headers, expected_headers);
         let mut columns = vec![Vec::new(); 8];
-        let text = String::from_utf8(fasta).unwrap();
-        for (sample, sequence) in text
-            .lines()
-            .filter(|line| !line.starts_with('>'))
-            .enumerate()
-        {
+        for sequence in text.lines().filter(|line| !line.starts_with('>')) {
+            assert_eq!(sequence.len(), 8);
             for (column, base) in sequence.bytes().enumerate() {
                 columns[column].push(base);
             }
-            assert_eq!(sequence.len(), 8);
-            assert!(sample < samples);
         }
         let mut expected_columns: Vec<Vec<u8>> = (0..8)
             .map(|key| {
@@ -1705,7 +1630,7 @@ mod tests {
         columns.sort();
         expected_columns.sort();
         assert_eq!(columns, expected_columns);
-        matrix.export_fasta_gzip(&names, &|_| {}).unwrap();
+        matrix.release_export().unwrap();
         assert!(matches!(matrix.storage, SiteStorage::Released));
         assert_eq!(packed_capacity(&matrix), 0);
     }
