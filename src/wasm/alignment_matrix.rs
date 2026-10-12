@@ -27,9 +27,8 @@ const RANGE_COUNT_MASK: u16 = 0x03ff; // This is a mask of the 10 lower bits (fr
 const PADDING_MASK: u16 = 0x3c00; // This extracts four bits from the middle of a u16: 11110000000000.
 const PAYLOAD_BIT: usize = 30; // this is the bit where data starts: the 30th.
 
-// Compactification info
+// Range creation threshold
 const MIN_RANGE_SAMPLES: usize = 3; // Min. number of consecutive samples we should have to create a range from them
-const MAX_GROUP_WORDS: usize = (PAYLOAD_BIT + SAMPLE_ID_BITS * MAX_SAMPLES).div_ceil(16); // Total number of "words" (u16s in a vector) we can have ever.
 
 /// Concrete calls share the same codes in extracted and imported alignments.
 #[inline]
@@ -115,36 +114,6 @@ pub(crate) fn pack_entry_u128(kmer: u128, base: u8) -> [u32; 4] {
         (packed >> 64) as u32,
         (packed >> 96) as u32,
     ]
-}
-
-#[inline]
-fn should_compact(samples: usize) -> bool {
-    matches!(samples, 32 | 64 | 128)
-        || ((256..=MAX_SAMPLES).contains(&samples) && samples % 256 == 0)
-}
-
-#[inline]
-fn eligible_for_compaction(words: &[u16], samples: usize) -> bool {
-    if range_count(words) != 0 {
-        return individual_count(words) != 0;
-    }
-    let multiplier = if samples < 256 { 2 } else { 4 };
-    multiplier * group_len(words) >= samples
-}
-
-/// A final individual before the last range cannot change during recompression.
-#[inline]
-fn has_individual_tail(words: &[u16]) -> bool {
-    let singles = individual_count(words);
-    if singles == 0 {
-        return false;
-    }
-    let ranges = range_count(words);
-    ranges == 0
-        || read_id(
-            words,
-            individual_start(words) + (singles - 1) * SAMPLE_ID_BITS,
-        ) > range(words, ranges - 1).1
 }
 
 /// Number of entries in a strict lower-triangle matrix of `samples` rows.
@@ -270,6 +239,38 @@ fn range(words: &[u16], index: usize) -> (u16, u16) {
     (read_id(words, bit), read_id(words, bit + SAMPLE_ID_BITS))
 }
 
+/// Move an overlapping packed span right, preserving every bit outside it.
+/// Read each chunk before overwriting it, and work backwards through the span.
+fn shift_packed_bits_right(words: &mut [u16], start: usize, bits: usize, shift: usize) {
+    debug_assert!(start + bits + shift <= words.len() * 16);
+    let mut remaining = bits;
+    while remaining != 0 {
+        let width = remaining.min(16);
+        remaining -= width;
+        let source = start + remaining;
+        let source_word = source / 16;
+        let source_shift = source % 16;
+        let mask = (1u32 << width) - 1;
+        let mut value = u32::from(words[source_word]);
+        if source_shift + width > 16 {
+            value |= u32::from(words[source_word + 1]) << 16;
+        }
+        value = (value >> source_shift) & mask;
+        let destination = source + shift;
+        let destination_word = destination / 16;
+        let destination_shift = destination % 16;
+        let shifted_mask = mask << destination_shift;
+        let shifted_value = value << destination_shift;
+        words[destination_word] =
+            (words[destination_word] & !(shifted_mask as u16)) | shifted_value as u16;
+        if destination_shift + width > 16 {
+            words[destination_word + 1] = (words[destination_word + 1]
+                & !((shifted_mask >> 16) as u16))
+                | (shifted_value >> 16) as u16;
+        }
+    }
+}
+
 /// Add a sample_id to an existing vector
 #[inline]
 fn append_group(
@@ -278,11 +279,37 @@ fn append_group(
     threshold_words: usize,
     final_words: usize,
 ) -> Result<(), String> {
+    append_group_with_reserve(
+        words,
+        sample_id,
+        threshold_words,
+        final_words,
+        |words, target| {
+            words
+                .try_reserve_exact(target - words.len())
+                .map_err(|error| format!("Could not extend site group: {error}"))
+        },
+    )
+}
+
+#[inline]
+fn append_group_with_reserve<F>(
+    words: &mut Vec<u16>,
+    sample_id: u16,
+    threshold_words: usize,
+    final_words: usize,
+    reserve: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&mut Vec<u16>, usize) -> Result<(), String>,
+{
     let count = group_len(words);
     if count >= MAX_SAMPLES || usize::from(sample_id) >= MAX_SAMPLES {
         return Err("Site group exceeds the 2,048-sample limit.".into());
     }
     let ranges = range_count(words);
+    // Can we extend the last range?
+    let end;
     if words[0] & EXTEND_MASK != 0 {
         debug_assert!(ranges > 0);
         let end_bit = PAYLOAD_BIT + (2 * ranges - 1) * SAMPLE_ID_BITS;
@@ -291,9 +318,34 @@ fn append_group(
             words[0] = (words[0] & (BASE_MASK | EXTEND_MASK)) | ((count as u16) << 5);
             return Ok(());
         }
+        // A failed extension falls through to the individual append below.
+        end = payload_end(words);
+    } else {
+        end = payload_end(words);
+        let singles = individual_count(words);
+        let promoted_ids = MIN_RANGE_SAMPLES - 1;
+        if singles >= promoted_ids {
+            let previous = read_id(words, end - SAMPLE_ID_BITS);
+            let start = read_id(words, end - promoted_ids * SAMPLE_ID_BITS);
+            if start + 1 == previous && previous + 1 == sample_id {
+                let range_bit = individual_start(words);
+                // Two individual fields become two endpoints; no growth is needed.
+                shift_packed_bits_right(
+                    words,
+                    range_bit,
+                    (singles - promoted_ids) * SAMPLE_ID_BITS,
+                    2 * SAMPLE_ID_BITS,
+                );
+                write_id(words, range_bit, start);
+                write_id(words, range_bit + SAMPLE_ID_BITS, sample_id);
+                debug_assert!(ranges + 1 <= usize::from(RANGE_COUNT_MASK));
+                words[1] = (words[1] & !RANGE_COUNT_MASK) | (ranges as u16 + 1);
+                words[0] = (words[0] & BASE_MASK) | EXTEND_MASK | ((count as u16) << 5);
+                return Ok(());
+            }
+        }
     }
-
-    let end = payload_end(words);
+    // We have not been able to create a new range, nor extend the last one. Let's add this as an individual sample_id
     let required = (end + SAMPLE_ID_BITS).div_ceil(16);
     let capacity = words.capacity();
     let target = if ranges == 0 && words.len() >= threshold_words && capacity < final_words {
@@ -309,9 +361,7 @@ fn append_group(
         capacity
     };
     if target > capacity {
-        words
-            .try_reserve_exact(target - words.len())
-            .map_err(|error| format!("Could not extend site group: {error}"))?;
+        reserve(words, target)?;
     }
     words.resize(required, 0);
     write_id(words, end, sample_id);
@@ -393,151 +443,6 @@ impl Iterator for GroupIds<'_> {
         }
         single
     }
-}
-
-// This struct is used for storing a fixed size to be used for ALL split k-mers, and allocating it only once
-struct CompactionScratch {
-    ids: [u16; MAX_SAMPLES],
-    encoded: [u16; MAX_GROUP_WORDS],
-}
-
-impl CompactionScratch {
-    fn new() -> Self {
-        Self {
-            ids: [0; MAX_SAMPLES],
-            encoded: [0; MAX_GROUP_WORDS],
-        }
-    }
-
-    fn encode(&mut self, words: &[u16]) -> usize {
-        let count = group_len(words);
-        let old_ranges = range_count(words);
-        let individuals = individual_count(words);
-        for index in 0..individuals {
-            self.ids[index] = read_id(words, individual_start(words) + index * SAMPLE_ID_BITS);
-            debug_assert!(index == 0 || self.ids[index - 1] < self.ids[index]);
-        }
-
-        // Earlier singletons cannot gain missing IDs: new samples arrive in order.
-        let mut last_end = if old_ranges == 0 {
-            None
-        } else {
-            Some(range(words, old_ranges - 1).1)
-        };
-        let prefix = last_end.map_or(0, |end| {
-            self.ids[..individuals].partition_point(|id| *id < end)
-        });
-        let mut tail = prefix;
-        if let Some(end) = last_end.as_mut() {
-            while tail < individuals && self.ids[tail] == *end + 1 {
-                *end = self.ids[tail];
-                tail += 1;
-            }
-        }
-
-        let mut ranges = old_ranges;
-        let mut singles = prefix;
-        let mut index = tail;
-        let mut ends_in_range = old_ranges != 0 && tail == individuals;
-        while index < individuals {
-            let start = index;
-            index += 1;
-            while index < individuals && self.ids[index] == self.ids[index - 1] + 1 {
-                index += 1;
-            }
-            ends_in_range = index - start >= MIN_RANGE_SAMPLES;
-            if ends_in_range {
-                ranges += 1;
-            } else {
-                singles += index - start;
-            }
-        }
-        debug_assert!(ranges <= usize::from(RANGE_COUNT_MASK));
-        let end = PAYLOAD_BIT + SAMPLE_ID_BITS * (2 * ranges + singles);
-        let length = end.div_ceil(16);
-        self.encoded[..length].fill(0);
-
-        // Copy the packed range prefix without decoding its IDs or endpoints.
-        let prefix_end = individual_start(words);
-        let whole_words = prefix_end / 16;
-        self.encoded[..whole_words].copy_from_slice(&words[..whole_words]);
-        if prefix_end % 16 != 0 {
-            self.encoded[whole_words] = words[whole_words] & ((1u16 << (prefix_end % 16)) - 1);
-        }
-        self.encoded[0] = u16::from(group_base(words)) | (((count - 1) as u16) << 5);
-        self.encoded[1] = (self.encoded[1] & !(RANGE_COUNT_MASK | PADDING_MASK)) | ranges as u16;
-        if let Some(last_end) = last_end {
-            write_id(
-                &mut self.encoded[..length],
-                PAYLOAD_BIT + (2 * old_ranges - 1) * SAMPLE_ID_BITS,
-                last_end,
-            );
-        }
-        let mut range_bit = prefix_end;
-        let mut single_bit = PAYLOAD_BIT + 2 * SAMPLE_ID_BITS * ranges;
-        for id in &self.ids[..prefix] {
-            write_id(&mut self.encoded[..length], single_bit, *id);
-            single_bit += SAMPLE_ID_BITS;
-        }
-        index = tail;
-        while index < individuals {
-            let start = index;
-            index += 1;
-            while index < individuals && self.ids[index] == self.ids[index - 1] + 1 {
-                index += 1;
-            }
-            if index - start >= MIN_RANGE_SAMPLES {
-                write_id(&mut self.encoded[..length], range_bit, self.ids[start]);
-                write_id(
-                    &mut self.encoded[..length],
-                    range_bit + SAMPLE_ID_BITS,
-                    self.ids[index - 1],
-                );
-                range_bit += 2 * SAMPLE_ID_BITS;
-            } else {
-                for id in &self.ids[start..index] {
-                    write_id(&mut self.encoded[..length], single_bit, *id);
-                    single_bit += SAMPLE_ID_BITS;
-                }
-            }
-        }
-        if ends_in_range {
-            self.encoded[0] |= EXTEND_MASK;
-        }
-        set_padding(&mut self.encoded[..length], end);
-        length
-    }
-}
-
-/// Reserve before swapping, so an allocation failure leaves the live group intact.
-fn compact_group_with<F>(
-    words: &mut Vec<u16>,
-    scratch: &mut CompactionScratch,
-    reserve: F,
-) -> Result<bool, ()>
-where
-    F: FnOnce(usize) -> Result<Vec<u16>, ()>,
-{
-    let length = scratch.encode(words);
-    if length * 4 > words.len() * 3 {
-        return Ok(false);
-    }
-    let mut replacement = reserve(length)?;
-    if replacement.capacity() < length {
-        return Err(());
-    }
-    replacement.extend_from_slice(&scratch.encoded[..length]);
-    *words = replacement;
-    Ok(true)
-}
-
-/// Progress required by the website during a compression scan.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct CompactionProgress {
-    pub processed_samples: usize,
-    pub sites_total: usize,
-    pub sites_processed: usize,
-    pub complete: bool,
 }
 
 // Calculation of distances
@@ -751,7 +656,6 @@ where
         &mut self,
         words: Vec<u32>,
         distance_row: &mut [u32],
-        on_compaction: &dyn Fn(&CompactionProgress),
     ) -> Result<(), String> {
         if self.sealed {
             return Err("The alignment is closed to new samples.".into());
@@ -769,80 +673,8 @@ where
         let result = self.store_and_compare(&words, distance_row);
         if result.is_err() {
             self.sealed = true;
-        } else if should_compact(self.sample_count) {
-            self.compact_groups(on_compaction);
         }
         result
-    }
-
-    fn compact_groups(&mut self, on_progress: &dyn Fn(&CompactionProgress)) {
-        self.compact_groups_with(on_progress, &mut |length| {
-            let mut replacement = Vec::new();
-            replacement.try_reserve_exact(length).map_err(|_| ())?;
-            Ok(replacement)
-        });
-    }
-
-    /// Final pass uses a strict quarter-support threshold at every sample count.
-    pub(crate) fn compact_final(&mut self, on_progress: &dyn Fn(&CompactionProgress)) {
-        self.compact_groups_with_policy(
-            on_progress,
-            &mut |length| {
-                let mut replacement = Vec::new();
-                replacement.try_reserve_exact(length).map_err(|_| ())?;
-                Ok(replacement)
-            },
-            &|words, samples| 4 * group_len(words) > samples && individual_count(words) != 0,
-        );
-    }
-
-    fn compact_groups_with<R>(&mut self, on_progress: &dyn Fn(&CompactionProgress), reserve: &mut R)
-    where
-        R: FnMut(usize) -> Result<Vec<u16>, ()>,
-    {
-        self.compact_groups_with_policy(on_progress, reserve, &eligible_for_compaction);
-    }
-
-    fn compact_groups_with_policy<R>(
-        &mut self,
-        on_progress: &dyn Fn(&CompactionProgress),
-        reserve: &mut R,
-        eligible: &dyn Fn(&[u16], usize) -> bool,
-    ) where
-        R: FnMut(usize) -> Result<Vec<u16>, ()>,
-    {
-        let SiteStorage::Growing(postings) = &mut self.storage else {
-            return;
-        };
-        let mut progress = CompactionProgress {
-            processed_samples: self.sample_count,
-            sites_total: postings.len(),
-            ..CompactionProgress::default()
-        };
-        on_progress(&progress);
-        let mut scratch = CompactionScratch::new();
-        for site in postings.values_mut() {
-            let mut visit = |words: &mut Vec<u16>| {
-                if has_individual_tail(words) && eligible(words, self.sample_count) {
-                    // A failed replacement allocation leaves the original vector intact.
-                    let _ = compact_group_with(words, &mut scratch, &mut *reserve);
-                }
-            };
-            match site {
-                GrowingSite::Monomorphic(words) => visit(words),
-                GrowingSite::Polymorphic(groups) => {
-                    for words in groups {
-                        visit(words);
-                    }
-                }
-            }
-            progress.sites_processed += 1;
-            if progress.sites_processed % 65_536 == 0 {
-                on_progress(&progress);
-            }
-        }
-        progress.complete = true;
-        on_progress(&progress);
     }
 
     fn store_and_compare(&mut self, words: &[u32], distance_row: &mut [u32]) -> Result<(), String> {
@@ -1061,7 +893,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
 
     fn visit_test_groups<IntT>(matrix: &AlignmentMatrix<IntT>, mut visit: impl FnMut(&Vec<u16>)) {
         match &matrix.storage {
@@ -1103,15 +934,6 @@ mod tests {
         found
     }
 
-    fn compact(words: &mut Vec<u16>) -> bool {
-        compact_group_with(words, &mut CompactionScratch::new(), |length| {
-            let mut replacement = Vec::new();
-            replacement.try_reserve_exact(length).map_err(|_| ())?;
-            Ok(replacement)
-        })
-        .unwrap()
-    }
-
     fn group(ids: &[u16]) -> Vec<u16> {
         let mut words = new_group(4, ids[0]).unwrap();
         for id in &ids[1..] {
@@ -1137,32 +959,6 @@ mod tests {
     }
 
     #[test]
-    fn uncompressed_groups_cover_padding_and_maximum_count() {
-        let mut words = new_group(4, 0).unwrap();
-        let mut paddings = [false; 16];
-        assert_eq!(words.len(), 3);
-        for id in 1..MAX_SAMPLES {
-            append_group(&mut words, id as u16, 1024, group_words(MAX_SAMPLES)).unwrap();
-            let padding = (words[1] & PADDING_MASK) >> 10;
-            paddings[usize::from(padding)] = true;
-            assert_eq!(group_len(&words), id + 1);
-            assert_eq!(read_id(&words, payload_end(&words) - 11), id as u16);
-            if padding != 0 {
-                assert_eq!(words.last().unwrap() >> (16 - padding), 0);
-            }
-        }
-        assert!(paddings.iter().all(|seen| *seen));
-        assert_eq!(
-            GroupIds::new(&words).collect::<Vec<_>>(),
-            (0..2048).collect::<Vec<u16>>()
-        );
-        let snapshot = words.clone();
-        assert!(append_group(&mut words, 2047, 1024, group_words(MAX_SAMPLES)).is_err());
-        assert_eq!(words, snapshot);
-        assert!(new_group(0, 2048).is_err());
-    }
-
-    #[test]
     fn ranges_require_three_samples_and_merge_with_individuals() {
         let ids: Vec<u16> = [0, 1]
             .into_iter()
@@ -1171,77 +967,24 @@ mod tests {
             .chain(110..200)
             .chain([205, 207])
             .collect();
-        let mut words = group(&ids);
-        assert!(compact(&mut words));
+        let words = group(&ids);
         assert_eq!(range_count(&words), 2);
         assert_eq!(range(&words, 0), (4, 89));
         assert_eq!(range(&words, 1), (110, 199));
         assert_eq!(individual_count(&words), 7);
         assert_eq!(GroupIds::new(&words).collect::<Vec<_>>(), ids);
         assert_eq!(words[0] & EXTEND_MASK, 0);
-        let encoded = words.clone();
-        assert!(!compact(&mut words));
-        assert_eq!(words, encoded);
 
         let two = group(&[0, 1]);
         let three = group(&[0, 1, 2]);
-        let mut scratch = CompactionScratch::new();
-        let length = scratch.encode(&two);
-        assert_eq!(range_count(&scratch.encoded[..length]), 0);
-        let length = scratch.encode(&three);
-        assert_eq!(range(&scratch.encoded[..length], 0), (0, 2));
-    }
-
-    #[test]
-    fn extension_overwrites_boundaries_and_recompaction_reactivates_it() {
-        let mut words = group(&(0..255).collect::<Vec<_>>());
-        assert!(compact(&mut words));
-        let capacity = words.capacity();
-        for id in 255..=256 {
-            append_group(&mut words, id, 128, group_words(2048)).unwrap();
-        }
-        assert_eq!(range(&words, 0), (0, 256));
-        assert_eq!(words.capacity(), capacity);
-        append_group(&mut words, 300, 128, group_words(2048)).unwrap();
-        assert_eq!(words[0] & EXTEND_MASK, 0);
-        for id in 301..400 {
-            append_group(&mut words, id, 128, group_words(2048)).unwrap();
-        }
-        assert!(compact(&mut words));
-        assert_ne!(words[0] & EXTEND_MASK, 0);
-        let capacity = words.capacity();
-        for id in 400..=1024 {
-            append_group(&mut words, id, 128, group_words(2048)).unwrap();
-        }
-        assert_eq!(range(&words, 1), (300, 1024));
-        assert_eq!(words.capacity(), capacity);
-        for id in 1025..=2047 {
-            append_group(&mut words, id, 128, group_words(2048)).unwrap();
-        }
-        assert_eq!(range(&words, 1), (300, 2047));
-        assert!(GroupIds::new(&words).is_sorted());
-    }
-
-    #[test]
-    fn failed_compaction_keeps_group_and_allocations_unchanged() {
-        let mut words = group(&(0..255).collect::<Vec<_>>());
-        let old = words.clone();
-        let capacity = words.capacity();
-        assert_eq!(
-            compact_group_with(&mut words, &mut CompactionScratch::new(), |_| Err(())),
-            Err(())
-        );
-        assert_eq!(words, old);
-        assert_eq!(words.capacity(), capacity);
-        append_group(&mut words, 255, 128, group_words(2048)).unwrap();
-        assert_eq!(group_len(&words), 256);
+        assert_eq!(range_count(&two), 0);
+        assert_eq!(range(&three, 0), (0, 2));
     }
 
     #[test]
     fn distances_visit_all_range_members_and_singletons_once() {
         let ids: Vec<u16> = (0..90).chain([94, 95, 99]).chain(110..200).collect();
-        let mut words = group(&ids);
-        assert!(compact(&mut words));
+        let words = group(&ids);
         let mut row = vec![7; 200];
         accumulate_group_distances(&words, &mut row);
         for (id, value) in row.iter().enumerate() {
@@ -1266,8 +1009,7 @@ mod tests {
             .chain(110..200)
             .chain([205, 207])
             .collect();
-        let mut words = group(&ids);
-        assert!(compact(&mut words));
+        let words = group(&ids);
         let mut frozen = FrozenGroup::new(words);
         for id in [0, 2, 5, 90, 95, 100, 180, 205, 206, 207, 208] {
             assert_eq!(frozen.take_sample(id), ids.contains(&id).then_some(4));
@@ -1279,101 +1021,8 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_selection_and_batch_reservation() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        matrix.sample_count = 256;
-        let SiteStorage::Growing(sites) = &mut matrix.storage else {
-            unreachable!()
-        };
-        sites.insert(
-            0,
-            GrowingSite::Monomorphic(group(&(0..63).collect::<Vec<_>>())),
-        );
-        sites.insert(
-            1,
-            GrowingSite::Monomorphic(group(&(0..64).collect::<Vec<_>>())),
-        );
-        let events = RefCell::new(Vec::new());
-        matrix.compact_groups(&|p| events.borrow_mut().push(p.clone()));
-        assert!(events.borrow().last().unwrap().complete);
-        let SiteStorage::Growing(sites) = &matrix.storage else {
-            unreachable!()
-        };
-        let GrowingSite::Monomorphic(compacted) = &sites[&1] else {
-            unreachable!()
-        };
-        assert_eq!(range_count(compacted), 1);
-        let GrowingSite::Monomorphic(ineligible) = &sites[&0] else {
-            unreachable!()
-        };
-        assert_eq!(range_count(ineligible), 0);
-        let capacity = compacted.capacity();
-        matrix.set_expected_samples(2048).unwrap();
-        let SiteStorage::Growing(sites) = &matrix.storage else {
-            unreachable!()
-        };
-        let GrowingSite::Monomorphic(compacted) = &sites[&1] else {
-            unreachable!()
-        };
-        assert_eq!(compacted.capacity(), capacity);
-    }
-
-    #[test]
-    fn compaction_allocation_failure_preserves_vectors_without_sealing() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        matrix.sample_count = 255;
-        let SiteStorage::Growing(sites) = &mut matrix.storage else {
-            unreachable!()
-        };
-        sites.insert(
-            0,
-            GrowingSite::Monomorphic(group(&(0..129).collect::<Vec<_>>())),
-        );
-        let old_capacity = packed_capacity(&matrix);
-        let events = RefCell::new(Vec::new());
-        matrix.compact_groups_with(&|p| events.borrow_mut().push(p.clone()), &mut |_| Err(()));
-        assert!(events.borrow().last().unwrap().complete);
-        assert_eq!(packed_capacity(&matrix), old_capacity);
-        assert!(!contains_ranges(&matrix));
-        assert!(!matrix.is_sealed());
-        let mut row = vec![0; 255];
-        matrix
-            .add_sample_words(pack_entry_u64(0, b'R').to_vec(), &mut row, &|_| {})
-            .unwrap();
-        assert_eq!(matrix.sample_count, 256);
-        assert!(row.iter().all(|distance| *distance == 0));
-        assert!(!matrix.is_sealed());
-    }
-
-    #[test]
-    fn scans_report_bounded_progress_and_skip_canonical_range_only_groups() {
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        matrix.sample_count = 511;
-        let SiteStorage::Growing(sites) = &mut matrix.storage else {
-            unreachable!()
-        };
-        for key in 0..65_537 {
-            sites.insert(key, GrowingSite::Monomorphic(new_group(0, 0).unwrap()));
-        }
-        let mut dense = group(&(0..511).collect::<Vec<_>>());
-        assert!(compact(&mut dense));
-        sites.insert(65_537, GrowingSite::Monomorphic(dense));
-        let events = RefCell::new(Vec::new());
-        matrix.compact_groups(&|p| events.borrow_mut().push(p.clone()));
-        let events = events.borrow();
-        assert_eq!(
-            events.iter().map(|p| p.sites_processed).collect::<Vec<_>>(),
-            [0, 65_536, 65_538]
-        );
-        assert!(events.last().unwrap().complete);
-        assert_eq!(events.last().unwrap().sites_total, 65_538);
-        assert!(contains_ranges(&matrix));
-    }
-
-    #[test]
     fn ranged_groups_grow_with_at_most_32_spare_words() {
         let mut words = group(&(0..100).collect::<Vec<_>>());
-        assert!(compact(&mut words));
         for id in (120..2048).step_by(2) {
             append_group(&mut words, id, 128, group_words(2048)).unwrap();
             assert!(words.capacity() <= words.len() + 32);
@@ -1382,232 +1031,242 @@ mod tests {
         assert_eq!(individual_count(&words), 964);
     }
 
-    #[test]
-    fn checkpoints_include_every_256_samples_after_the_early_passes() {
-        let checkpoints: Vec<_> = (0..=MAX_SAMPLES + 256)
-            .filter(|n| should_compact(*n))
-            .collect();
+    fn check_membership(words: &[u16], ids: &[u16]) {
+        assert_eq!(GroupIds::new(words).collect::<Vec<_>>(), ids);
+        assert_eq!(group_len(words), ids.len());
+        assert_eq!(group_base(words), 4);
+        for index in 0..range_count(words) {
+            let (start, end) = range(words, index);
+            assert!(end - start + 1 >= MIN_RANGE_SAMPLES as u16);
+        }
+        if words[0] & EXTEND_MASK != 0 {
+            assert_eq!(range(words, range_count(words) - 1).1, *ids.last().unwrap());
+        }
+        let end = payload_end(words);
         assert_eq!(
-            checkpoints,
-            [32, 64, 128, 256, 512, 768, 1024, 1280, 1536, 1792, 2048]
+            end,
+            PAYLOAD_BIT + SAMPLE_ID_BITS * (2 * range_count(words) + individual_count(words))
         );
-    }
-
-    #[test]
-    fn first_compression_support_thresholds_are_inclusive() {
-        for (samples, minimum) in [
-            (32, 16),
-            (64, 32),
-            (128, 64),
-            (255, 128),
-            (256, 64),
-            (512, 128),
-        ] {
-            assert!(!eligible_for_compaction(
-                &group(&(0..minimum - 1).collect::<Vec<_>>()),
-                samples
-            ));
-            assert!(eligible_for_compaction(
-                &group(&(0..minimum).collect::<Vec<_>>()),
-                samples
-            ));
+        let padding = words.len() * 16 - end;
+        assert!(padding < 16);
+        if padding != 0 {
+            assert_eq!(words.last().unwrap() >> (16 - padding), 0);
         }
     }
 
     #[test]
-    fn recompression_accepts_small_capacity_savings_below_support_threshold() {
-        let mut words = group(&(0..16).collect::<Vec<_>>());
-        assert!(compact(&mut words));
-        for id in 20..25 {
-            append_group(&mut words, id, 128, group_words(MAX_SAMPLES)).unwrap();
-        }
-        assert!(4 * group_len(&words) < 256);
-        assert!(eligible_for_compaction(&words, 256));
-        let ids = GroupIds::new(&words).collect::<Vec<_>>();
-        let old_length = words.len();
-        let old_capacity = words.capacity();
-        assert!(compact(&mut words));
-        let saved_bytes = (old_capacity - words.capacity()) * 2;
-        assert!(saved_bytes > 0 && saved_bytes < 16);
-        assert!(words.len() * 4 <= old_length * 3);
-        assert_eq!(range(&words, 0), (0, 15));
-        assert_eq!(range(&words, 1), (20, 24));
-        assert_eq!(GroupIds::new(&words).collect::<Vec<_>>(), ids);
-        assert!(!eligible_for_compaction(&words, 256));
-        append_group(&mut words, 25, 128, group_words(MAX_SAMPLES)).unwrap();
-        assert_eq!(range(&words, 1), (20, 25));
-    }
-
-    #[test]
-    fn recompression_matches_full_encoding_without_expanding_old_ranges() {
-        for offset in 0..16 {
-            let mut ids: Vec<u16> = (offset..offset + 80)
-                .chain([offset + 85, offset + 86])
-                .chain(offset + 90..offset + 140)
-                .chain([offset + 145, offset + 147])
-                .collect();
-            let mut words = group(&ids);
-            assert!(compact(&mut words));
-            for id in offset + 150..2048 {
-                if id % 13 < 9 {
-                    append_group(&mut words, id, 128, group_words(MAX_SAMPLES)).unwrap();
-                    ids.push(id);
-                }
-                if id % 31 == 0 || id == 2047 {
-                    let mut incremental = CompactionScratch::new();
-                    let length = incremental.encode(&words);
-                    let mut full = CompactionScratch::new();
-                    let expected_length = full.encode(&group(&ids));
-                    assert_eq!(length, expected_length);
-                    assert_eq!(incremental.encoded[..length], full.encoded[..length]);
-                    compact(&mut words);
-                    assert_eq!(GroupIds::new(&words).collect::<Vec<_>>(), ids);
-                    assert_eq!(range(&words, 0), (offset, offset + 79));
-                    assert_eq!(range(&words, 1), (offset + 90, offset + 139));
+    fn packed_shift_preserves_bits_at_every_offset_and_overlap() {
+        for offset in 0..32 {
+            for bits in 0..100 {
+                for shift in [1, 6, 11, 16, 22, 31] {
+                    let mut words: Vec<u16> = (0..12)
+                        .map(|index| (index as u16).wrapping_mul(19873) ^ 0xa56c)
+                        .collect();
+                    let original = words.clone();
+                    let mut expected = original.clone();
+                    for bit in 0..bits {
+                        let source = offset + bit;
+                        let destination = source + shift;
+                        let value = (original[source / 16] >> (source % 16)) & 1;
+                        expected[destination / 16] = (expected[destination / 16]
+                            & !(1 << (destination % 16)))
+                            | (value << (destination % 16));
+                    }
+                    shift_packed_bits_right(&mut words, offset, bits, shift);
+                    assert_eq!(
+                        words, expected,
+                        "offset={offset}, bits={bits}, shift={shift}"
+                    );
                 }
             }
         }
     }
 
     #[test]
-    fn recompression_extends_only_last_range_and_preserves_short_runs() {
-        // A valid packed group with trailing singletons touching its final range.
-        let ranges = [(10, 19), (30, 39)];
-        let singles: Vec<u16> = [0, 1, 25]
-            .into_iter()
-            .chain(40..60)
-            .chain([65, 66])
-            .collect();
-        let count = 20 + singles.len();
-        let end = PAYLOAD_BIT + SAMPLE_ID_BITS * (4 + singles.len());
-        let mut words = vec![0; end.div_ceil(16)];
-        words[0] = 4 | (((count - 1) as u16) << 5);
-        words[1] = 2;
-        for (index, (start, end)) in ranges.into_iter().enumerate() {
-            let bit = PAYLOAD_BIT + 2 * SAMPLE_ID_BITS * index;
-            write_id(&mut words, bit, start);
-            write_id(&mut words, bit + SAMPLE_ID_BITS, end);
+    fn third_id_creates_range_and_extension_never_reserves() {
+        let mut words = group(&[0, 1]).into_boxed_slice().into_vec();
+        assert_eq!(range_count(&words), 0);
+        let length = words.len();
+        let capacity = words.capacity();
+        let end = payload_end(&words);
+        for id in 2..=2047 {
+            append_group_with_reserve(&mut words, id, 128, group_words(MAX_SAMPLES), |_, _| {
+                panic!("Range update must not reserve")
+            })
+            .unwrap();
+            assert_eq!(range(&words, 0), (0, id));
+            assert_eq!(group_len(&words), usize::from(id) + 1);
+            assert_eq!(words.len(), length);
+            assert_eq!(words.capacity(), capacity);
+            assert_eq!(payload_end(&words), end);
         }
-        for (index, id) in singles.iter().enumerate() {
-            write_id(&mut words, PAYLOAD_BIT + (4 + index) * SAMPLE_ID_BITS, *id);
-        }
-        set_padding(&mut words, end);
-        let ids = GroupIds::new(&words).collect::<Vec<_>>();
-        assert!(compact(&mut words));
-        assert_eq!(range_count(&words), 2);
-        assert_eq!(range(&words, 0), (10, 19));
-        assert_eq!(range(&words, 1), (30, 59));
-        assert_eq!(individual_count(&words), 5);
-        assert_eq!(words[0] & EXTEND_MASK, 0);
-        assert_eq!(GroupIds::new(&words).collect::<Vec<_>>(), ids);
+        check_membership(&words, &(0..2048).collect::<Vec<_>>());
         let snapshot = words.clone();
-        assert!(!compact(&mut words));
+        assert!(append_group(&mut words, 2047, 128, group_words(MAX_SAMPLES)).is_err());
         assert_eq!(words, snapshot);
+        assert!(new_group(0, 2048).is_err());
     }
 
     #[test]
-    fn polymorphic_compression_uses_each_groups_support_and_global_sample_count() {
-        for samples in [32, 64, 128, 256, 512, 768] {
-            let minimum = samples / if samples < 256 { 2 } else { 4 };
-            let mut matrix = AlignmentMatrix::<u64>::default();
-            matrix.sample_count = samples;
-            let mut enough = group(&(0..minimum as u16).collect::<Vec<_>>());
-            enough[0] &= !BASE_MASK;
-            let below = group(&(minimum as u16..(2 * minimum - 1) as u16).collect::<Vec<_>>());
-            let SiteStorage::Growing(sites) = &mut matrix.storage else {
-                unreachable!()
-            };
-            sites.insert(0, GrowingSite::Polymorphic(vec![enough, below]));
-            let events = RefCell::new(Vec::new());
-            matrix.compact_groups(&|p| events.borrow_mut().push(p.clone()));
-            let SiteStorage::Growing(sites) = &matrix.storage else {
-                unreachable!()
-            };
-            let GrowingSite::Polymorphic(groups) = &sites[&0] else {
-                unreachable!()
-            };
-            assert_eq!(range_count(&groups[0]), 1);
-            assert_eq!(range_count(&groups[1]), 0);
-            assert_eq!(group_base(&groups[0]), 0);
-            assert_eq!(group_base(&groups[1]), 4);
-            assert_eq!(events.borrow().last().unwrap().sites_processed, 1);
-            assert!(events.borrow().last().unwrap().complete);
+    fn sparse_individuals_cover_padding_without_creating_ranges() {
+        let mut words = new_group(4, 0).unwrap();
+        let mut paddings = [false; 16];
+        let mut ids = vec![0];
+        for id in (2..2048).step_by(2) {
+            append_group(&mut words, id, 128, group_words(MAX_SAMPLES)).unwrap();
+            ids.push(id);
+            assert_eq!(range_count(&words), 0);
+            paddings[usize::from((words[1] & PADDING_MASK) >> 10)] = true;
+            check_membership(&words, &ids);
         }
+        assert!(paddings.iter().all(|seen| *seen));
     }
 
     #[test]
-    fn polymorphic_recompression_keeps_scheduled_support_exemption() {
-        let mut ranged = group(&(0..16).collect::<Vec<_>>());
-        assert!(compact(&mut ranged));
-        for id in 20..25 {
-            append_group(&mut ranged, id, 128, group_words(MAX_SAMPLES)).unwrap();
+    fn promotion_shifts_earlier_individuals_and_preserves_ranges() {
+        let mut words = group(&[0, 1, 3, 4, 6, 7, 9, 10]);
+        let length = words.len();
+        let capacity = words.capacity();
+        append_group(&mut words, 11, 128, group_words(MAX_SAMPLES)).unwrap();
+        assert_eq!(range(&words, 0), (9, 11));
+        assert_eq!(individual_count(&words), 6);
+        assert_eq!(words.len(), length);
+        assert_eq!(words.capacity(), capacity);
+        for id in [15, 16, 17, 18, 20, 21, 25, 26, 27] {
+            append_group(&mut words, id, 128, group_words(MAX_SAMPLES)).unwrap();
         }
-        let mut matrix = AlignmentMatrix::<u64>::default();
-        matrix.sample_count = 256;
-        let SiteStorage::Growing(sites) = &mut matrix.storage else {
-            unreachable!()
-        };
-        sites.insert(
-            0,
-            GrowingSite::Polymorphic(vec![ranged, new_group(0, 30).unwrap()]),
+        assert_eq!(range(&words, 0), (9, 11));
+        assert_eq!(range(&words, 1), (15, 18));
+        assert_eq!(range(&words, 2), (25, 27));
+        check_membership(
+            &words,
+            &[
+                0, 1, 3, 4, 6, 7, 9, 10, 11, 15, 16, 17, 18, 20, 21, 25, 26, 27,
+            ],
         );
-        matrix.compact_groups(&|_| {});
+    }
+
+    #[test]
+    fn dynamic_groups_match_plain_membership_after_every_append() {
+        for seed in 0..16 {
+            let mut ids = Vec::new();
+            let mut words = None;
+            for id in 0..2048u16 {
+                let position = (usize::from(id) + seed) % 17;
+                if position < 2
+                    || (4..8).contains(&position)
+                    || (9..12).contains(&position)
+                    || position >= 13
+                {
+                    if let Some(words) = words.as_mut() {
+                        append_group(words, id, 128, group_words(MAX_SAMPLES)).unwrap();
+                    } else {
+                        words = Some(new_group(4, id).unwrap());
+                    }
+                    ids.push(id);
+                    check_membership(words.as_ref().unwrap(), &ids);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn failed_individual_reservation_preserves_group_and_capacity() {
+        let mut words = group(&[0, 2, 4]).into_boxed_slice().into_vec();
+        let snapshot = words.clone();
+        let capacity = words.capacity();
+        let failure =
+            append_group_with_reserve(&mut words, 6, 128, group_words(MAX_SAMPLES), |_, _| {
+                Err("Injected reservation failure".into())
+            });
+        assert!(failure.is_err());
+        assert_eq!(words, snapshot);
+        assert_eq!(words.capacity(), capacity);
+        assert!(append_group(&mut words, 2048, 128, group_words(MAX_SAMPLES)).is_err());
+        assert_eq!(words, snapshot);
+        append_group(&mut words, 6, 128, group_words(MAX_SAMPLES)).unwrap();
+        check_membership(&words, &[0, 2, 4, 6]);
+    }
+
+    #[test]
+    fn polymorphic_groups_form_ranges_without_support_thresholds() {
+        let mut matrix = AlignmentMatrix::<u64>::default();
+        matrix.set_expected_samples(20).unwrap();
+        for sample in 0..20 {
+            let base = if sample < 3 {
+                b'A'
+            } else if sample < 6 {
+                b'G'
+            } else if sample < 9 {
+                b'R'
+            } else {
+                b'T'
+            };
+            let mut row = vec![0; sample];
+            matrix
+                .add_sample_words(pack_entry_u64(0, base).to_vec(), &mut row)
+                .unwrap();
+            for (earlier, distance) in row.into_iter().enumerate() {
+                let old = if earlier < 3 {
+                    b'A'
+                } else if earlier < 6 {
+                    b'G'
+                } else if earlier < 9 {
+                    b'R'
+                } else {
+                    b'T'
+                };
+                assert_eq!(
+                    distance,
+                    u32::from(base != old && base != b'R' && old != b'R')
+                );
+            }
+        }
         let SiteStorage::Growing(sites) = &matrix.storage else {
             unreachable!()
         };
         let GrowingSite::Polymorphic(groups) = &sites[&0] else {
             unreachable!()
         };
-        assert_eq!(range_count(&groups[0]), 2);
-        assert_eq!(range(&groups[0], 1), (20, 24));
+        assert_eq!(groups.len(), 4);
+        for (index, words) in groups.iter().enumerate() {
+            assert_eq!(range_count(words), 1);
+            assert_eq!(
+                range(words, 0),
+                if index < 3 {
+                    (index as u16 * 3, index as u16 * 3 + 2)
+                } else {
+                    (9, 19)
+                }
+            );
+        }
     }
 
     #[test]
-    fn final_compression_is_strictly_above_quarter_support_for_all_group_kinds() {
-        for samples in [20, 32, 128, 256, 768] {
-            let quarter = samples / 4;
-            let below = group(&(0..quarter as u16).collect::<Vec<_>>());
-            let above = group(&(quarter as u16..(2 * quarter + 1) as u16).collect::<Vec<_>>());
-            let mut low_ranged = group(&(0..16).collect::<Vec<_>>());
-            assert!(compact(&mut low_ranged));
-            for id in 20..25 {
-                append_group(&mut low_ranged, id, 128, group_words(MAX_SAMPLES)).unwrap();
-            }
-            let mut matrix = AlignmentMatrix::<u64>::default();
-            matrix.sample_count = samples;
-            let SiteStorage::Growing(sites) = &mut matrix.storage else {
-                unreachable!()
-            };
-            sites.insert(0, GrowingSite::Monomorphic(below.clone()));
-            sites.insert(1, GrowingSite::Monomorphic(above.clone()));
-            sites.insert(2, GrowingSite::Polymorphic(vec![below, above]));
-            if samples >= 128 {
-                sites.insert(3, GrowingSite::Monomorphic(low_ranged.clone()));
-            }
-            matrix.compact_final(&|_| {});
-            let SiteStorage::Growing(sites) = &matrix.storage else {
-                unreachable!()
-            };
-            let GrowingSite::Monomorphic(below) = &sites[&0] else {
-                unreachable!()
-            };
-            let GrowingSite::Monomorphic(above) = &sites[&1] else {
-                unreachable!()
-            };
-            assert_eq!(range_count(below), 0);
-            assert_eq!(range_count(above), 1);
-            let GrowingSite::Polymorphic(groups) = &sites[&2] else {
-                unreachable!()
-            };
-            assert_eq!(range_count(&groups[0]), 0);
-            assert_eq!(range_count(&groups[1]), 1);
-            if samples >= 128 {
-                let GrowingSite::Monomorphic(words) = &sites[&3] else {
-                    unreachable!()
-                };
-                assert_eq!(*words, low_ranged);
-            }
+    fn batch_preparation_preserves_dynamic_ranges_and_payloads() {
+        let mut matrix = AlignmentMatrix::<u64>::default();
+        matrix.set_expected_samples(3).unwrap();
+        for sample in 0..3 {
+            matrix
+                .add_sample_words(pack_entry_u64(0, b'A').to_vec(), &mut vec![0; sample])
+                .unwrap();
         }
+        let before = packed_capacity(&matrix);
+        matrix.set_expected_samples(1000).unwrap();
+        assert_eq!(packed_capacity(&matrix), before);
+        for sample in 3..1000 {
+            matrix
+                .add_sample_words(pack_entry_u64(0, b'A').to_vec(), &mut vec![0; sample])
+                .unwrap();
+        }
+        let SiteStorage::Growing(sites) = &matrix.storage else {
+            unreachable!()
+        };
+        let GrowingSite::Monomorphic(words) = &sites[&0] else {
+            unreachable!()
+        };
+        assert_eq!(range(&words, 0), (0, 999));
+        assert_eq!(packed_capacity(&matrix), before);
     }
 
     #[test]
@@ -1684,7 +1343,7 @@ mod tests {
                 }
             }
             let mut row = vec![0; sample];
-            matrix.add_sample_words(packet, &mut row, &|_| {}).unwrap();
+            matrix.add_sample_words(packet, &mut row).unwrap();
             rows.push(row);
         }
         assert!(contains_ranges(&matrix));
@@ -1721,7 +1380,6 @@ mod tests {
         matrix.set_expected_samples(255).unwrap();
         let mut plain = AlignmentMatrix::<IntT>::default();
         plain.set_expected_samples(samples).unwrap();
-        let events = RefCell::new(Vec::new());
         let mut history: Vec<[Option<u8>; 8]> = Vec::new();
         for sample in 0..samples {
             if sample == 255 || sample == 511 || sample == 767 || sample == 1023 {
@@ -1753,13 +1411,7 @@ mod tests {
             let mut row = vec![7; sample];
             let mut plain_row = row.clone();
             plain.store_and_compare(&packet, &mut plain_row).unwrap();
-            matrix
-                .add_sample_words(packet, &mut row, &|p| {
-                    if p.complete {
-                        events.borrow_mut().push(p.clone());
-                    }
-                })
-                .unwrap();
+            matrix.add_sample_words(packet, &mut row).unwrap();
             let expected: Vec<u32> = history
                 .iter()
                 .map(|earlier| {
@@ -1774,24 +1426,12 @@ mod tests {
             assert_eq!(plain_row, expected);
             history.push(calls);
         }
-        let expected_checkpoints: Vec<usize> =
-            (1..=samples).filter(|n| should_compact(*n)).collect();
-        assert_eq!(
-            events
-                .borrow()
-                .iter()
-                .map(|p| p.processed_samples)
-                .collect::<Vec<_>>(),
-            expected_checkpoints
-        );
         assert!(contains_ranges(&matrix));
         assert!(!matrix.is_sealed());
         let capacity = packed_capacity(&matrix);
         let mut row = vec![0; samples];
         if samples == MAX_SAMPLES {
-            assert!(matrix
-                .add_sample_words(Vec::new(), &mut row, &|_| {})
-                .is_err());
+            assert!(matrix.add_sample_words(Vec::new(), &mut row).is_err());
             assert_eq!(matrix.sample_count, samples);
             assert!(!matrix.is_sealed());
         }
