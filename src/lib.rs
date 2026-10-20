@@ -1817,6 +1817,63 @@ fn prepare_alignment_samples(names: &[String]) -> Vec<AlignmentSample> {
     samples
 }
 
+/// A sample name without its FASTA/FASTQ extension and `.gz`, as the mapping
+/// results show it.
+#[cfg(any(target_family = "wasm", test))]
+fn sample_label(name: &str) -> &str {
+    let base = name.strip_suffix(".gz").unwrap_or(name);
+    match base.rsplit_once('.') {
+        Some((stem, ext))
+            if ["fa", "fna", "fasta", "fas", "fq", "fnq", "fastq"].contains(&ext) =>
+        {
+            stem
+        }
+        _ => name,
+    }
+}
+
+/// Group mapping inputs with the alignment pairing, labelled and with mate 1
+/// first whatever order the browser listed the files in.
+#[cfg(any(target_family = "wasm", test))]
+fn mapping_samples(names: &[String]) -> Vec<AlignmentSample> {
+    prepare_alignment_samples(names)
+        .into_iter()
+        .map(|sample| {
+            let (first_index, second_index) = match sample.second_index {
+                Some(second)
+                    if fastq_pair_info(&names[sample.first_index])
+                        .is_some_and(|(_, mate, _)| mate == 2) =>
+                {
+                    (second, Some(sample.first_index))
+                }
+                other => (sample.first_index, other),
+            };
+            AlignmentSample {
+                name: sample_label(&sample.name).to_owned(),
+                first_index,
+                second_index,
+            }
+        })
+        .collect()
+}
+
+/// Mapping's sample plan as JSON: `[{label, firstFileIndex, secondFileIndex}]`.
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen]
+pub fn pair_input_files(input_names: Vec<String>) -> String {
+    let mut plan = json::JsonValue::new_array();
+    for sample in mapping_samples(&input_names) {
+        let mut item = json::JsonValue::new_object();
+        item["label"] = sample.name.into();
+        item["firstFileIndex"] = sample.first_index.into();
+        item["secondFileIndex"] = sample
+            .second_index
+            .map_or(json::JsonValue::Null, |index| index.into());
+        let _ = plan.push(item);
+    }
+    plan.dump()
+}
+
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen]
 impl AlignData {
@@ -2355,7 +2412,8 @@ sample-d,4,5,6,0\n"
 #[cfg(test)]
 mod fastq_pair_info_tests {
     use super::{
-        fastq_files_are_mates, fastq_pair_info, prepare_alignment_samples, AlignmentSample,
+        fastq_files_are_mates, fastq_pair_info, mapping_samples, prepare_alignment_samples,
+        sample_label, AlignmentSample,
     };
 
     #[test]
@@ -2443,5 +2501,37 @@ mod fastq_pair_info_tests {
                 second_index: Some(1),
             }]
         );
+    }
+
+    fn mapping_plan(names: &[&str]) -> Vec<(String, usize, Option<usize>)> {
+        let names: Vec<String> = names.iter().map(|&name| name.to_owned()).collect();
+        mapping_samples(&names)
+            .into_iter()
+            .map(|sample| (sample.name, sample.first_index, sample.second_index))
+            .collect()
+    }
+
+    #[test]
+    fn mapping_puts_mate_1_first_in_either_listing_order() {
+        let want = vec![("x".to_owned(), 0, Some(1))];
+        assert_eq!(mapping_plan(&["x_1.fastq.gz", "x_2.fastq.gz"]), want);
+        assert_eq!(
+            mapping_plan(&["x_2.fastq.gz", "x_1.fastq.gz"]),
+            vec![("x".to_owned(), 1, Some(0))]
+        );
+    }
+
+    #[test]
+    fn mapping_labels_drop_the_extension_and_keep_unpaired_names() {
+        assert_eq!(
+            mapping_plan(&["a_1.fq", "b_2.fq"]),
+            vec![("a_1".to_owned(), 0, None), ("b_2".to_owned(), 1, None)]
+        );
+        assert_eq!(mapping_plan(&["ref.fa"]), vec![("ref".to_owned(), 0, None)]);
+        assert_eq!(
+            mapping_plan(&["s_R1_001.fastq.gz", "s_R2_001.fastq.gz"]),
+            vec![("s_001".to_owned(), 0, Some(1))]
+        );
+        assert_eq!(sample_label("notes.txt"), "notes.txt");
     }
 }
